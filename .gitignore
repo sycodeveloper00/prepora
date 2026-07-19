@@ -51,3 +51,7 @@ functions/node_modules/
 # Build artifacts
 build_apk.bat
 build_log.txt
+
+# Large files
+firebase.exe
+*.exe
