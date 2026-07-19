@@ -39,9 +39,24 @@ jobs:
         run: flutter pub get
       
       - name: Build APK
-        run: flutter build apk --target-platform android-arm64 --no-tree-shake-icons --verbose
-        timeout-minutes: 30
+        id: build
+        run: flutter build apk --target-platform android-arm64 --no-tree-shake-icons --verbose 2>&1 | tee build_log.txt || true
       
+      - name: Capture build error
+        if: failure() || steps.build.outcome == 'failure'
+        run: |
+          echo "=== BUILD FAILED - Last 200 lines of log ==="
+          tail -200 build_log.txt
+          echo "=== GRADLE ERRORS ==="
+          grep -i "error\|FAILURE\|FAILED\|exception" build_log.txt | tail -50
+      
+      - name: Upload build log
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: build-log
+          path: build_log.txt
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         if: success()
