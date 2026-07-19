@@ -9,7 +9,6 @@ import '../../../core/widgets/animated_pressable.dart';
 import '../../../core/services/firebase_service.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/theme/theme_provider.dart';
-import '../../../core/widgets/notification_popup_box.dart';
 import '../../folders/presentation/folder_details_screen.dart' show GroupLinkDialog;
 import '../../../core/utils.dart';
 
@@ -1093,10 +1092,53 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   void _showAdminNotifications(BuildContext ctx, List<QueryDocumentSnapshot> docs) {
-    NotificationPopupBox.show(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final baseColor = isDark ? Colors.white : Colors.black87;
+    final mutedColor = isDark ? Colors.white70 : Colors.black54;
+    showModalBottomSheet(
       context: ctx,
-      docs: docs,
-      panelType: NotificationPanelType.admin,
+      backgroundColor: isDark ? const Color(0xFF1A0533) : Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Row(children: [
+            Icon(Icons.notifications_none_rounded, color: mutedColor, size: 20),
+            const SizedBox(width: 8),
+            Text('Notifications', style: TextStyle(color: baseColor, fontSize: 16, fontWeight: FontWeight.bold)),
+          ]),
+          const SizedBox(height: 16),
+          ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.5),
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: docs.length,
+              itemBuilder: (context, index) {
+                final data = docs[index].data() as Map<String, dynamic>;
+                final message = data['message'] as String? ?? '';
+                final time = data['createdAt'] as Timestamp?;
+                final timeStr = time != null
+                    ? '${DateTime.now().difference(time.toDate()).inMinutes}m ago'
+                    : '';
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: (isDark ? Colors.white : Colors.black87).withValues(alpha: isDark ? 0.05 : 0.03),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(children: [
+                    Icon(Icons.circle, size: 8, color: (isDark ? Colors.white : Colors.black87).withValues(alpha: 0.2)),
+                    const SizedBox(width: 12),
+                    Expanded(child: Text(message, style: TextStyle(color: baseColor, fontSize: 13))),
+                    Text(timeStr, style: TextStyle(color: mutedColor, fontSize: 11)),
+                  ]),
+                );
+              },
+            ),
+          ),
+        ]),
+      ),
     );
   }
 
