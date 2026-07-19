@@ -241,8 +241,6 @@ class FirebaseService {
     return firestore.collection('users').where('role', isEqualTo: 'Assistant').snapshots();
   }
 
-  static Stream<QuerySnapshot> getAllAssistants() => getAllAssistant();
-
   static Future<void> deleteAssistantAccount(String uid) async {
     await firestore.collection('users').doc(uid).delete();
   }
@@ -591,18 +589,6 @@ class FirebaseService {
         .snapshots();
   }
 
-  static Stream<QuerySnapshot> getUnreadNotificationsForUser(String uid, DateTime since) {
-    return firestore
-        .collection('notifications')
-        .where('uid', isEqualTo: uid)
-        .where('createdAt', isGreaterThanOrEqualTo: since)
-        .where('read', isEqualTo: false)
-        .orderBy('createdAt', descending: true)
-        .snapshots();
-  }
-
-  static Future<void> markNotificationsRead(String uid) => markStudentNotificationsRead(uid);
-
   static Future<void> markStudentNotificationsRead(String uid) async {
     final snap = await firestore
         .collection('notifications')
@@ -804,30 +790,38 @@ class FirebaseService {
 
   // ─── Feedback ──────────────────────────────────────────────────────────────────
 
+  static bool _submittingFeedback = false;
+
   static Future<String?> submitFeedback(dynamic feedback) async {
-    Map<String, dynamic> data;
-    if (feedback is String) {
-      data = {
-        'message': feedback,
-        'uid': currentUser?.uid ?? '',
-        'student_name': currentUser?.displayName ?? '',
-        'createdAt': FieldValue.serverTimestamp(),
-        'status': 'pending',
-        'viewed': false,
-      };
-    } else if (feedback is Map<String, dynamic>) {
-      data = Map.from(feedback);
-      data['createdAt'] ??= FieldValue.serverTimestamp();
-      data['viewed'] ??= false;
-    } else {
-      return null;
+    if (_submittingFeedback) return null;
+    _submittingFeedback = true;
+    try {
+      Map<String, dynamic> data;
+      if (feedback is String) {
+        data = {
+          'message': feedback,
+          'uid': currentUser?.uid ?? '',
+          'student_name': currentUser?.displayName ?? '',
+          'createdAt': FieldValue.serverTimestamp(),
+          'status': 'pending',
+          'viewed': false,
+        };
+      } else if (feedback is Map<String, dynamic>) {
+        data = Map.from(feedback);
+        data['createdAt'] ??= FieldValue.serverTimestamp();
+        data['viewed'] ??= false;
+      } else {
+        return null;
+      }
+      final doc = await firestore.collection('feedbacks').add(data);
+      final ticketNo = doc.id.substring(0, 6).toUpperCase();
+      await doc.update({'ticketNo': ticketNo});
+      final name = currentUser?.displayName ?? 'Unknown';
+      await addAdminNotification('feedback', 'New Contact Support message from $name', relatedUid: currentUser?.uid);
+      return doc.id;
+    } finally {
+      _submittingFeedback = false;
     }
-    final doc = await firestore.collection('feedbacks').add(data);
-    final ticketNo = doc.id.substring(0, 6).toUpperCase();
-    await doc.update({'ticketNo': ticketNo});
-    final name = currentUser?.displayName ?? 'Unknown';
-    await addAdminNotification('feedback', 'New Contact Support message from $name', relatedUid: currentUser?.uid);
-    return doc.id;
   }
 
   static Future<List<Map<String, dynamic>>> getStudentFeedbacksOnce(String uid) async {
@@ -955,6 +949,23 @@ class FirebaseService {
         .where('uid', isEqualTo: uid)
         .get();
     return snap.docs.map((e) => {'id': e.id, 'folderId': e.data()['folderId']}).toList();
+  }
+
+  static Future<Set<String>> getUidsWithFolderAccess(String folderId) async {
+    final snap = await firestore
+        .collection('Assistant_access')
+        .where('folderId', isEqualTo: folderId)
+        .get();
+    return snap.docs.map((d) => d.data()['uid'] as String).toSet();
+  }
+
+  static Future<Set<String>> getUidsWithContentAccess(String folderId, String contentId) async {
+    final snap = await firestore
+        .collection('content_Assistant_access')
+        .where('folder_id', isEqualTo: folderId)
+        .where('content_id', isEqualTo: contentId)
+        .get();
+    return snap.docs.map((d) => d.data()['user_id'] as String).toSet();
   }
 
   // ─── Settings ──────────────────────────────────────────────────────────────────

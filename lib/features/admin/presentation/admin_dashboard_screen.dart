@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -10,6 +9,7 @@ import '../../../core/widgets/animated_pressable.dart';
 import '../../../core/services/firebase_service.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/theme/theme_provider.dart';
+import '../../../core/widgets/notification_popup_box.dart';
 import '../../folders/presentation/folder_details_screen.dart' show GroupLinkDialog;
 import '../../../core/utils.dart';
 
@@ -38,7 +38,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     _folderStream = FirebaseService.getAllFolders();
     _loadPendingCount();
     _listenNewFeedbacks();
-    NotificationService.startAdminNotificationListener();
   }
 
   void _markAllFeedbacksViewed() async {
@@ -133,7 +132,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   // ─── Assistant Management ───────────────────────────────────────────────────────
 
-  void _showAllAssistants() {
+  void _showAllAssistant() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final baseColor = isDark ? Colors.white : Colors.black87;
     final dimColor = isDark ? Colors.white38 : Colors.black54;
@@ -151,7 +150,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             child: Row(children: [
               const Icon(Icons.people_alt_rounded, color: Colors.orange, size: 20),
               const SizedBox(width: 8),
-              Expanded(child: Text('All Assistants', style: TextStyle(color: baseColor, fontWeight: FontWeight.bold, fontSize: 16))),
+              Expanded(child: Text('All Assistant', style: TextStyle(color: baseColor, fontWeight: FontWeight.bold, fontSize: 16))),
               IconButton(
                 icon: const Icon(Icons.person_add_rounded, color: Colors.orange, size: 28),
                 onPressed: () { Navigator.pop(ctx); _showCreateAssistantDialog(); },
@@ -161,16 +160,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           Divider(color: isDark ? Colors.white12 : Colors.black12, height: 1),
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseService.getAllAssistants(),
+              stream: FirebaseService.getAllAssistant(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                   return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                     Icon(Icons.person_off_rounded, size: 50, color: isDark ? Colors.white12 : Colors.black12),
                     const SizedBox(height: 12),
-                    Text('No assistants yet', style: TextStyle(color: dimColor, fontSize: 14)),
+                    Text('No Assistant yet', style: TextStyle(color: dimColor, fontSize: 14)),
                     const SizedBox(height: 4),
-                    Text('Tap + to create an assistant account', style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 12)),
+                    Text('Tap + to create an Assistant account', style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 12)),
                   ]));
                 }
                 final docs = snapshot.data!.docs;
@@ -405,7 +404,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   const SizedBox(height: 8),
                   _ctrlSection('Restrictions', [
                     _ctrlTile(Icons.block_rounded, Colors.redAccent, 'Block Students', 'Manage blocked student accounts', onTap: () { Navigator.pop(ctx); Future.delayed(const Duration(milliseconds: 300), () => _showBlockStudents(context)); }),
-                    _ctrlTile(Icons.people_alt_rounded, Colors.teal, 'Assistants', 'Create & manage assistant accounts', onTap: () { Navigator.pop(ctx); Future.delayed(const Duration(milliseconds: 300), () => _showAllAssistants()); }),
+                    _ctrlTile(Icons.people_alt_rounded, Colors.teal, 'Assistant', 'Create & manage Assistant accounts', onTap: () { Navigator.pop(ctx); Future.delayed(const Duration(milliseconds: 300), () => _showAllAssistant()); }),
                   ]),
                   const SizedBox(height: 8),
                   _ctrlSection('App', [
@@ -804,7 +803,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   const SizedBox(height: 4),
                   Text('Password: ${creds!['password']}', style: const TextStyle(color: Colors.green, fontSize: 13, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 4),
-                  Text('Share these credentials with the assistant', style: TextStyle(color: isDark ? Colors.white54 : Colors.black45, fontSize: 11)),
+                  Text('Share these credentials with the Assistant', style: TextStyle(color: isDark ? Colors.white54 : Colors.black45, fontSize: 11)),
                 ]),
               ),
             if (error != null) ...[const SizedBox(height: 12), Text(error!, style: const TextStyle(color: Colors.redAccent, fontSize: 13))],
@@ -861,9 +860,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   return const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                     Icon(Icons.vpn_key_off_rounded, size: 50, color: Colors.white12),
                     SizedBox(height: 12),
-                    Text('No assistants have access to this folder', style: TextStyle(color: Colors.white38, fontSize: 14)),
+                    Text('No Assistant have access to this folder', style: TextStyle(color: Colors.white38, fontSize: 14)),
                     SizedBox(height: 4),
-                    Text('Use "Assistants" button to grant access', style: TextStyle(color: Colors.white24, fontSize: 12)),
+                    Text('Use "Assistant" button to grant access', style: TextStyle(color: Colors.white24, fontSize: 12)),
                   ]));
                 }
                 final docs = snapshot.data!.docs;
@@ -938,7 +937,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           const Divider(color: Colors.white12, height: 1),
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseService.getAllAssistants(),
+              stream: FirebaseService.getAllAssistant(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
@@ -948,61 +947,73 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       children: [
                         const Icon(Icons.person_off_rounded, size: 48, color: Colors.white12),
                         const SizedBox(height: 12),
-                        const Text('No assistants yet', style: TextStyle(color: Colors.white38, fontSize: 14)),
+                        const Text('No Assistant yet', style: TextStyle(color: Colors.white38, fontSize: 14)),
                         const SizedBox(height: 12),
                         ElevatedButton.icon(
                           icon: const Icon(Icons.person_add_rounded, size: 18),
                           label: const Text('Create Assistant'),
                           style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-                onPressed: () { Navigator.pop(ctx); _showCreateAssistantDialog(); },
+                          onPressed: () { Navigator.pop(ctx); _showCreateAssistantDialog(); },
                         ),
                       ],
                     ),
                   );
                 }
                 final docs = snapshot.data!.docs;
-                return ListView.builder(
-                  controller: scrollCtrl,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  itemCount: docs.length,
-                  itemBuilder: (context, index) {
-                    final data = docs[index].data() as Map<String, dynamic>;
-                    final uid = docs[index].id;
-                    final name = data['name'] as String? ?? 'Unknown';
-                    final email = data['email'] as String? ?? '';
-                    final folderIds = (data['folderIds'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [];
-                    final hasAccess = folderIds.contains(folderId);
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: hasAccess ? Colors.green.withValues(alpha: 0.08) : Colors.white.withValues(alpha: 0.05),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: hasAccess ? Colors.green.withValues(alpha: 0.3) : Colors.white.withValues(alpha: 0.1)),
-                      ),
-                      child: Row(children: [
-                        CircleAvatar(
-                          backgroundColor: hasAccess ? Colors.green.withValues(alpha: 0.2) : Colors.white10,
-                          child: Icon(hasAccess ? Icons.check : Icons.person, color: hasAccess ? Colors.green : Colors.white54, size: 18),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
-                          Text(email, style: const TextStyle(color: Colors.white38, fontSize: 11)),
-                        ])),
-                        if (hasAccess)
-                          ElevatedButton(
-                            onPressed: () async => await FirebaseService.revokeAssistantAccess(uid, folderId),
-                            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6)),
-                            child: const Text('Revoke', style: TextStyle(color: Colors.white, fontSize: 12)),
-                          )
-                        else
-                          ElevatedButton(
-                            onPressed: () async => await FirebaseService.grantAssistantAccess(uid, folderId, name),
-                            style: ElevatedButton.styleFrom(backgroundColor: Colors.green, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6)),
-                            child: const Text('Grant', style: TextStyle(color: Colors.white, fontSize: 12)),
+                return FutureBuilder<Set<String>>(
+                  future: FirebaseService.getUidsWithFolderAccess(folderId),
+                  builder: (context, accessSnap) {
+                    if (accessSnap.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+                    final grantedUids = accessSnap.data ?? {};
+                    return ListView.builder(
+                      controller: scrollCtrl,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      itemCount: docs.length,
+                      itemBuilder: (context, index) {
+                        final data = docs[index].data() as Map<String, dynamic>;
+                        final uid = docs[index].id;
+                        final name = data['name'] as String? ?? 'Unknown';
+                        final email = data['email'] as String? ?? '';
+                        final hasAccess = grantedUids.contains(uid);
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: hasAccess ? Colors.green.withValues(alpha: 0.08) : Colors.white.withValues(alpha: 0.05),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: hasAccess ? Colors.green.withValues(alpha: 0.3) : Colors.white.withValues(alpha: 0.1)),
                           ),
-                      ]),
+                          child: Row(children: [
+                            CircleAvatar(
+                              backgroundColor: hasAccess ? Colors.green.withValues(alpha: 0.2) : Colors.white10,
+                              child: Icon(hasAccess ? Icons.check : Icons.person, color: hasAccess ? Colors.green : Colors.white54, size: 18),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Text(name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                              Text(email, style: const TextStyle(color: Colors.white38, fontSize: 11)),
+                            ])),
+                            if (hasAccess)
+                              ElevatedButton(
+                                onPressed: () async {
+                                  await FirebaseService.revokeAssistantAccess(uid, folderId);
+                                  if (ctx.mounted) setState(() {});
+                                },
+                                style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6)),
+                                child: const Text('Denied', style: TextStyle(color: Colors.white, fontSize: 12)),
+                              )
+                            else
+                              ElevatedButton(
+                                onPressed: () async {
+                                  await FirebaseService.grantAssistantAccess(uid, folderId, name);
+                                  if (ctx.mounted) setState(() {});
+                                },
+                                style: ElevatedButton.styleFrom(backgroundColor: Colors.green, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6)),
+                                child: const Text('Grant', style: TextStyle(color: Colors.white, fontSize: 12)),
+                              ),
+                          ]),
+                        );
+                      },
                     );
                   },
                 );
@@ -1050,7 +1061,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               }
             }),
             const SizedBox(height: 12),
-            _buildToggleRow('Invisible', 'Hide from students & assistants', Icons.visibility_off_rounded, Colors.purple, invisible, (val) async {
+            _buildToggleRow('Invisible', 'Hide from students & Assistant', Icons.visibility_off_rounded, Colors.purple, invisible, (val) async {
               await FirebaseService.toggleFolderLock(folderId, 'invisible', val);
               if (val) {
                 await FirebaseService.toggleFolderLock(folderId, 'locked', false);
@@ -1081,87 +1092,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     return '';
   }
 
-  void _showAdminNotifications(BuildContext ctx, List<QueryDocumentSnapshot> docs) async {
-    await FirebaseService.markAdminNotificationsRead();
-    await NotificationService.clearBadge();
-    final isDark = Theme.of(ctx).brightness == Brightness.dark;
-    final RenderBox? bellRenderBox = ctx.findRenderObject() as RenderBox?;
-    showModalBottomSheet(
+  void _showAdminNotifications(BuildContext ctx, List<QueryDocumentSnapshot> docs) {
+    NotificationPopupBox.show(
       context: ctx,
-      isScrollControlled: true,
-      backgroundColor: isDark ? const Color(0xFF1A0533) : Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) => DraggableScrollableSheet(
-        initialChildSize: 0.6,
-        minChildSize: 0.3,
-        maxChildSize: 0.9,
-        expand: false,
-        builder: (__, scrollCtrl) => Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(children: [
-            Row(children: [
-              Icon(Icons.notifications_none_rounded, color: isDark ? Colors.white70 : Colors.black54),
-              const SizedBox(width: 8),
-              Text('Notifications', style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 18, fontWeight: FontWeight.bold)),
-              const Spacer(),
-              if (docs.isNotEmpty)
-                IconButton(
-                  icon: Icon(Icons.clear_all_rounded, color: isDark ? Colors.white54 : Colors.black45, size: 20),
-                  tooltip: 'Clear all',
-                  onPressed: () async {
-                    Navigator.pop(ctx);
-                    await FirebaseService.clearAdminNotifications();
-                    if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('All notifications cleared')));
-                  },
-                ),
-              IconButton(icon: Icon(Icons.close, color: isDark ? Colors.white54 : Colors.black45), onPressed: () => Navigator.pop(ctx)),
-            ]),
-            const Divider(),
-            Expanded(
-              child: docs.isEmpty
-                  ? Center(child: Text('No notifications', style: TextStyle(color: isDark ? Colors.white38 : Colors.black45)))
-                  : ListView.separated(
-                      controller: scrollCtrl,
-                      itemCount: docs.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
-                      itemBuilder: (_, i) {
-                        final d = docs[i].data() as Map<String, dynamic>;
-                        final type = d['type'] as String? ?? '';
-                        final msg = d['message'] as String? ?? '';
-                        IconData icon;
-                        Color color;
-                        switch (type) {
-                          case 'registration': icon = Icons.person_add_rounded; color = Colors.green; break;
-                          case 'feedback': icon = Icons.support_agent_rounded; color = Colors.orange; break;
-                          case 'login': icon = Icons.login_rounded; color = Colors.blue; break;
-                          case 'logout': icon = Icons.logout_rounded; color = Colors.blueGrey; break;
-                          case 'auto_block': icon = Icons.block_rounded; color = Colors.red; break;
-                          case 'blocked': icon = Icons.block_rounded; color = Colors.red; break;
-                          default: icon = Icons.circle_rounded; color = Colors.grey;
-                        }
-                        return ListTile(
-                          leading: Icon(icon, color: color, size: 28),
-                          title: Text(msg, style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 14)),
-                          subtitle: d['createdAt'] != null
-                              ? Text(_formatTimestamp(d['createdAt']), style: TextStyle(color: isDark ? Colors.white38 : Colors.black45, fontSize: 11))
-                              : null,
-                          dense: true,
-                          onTap: () {
-                            Navigator.pop(ctx);
-                            switch (type) {
-                              case 'feedback': context.push('/admin/feedbacks'); break;
-                              case 'blocked': case 'auto_block': context.push('/admin', extra: {'studentUid': d['relatedUid']}); break;
-                              case 'registration': context.push('/admin/control-panel'); break;
-                              default: break;
-                            }
-                          },
-                        );
-                      },
-                    ),
-            ),
-          ]),
-        ),
-      ),
+      docs: docs,
+      panelType: NotificationPanelType.admin,
     );
   }
 
@@ -1458,26 +1393,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       final result = await FilePicker.platform.pickFiles(type: FileType.any, allowMultiple: false);
       if (result != null && result.files.isNotEmpty) {
         final file = result.files.first;
-        final path = file.path;
-        if (path == null) return;
-        final bytes = await File(path).readAsBytes();
-        if (bytes.length > 50 * 1024 * 1024) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: Text('${file.name} too large (${(bytes.length / 1024 / 1024).toStringAsFixed(1)}MB). Max: 50MB'),
-              backgroundColor: Colors.redAccent,
-            ));
-          }
-          return;
-        }
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Uploading ${file.name}...'), backgroundColor: Colors.orange, duration: const Duration(seconds: 1)));
-        }
-        final fileName = '${DateTime.now().millisecondsSinceEpoch}_${file.name}';
-        final ref = FirebaseService.storage.ref('folder_files/$fileName');
-        await ref.putData(bytes);
-        final downloadUrl = await ref.getDownloadURL();
-        await FirebaseService.addFolderContent(folderId, {'type': 'file', 'name': file.name, 'url': downloadUrl, 'source': 'supabase_storage'});
+        await FirebaseService.addFolderContent(folderId, {'type': 'file', 'name': file.name, 'url': file.path ?? '', 'source': 'internal_storage'});
         await FirebaseService.addNotification('Uploaded file: ${file.name}', folderId: folderId);
       }
     } catch (e) {
@@ -1841,7 +1757,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                             child: Row(children: [
                               _actionBtn(Icons.add_circle_outline, color, 'Add', () => _showAddContentSheet(folderId, folderName)),
-                              _actionBtn(Icons.people_alt_rounded, Colors.orange, 'Assistants', () => _showGrantAccessDialog(folderId, folderName)),
+                              _actionBtn(Icons.people_alt_rounded, Colors.orange, 'Assistant', () => _showGrantAccessDialog(folderId, folderName)),
                               _actionBtn(Icons.lock_outline_rounded, Colors.amber, 'Lock', () => _showFolderLockSheet(folderId, folderName, locked, updating, invisible)),
                               _actionBtn(Icons.groups_rounded, Colors.green, 'Group', () => _groupLinkForFolder(context, folderId)),
                               _actionBtn(Icons.open_in_new_rounded, Colors.blue, 'Open', () => context.push('/folders/$folderId', extra: {'canEdit': true, 'canManage': true, 'isAdmin': true})),

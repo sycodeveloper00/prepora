@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/widgets/glassmorphic_container.dart';
 import '../../../core/services/firebase_service.dart';
@@ -39,10 +40,17 @@ class _LoginScreenState extends State<LoginScreen> {
         final role = await FirebaseService.getUserRole(uid);
         if (role != null) FirebaseService.cacheUserRole(uid, role);
         if (mounted) {
+          if (kIsWeb && role != 'admin' && role != 'Assistant') {
+            setState(() => _isLoading = false);
+            await FirebaseService.signOut();
+            _showUnderDevelopmentDialog();
+            return;
+          }
           if (role == 'admin') {
             context.go('/admin');
-          } else if (role == 'assistant') {
-            final folderIds = await FirebaseService.getAssistantFolderIds(credential.user!.uid);
+          } else if (role == 'Assistant') {
+            final accessDocs = await FirebaseService.getAssistantFolderIds(credential.user!.uid);
+            final folderIds = accessDocs.map((e) => e['folderId'] as String).toList();
             if (mounted) {
               context.go('/assistant', extra: {'folderIds': folderIds, 'assistantName': credential.user!.displayName});
             }
@@ -53,13 +61,42 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } catch (e) {
       if (e.toString().contains('BLOCKED')) {
-        if (mounted) context.go('/dashboard');
+        if (mounted) context.go('/blocked');
         return;
       }
       setState(() => _errorMessage = e.toString());
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  void _showUnderDevelopmentDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A0533),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(children: [
+          Icon(Icons.construction_rounded, color: Colors.orange, size: 24),
+          SizedBox(width: 10),
+          Text('Under Development', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+        ]),
+        content: const Text(
+          'The portal is under development. A team of developers is working on it. Once it will be complete you will be able to Login/register.',
+          style: TextStyle(color: Colors.white70, fontSize: 14, height: 1.5),
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade800),
+            child: const Text('OK', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    ).then((_) {
+      setState(() => _isLoading = false);
+    });
   }
 
   void _forgotPassword() {

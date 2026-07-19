@@ -236,49 +236,60 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
                   return Center(child: Text('No Assistant accounts.', style: TextStyle(color: dimColor)));
                 }
                 final docs = snapshot.data!.docs;
-                return ListView.builder(
-                  controller: scrollCtrl,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  itemCount: docs.length,
-                  itemBuilder: (context, index) {
-                    final data = docs[index].data() as Map<String, dynamic>;
-                    final uid = docs[index].id;
-                    final name = data['name'] as String? ?? 'Unknown';
-                    final email = data['email'] as String? ?? '';
-                    final contentAccess = (data['contentAccess'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [];
-                    final accessKey = '${widget.folderId}__$contentId';
-                    final hasAccess = contentAccess.contains(accessKey);
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: hasAccess ? Colors.green.withValues(alpha: 0.08) : (isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03)),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: hasAccess ? Colors.green.withValues(alpha: 0.3) : (isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.08))),
-                      ),
-                      child: Row(children: [
-                        CircleAvatar(
-                          backgroundColor: hasAccess ? Colors.green.withValues(alpha: 0.2) : (isDark ? Colors.white10 : Colors.black12),
-                          child: Icon(hasAccess ? Icons.check : Icons.person, color: hasAccess ? Colors.green : (isDark ? Colors.white54 : Colors.black45), size: 18),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(name, style: TextStyle(color: baseColor, fontWeight: FontWeight.bold, fontSize: 14)),
-                          Text(email, style: TextStyle(color: dimColor, fontSize: 11)),
-                        ])),
-                        if (hasAccess)
-                          ElevatedButton(
-                            onPressed: () async => await FirebaseService.revokeContentAccess(uid, widget.folderId, contentId),
-                            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6)),
-                            child: const Text('Revoke', style: TextStyle(color: Colors.white, fontSize: 12)),
-                          )
-                        else
-                          ElevatedButton(
-                            onPressed: () async => await FirebaseService.grantContentAccess(uid, widget.folderId, contentId, name),
-                            style: ElevatedButton.styleFrom(backgroundColor: Colors.green, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6)),
-                            child: const Text('Grant', style: TextStyle(color: Colors.white, fontSize: 12)),
+                return FutureBuilder<Set<String>>(
+                  future: FirebaseService.getUidsWithContentAccess(widget.folderId, contentId),
+                  builder: (context, accessSnap) {
+                    if (accessSnap.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+                    final grantedUids = accessSnap.data ?? {};
+                    return ListView.builder(
+                      controller: scrollCtrl,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      itemCount: docs.length,
+                      itemBuilder: (context, index) {
+                        final data = docs[index].data() as Map<String, dynamic>;
+                        final uid = docs[index].id;
+                        final name = data['name'] as String? ?? 'Unknown';
+                        final email = data['email'] as String? ?? '';
+                        final hasAccess = grantedUids.contains(uid);
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: hasAccess ? Colors.green.withValues(alpha: 0.08) : (isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03)),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: hasAccess ? Colors.green.withValues(alpha: 0.3) : (isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.08))),
                           ),
-                      ]),
+                          child: Row(children: [
+                            CircleAvatar(
+                              backgroundColor: hasAccess ? Colors.green.withValues(alpha: 0.2) : (isDark ? Colors.white10 : Colors.black12),
+                              child: Icon(hasAccess ? Icons.check : Icons.person, color: hasAccess ? Colors.green : (isDark ? Colors.white54 : Colors.black45), size: 18),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Text(name, style: TextStyle(color: baseColor, fontWeight: FontWeight.bold, fontSize: 14)),
+                              Text(email, style: TextStyle(color: dimColor, fontSize: 11)),
+                            ])),
+                            if (hasAccess)
+                              ElevatedButton(
+                                onPressed: () async {
+                                  await FirebaseService.revokeContentAccess(uid, widget.folderId, contentId);
+                                  if (ctx.mounted) setState(() {});
+                                },
+                                style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6)),
+                                child: const Text('Denied', style: TextStyle(color: Colors.white, fontSize: 12)),
+                              )
+                            else
+                              ElevatedButton(
+                                onPressed: () async {
+                                  await FirebaseService.grantContentAccess(uid, widget.folderId, contentId, name);
+                                  if (ctx.mounted) setState(() {});
+                                },
+                                style: ElevatedButton.styleFrom(backgroundColor: Colors.green, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6)),
+                                child: const Text('Grant', style: TextStyle(color: Colors.white, fontSize: 12)),
+                              ),
+                          ]),
+                        );
+                      },
                     );
                   },
                 );
