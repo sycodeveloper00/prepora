@@ -241,6 +241,23 @@ class FirebaseService {
     return firestore.collection('users').where('role', isEqualTo: 'Assistant').snapshots();
   }
 
+  static Stream<QuerySnapshot> getAllAssistants() => getAllAssistant();
+
+  static Future<void> markNotificationsRead(String uid) async {
+    try {
+      final snap = await firestore
+          .collection('notifications')
+          .where('toUserId', isEqualTo: uid)
+          .where('read', isEqualTo: false)
+          .get();
+      final batch = firestore.batch();
+      for (final doc in snap.docs) {
+        batch.update(doc.reference, {'read': true});
+      }
+      await batch.commit();
+    } catch (_) {}
+  }
+
   static Future<void> deleteAssistantAccount(String uid) async {
     await firestore.collection('users').doc(uid).delete();
   }
