@@ -39,16 +39,23 @@ jobs:
         run: flutter pub get
       
       - name: Build APK
-        id: build
-        run: flutter build apk --target-platform android-arm64 --verbose 2>&1 | tee build_log.txt || true
+        run: flutter build apk --target-platform android-arm64 --verbose 2>&1 | tee build_log.txt
       
-      - name: Capture build error
-        if: failure() || steps.build.outcome == 'failure'
+      - name: Find APK file
+        id: find_apk
         run: |
-          echo "=== BUILD FAILED - Last 200 lines of log ==="
-          tail -200 build_log.txt
-          echo "=== GRADLE ERRORS ==="
-          grep -i "error\|FAILURE\|FAILED\|exception" build_log.txt | tail -50
+          APK_PATH=$(find build/app/outputs/flutter-apk -name "*.apk" -type f 2>/dev/null | head -1)
+          if [ -z "$APK_PATH" ]; then
+            echo "ERROR: No APK file found in build output!"
+            echo "=== Build output directory ==="
+            find build/app/outputs -type f 2>/dev/null
+            echo "=== Last 100 lines of build log ==="
+            tail -100 build_log.txt
+            exit 1
+          fi
+          echo "Found APK: $APK_PATH"
+          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
+          ls -lh "$APK_PATH"
       
       - name: Upload build log
         uses: actions/upload-artifact@v4
@@ -56,10 +63,10 @@ jobs:
         with:
           name: build-log
           path: build_log.txt
-
+      
       - name: Upload APK
         uses: actions/upload-artifact@v4
         if: success()
         with:
           name: prepora-apk
-          path: build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+          path: ${{ steps.find_apk.outputs.apk_path }}
