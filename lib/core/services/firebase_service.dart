@@ -247,7 +247,7 @@ class FirebaseService {
     try {
       final snap = await firestore
           .collection('notifications')
-          .where('toUserId', isEqualTo: uid)
+          .where('uid', isEqualTo: uid)
           .where('read', isEqualTo: false)
           .get();
       final batch = firestore.batch();

@@ -9,6 +9,7 @@ import '../../../core/widgets/animated_pressable.dart';
 import '../../../core/services/firebase_service.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/theme/theme_provider.dart';
+import '../../../core/widgets/notification_bell_box.dart';
 import '../../folders/presentation/folder_details_screen.dart' show GroupLinkDialog;
 import '../../../core/utils.dart';
 
@@ -30,6 +31,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   List<QueryDocumentSnapshot>? _localDocs;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  final GlobalKey _bellKey = GlobalKey();
+  OverlayEntry? _notifOverlay;
 
   @override
   void initState() {
@@ -90,6 +93,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   void dispose() {
     _feedbackSub?.cancel();
     _folderNameController.dispose();
+    _notifOverlay?.remove();
     super.dispose();
   }
 
@@ -1094,82 +1098,42 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   void _showAdminNotifications(BuildContext ctx, List<QueryDocumentSnapshot> docs) {
     FirebaseService.markAdminNotificationsRead();
     NotificationService.clearBadge();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final baseColor = isDark ? Colors.white : Colors.black87;
-    final mutedColor = isDark ? Colors.white70 : Colors.black54;
-    final sorted = List<QueryDocumentSnapshot>.from(docs)
-      ..sort((a, b) {
-        final aTime = (a.data() as Map<String, dynamic>)['createdAt'] as Timestamp?;
-        final bTime = (b.data() as Map<String, dynamic>)['createdAt'] as Timestamp?;
-        return (bTime?.toDate() ?? DateTime(0)).compareTo(aTime?.toDate() ?? DateTime(0));
-      });
-    showModalBottomSheet(
-      context: ctx,
-      backgroundColor: isDark ? const Color(0xFF1A0533) : Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) => StatefulBuilder(
-        builder: (ctx, setLocal) => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Row(children: [
-            Icon(Icons.notifications_none_rounded, color: mutedColor, size: 20),
-            const SizedBox(width: 8),
-            Text('Notifications', style: TextStyle(color: baseColor, fontSize: 16, fontWeight: FontWeight.bold)),
-            const Spacer(),
-            if (sorted.isNotEmpty)
-              IconButton(
-                icon: const Icon(Icons.delete_sweep_rounded, color: Colors.redAccent, size: 22),
-                tooltip: 'Delete all',
-                onPressed: () async {
-                  await FirebaseService.clearAdminNotifications();
-                  if (ctx.mounted) Navigator.pop(ctx);
-                },
-              ),
-          ]),
-          const SizedBox(height: 16),
-          ConstrainedBox(
-            constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.5),
-            child: sorted.isEmpty
-                ? Center(child: Text('No notifications', style: TextStyle(color: mutedColor)))
-                : ListView.builder(
-              shrinkWrap: true,
-              itemCount: sorted.length,
-              itemBuilder: (context, index) {
-                final data = sorted[index].data() as Map<String, dynamic>;
-                final message = data['message'] as String? ?? '';
-                final time = data['createdAt'] as Timestamp?;
-                final timeStr = time != null
-                    ? '${DateTime.now().difference(time.toDate()).inMinutes}m ago'
-                    : '';
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: (isDark ? Colors.white : Colors.black87).withValues(alpha: isDark ? 0.05 : 0.03),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Row(children: [
-                    Icon(Icons.circle, size: 8, color: (isDark ? Colors.white : Colors.black87).withValues(alpha: 0.2)),
-                    const SizedBox(width: 12),
-                    Expanded(child: Text(message, style: TextStyle(color: baseColor, fontSize: 13))),
-                    Text(timeStr, style: TextStyle(color: mutedColor, fontSize: 11)),
-                    const SizedBox(width: 8),
-                    GestureDetector(
-                      onTap: () async {
-                        await sorted[index].reference.delete();
-                        setLocal(() => sorted.removeAt(index));
-                      },
-                      child: Icon(Icons.delete_outline_rounded, color: Colors.redAccent.withValues(alpha: 0.7), size: 18),
-                    ),
-                  ]),
-                );
-              },
-            ),
+    if (_notifOverlay != null) {
+      _notifOverlay!.remove();
+      _notifOverlay = null;
+      return;
+    }
+    final renderBox = _bellKey.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox == null) return;
+    final pos = renderBox.localToGlobal(Offset.zero);
+    final size = renderBox.size;
+    _notifOverlay = OverlayEntry(
+      builder: (overlayCtx) => Stack(children: [
+        Positioned.fill(
+          child: GestureDetector(
+            onTap: () { _notifOverlay?.remove(); _notifOverlay = null; },
+            behavior: HitTestBehavior.translucent,
           ),
-        ]),
-      ),
-      ),
+        ),
+        Positioned(
+          left: (pos.dx + size.width / 2 - 170).clamp(8.0, MediaQuery.of(ctx).size.width - 348.0),
+          top: pos.dy + size.height + 8,
+          child: NotificationBellBox(
+            docs: docs,
+            showDelete: true,
+            onClear: () async {
+              await FirebaseService.clearAdminNotifications();
+              _notifOverlay?.remove();
+              _notifOverlay = null;
+            },
+            onDelete: (doc) async {
+              await doc.reference.delete();
+            },
+          ),
+        ),
+      ]),
     );
+    Overlay.of(ctx).insert(_notifOverlay!);
   }
 
   Future<List<Map<String, dynamic>>> _fetchContentMatches(String query) async {
@@ -1671,6 +1635,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               builder: (context, snap) {
                 final unread = snap.hasData ? snap.data!.docs.where((d) => (d.data() as Map<String, dynamic>)['read'] == false).length : 0;
                 return IconButton(
+                  key: _bellKey,
                   icon: Stack(
                     clipBehavior: Clip.none,
                     children: [

@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_math_fork/flutter_math.dart';
-import 'package:go_router/go_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:markdown/markdown.dart' as md;
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -481,30 +480,21 @@ class _AiChatScreenState extends State<AiChatScreen> with SingleTickerProviderSt
                   children: [
                     const SizedBox(width: 4),
                     Expanded(
-                      child: Focus(
-                        onKey: (node, event) {
-                          if (event.logicalKey == LogicalKeyboardKey.enter && !event.isShiftPressed) {
-                            _sendMessage();
-                            return KeyEventResult.handled;
-                          }
-                          return KeyEventResult.ignored;
-                        },
-                        child: TextField(
-                          controller: _controller,
-                          focusNode: _focusNode,
-                          style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 14),
-                          maxLines: 6,
-                          minLines: 1,
-                          scrollPhysics: const BouncingScrollPhysics(),
-                          keyboardType: TextInputType.multiline,
-                          textInputAction: TextInputAction.newline,
-                          decoration: InputDecoration(
-                            hintText: 'Ask anything... (Enter to send, Shift+Enter for new line, 6 lines max)',
-                            hintStyle: TextStyle(color: isDark ? Colors.white38 : Colors.black45),
-                            filled: false,
-                            border: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-                          ),
+                      child: TextField(
+                        controller: _controller,
+                        focusNode: _focusNode,
+                        style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 14),
+                        maxLines: 6,
+                        minLines: 1,
+                        scrollPhysics: const BouncingScrollPhysics(),
+                        keyboardType: TextInputType.multiline,
+                        textInputAction: TextInputAction.newline,
+                        decoration: InputDecoration(
+                          hintText: 'Ask anything...',
+                          hintStyle: TextStyle(color: isDark ? Colors.white38 : Colors.black45),
+                          filled: false,
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
                         ),
                       ),
                     ),
