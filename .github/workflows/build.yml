@@ -40,7 +40,7 @@ jobs:
       
       - name: Build APK
         id: build
-        run: flutter build apk --target-platform android-arm64 --no-tree-shake-icons --verbose 2>&1 | tee build_log.txt || true
+        run: flutter build apk --target-platform android-arm64 --verbose 2>&1 | tee build_log.txt || true
       
       - name: Capture build error
         if: failure() || steps.build.outcome == 'failure'
