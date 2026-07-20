@@ -4,8 +4,29 @@ import 'package:go_router/go_router.dart';
 import '../../../core/services/firebase_service.dart';
 import '../../../core/theme/theme_provider.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  bool _autoDownload = true;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final settings = await FirebaseService.getSettings();
+    if (mounted) setState(() {
+      _autoDownload = settings['autoDownload'] as bool? ?? true;
+      _loading = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -34,6 +55,21 @@ class SettingsScreen extends StatelessWidget {
               ),
               title: Text(userName, style: TextStyle(color: textColor, fontWeight: FontWeight.bold)),
               subtitle: Text(userEmail, style: TextStyle(color: hintColor, fontSize: 12)),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Card(
+            color: cardColor,
+            child: SwitchListTile(
+              secondary: const Icon(Icons.download_rounded, color: Color(0xFF00B8D4)),
+              title: Text('Auto Download Files', style: TextStyle(color: textColor)),
+              subtitle: Text('Files open offline after first download', style: TextStyle(color: hintColor, fontSize: 12)),
+              value: _autoDownload,
+              activeColor: const Color(0xFF4A148C),
+              onChanged: (val) async {
+                setState(() => _autoDownload = val);
+                await FirebaseService.updateSetting('autoDownload', val);
+              },
             ),
           ),
           const SizedBox(height: 16),
@@ -102,7 +138,6 @@ class SettingsScreen extends StatelessWidget {
     final notifier = ref.read(themeModeProvider.notifier);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : const Color(0xFF1A0533);
-    final hintColor = isDark ? Colors.white38 : Colors.black54;
     final bgColor = isDark ? const Color(0xFF1A0533) : Colors.white;
     showDialog(
       context: context,
@@ -123,7 +158,6 @@ class SettingsScreen extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.settings_brightness_rounded, color: Colors.teal),
             title: Text('System', style: TextStyle(color: textColor)),
-            subtitle: Text('Follow device theme', style: TextStyle(color: hintColor, fontSize: 11)),
             onTap: () { notifier.set(ThemeMode.system); Navigator.pop(d); },
           ),
         ]),

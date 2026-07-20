@@ -16,6 +16,7 @@ class AdminSettingsScreen extends StatefulWidget {
 class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
   double _price = 0;
   bool _paidAccess = false;
+  bool _autoDownload = true;
   bool _loading = true;
   String _accountTitle = '';
   String _accountNo = '';
@@ -34,6 +35,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
     if (mounted) setState(() {
       _price = (settings['price'] as num?)?.toDouble() ?? 0;
       _paidAccess = settings['paidAccess'] as bool? ?? false;
+      _autoDownload = settings['autoDownload'] as bool? ?? true;
       _accountTitle = settings['accountTitle'] as String? ?? '';
       _accountNo = settings['accountNo'] as String? ?? '';
       _bankName = settings['bankName'] as String? ?? '';
@@ -84,6 +86,21 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                       onTap: () => _showThemeDialog(context, ref),
                     );
                   }),
+                ),
+                const SizedBox(height: 12),
+                Card(
+                  color: cardColor,
+                  child: SwitchListTile(
+                    secondary: const Icon(Icons.download_rounded, color: Color(0xFF00B8D4)),
+                    title: Text('Auto Download Files', style: TextStyle(color: textColor)),
+                    subtitle: Text('Students files auto-download on first open', style: TextStyle(color: hintColor, fontSize: 12)),
+                    value: _autoDownload,
+                    activeColor: const Color(0xFF4A148C),
+                    onChanged: (val) async {
+                      setState(() => _autoDownload = val);
+                      await FirebaseService.updateSetting('autoDownload', val);
+                    },
+                  ),
                 ),
                 const SizedBox(height: 12),
                 Card(

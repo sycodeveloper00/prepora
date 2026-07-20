@@ -51,6 +51,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
   Set<String> _selectedIds = {};
   bool _isSelectMode = false;
   String? _groupLink;
+  bool _autoDownload = true;
 
   // ─── Cached futures & streams to prevent blinking rebuild loops ───
   late Future<DocumentSnapshot> _folderFuture;
@@ -99,6 +100,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
         _isBlocked = blocked;
         _isVerified = verified;
         _isPaidAccess = paidAccess;
+        _autoDownload = settings['autoDownload'] as bool? ?? true;
       });
     }
   }
@@ -1062,12 +1064,16 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
         }
       }
     } else if (url.isNotEmpty && !kIsWeb) {
-      final cachedFile = await _downloadForOffline(url, name);
-      if (cachedFile != null && mounted) {
-        final result = await OpenFilex.open(cachedFile.path);
-        if (result.type != ResultType.done && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Cannot open file: ${result.message}'), backgroundColor: Colors.redAccent));
+      if (_autoDownload) {
+        final cachedFile = await _downloadForOffline(url, name);
+        if (cachedFile != null && mounted) {
+          final result = await OpenFilex.open(cachedFile.path);
+          if (result.type != ResultType.done && mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Cannot open file: ${result.message}'), backgroundColor: Colors.redAccent));
+          }
+        } else {
+          context.push('/webview', extra: {'url': url, 'title': displayTitle, 'folderId': widget.folderId, 'parentContentId': widget.parentContentId});
         }
       } else {
         context.push('/webview', extra: {'url': url, 'title': displayTitle, 'folderId': widget.folderId, 'parentContentId': widget.parentContentId});
