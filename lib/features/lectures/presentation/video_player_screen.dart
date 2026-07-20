@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/services/firebase_service.dart';
 import '../../notepad/presentation/notepad_view.dart';
 
@@ -134,8 +135,16 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                                   side: const BorderSide(color: Colors.red),
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                                 ),
-                          onPressed: () {
-                            context.push('/webview', extra: {'url': 'https://www.youtube.com/watch?v=${widget.videoId}', 'title': widget.lectureName});
+                          onPressed: () async {
+                            final youtubeUrl = Uri.parse('https://www.youtube.com/watch?v=${widget.videoId}');
+                            final appUrl = Uri.parse('vnd.youtube:${widget.videoId}');
+                            if (await canLaunchUrl(appUrl)) {
+                              await launchUrl(appUrl);
+                            } else if (await canLaunchUrl(youtubeUrl)) {
+                              await launchUrl(youtubeUrl, mode: LaunchMode.externalApplication);
+                            } else {
+                              if (mounted) context.push('/webview', extra: {'url': 'https://www.youtube.com/watch?v=${widget.videoId}', 'title': widget.lectureName});
+                            }
                           },
                               ),
                             ),

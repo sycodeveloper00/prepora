@@ -193,6 +193,12 @@ class _DashboardScreenState extends State<DashboardScreen>
     _rebuildNotificationStream();
     final docs = _latestNotificationDocs;
     if (docs.isEmpty) return;
+    final sorted = List<QueryDocumentSnapshot>.from(docs)
+      ..sort((a, b) {
+        final aTime = (a.data() as Map<String, dynamic>)['createdAt'] as Timestamp?;
+        final bTime = (b.data() as Map<String, dynamic>)['createdAt'] as Timestamp?;
+        return (bTime?.toDate() ?? DateTime(0)).compareTo(aTime?.toDate() ?? DateTime(0));
+      });
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final baseColor = isDark ? Colors.white : Colors.black87;
     final mutedColor = isDark ? Colors.white70 : Colors.black54;
@@ -213,9 +219,9 @@ class _DashboardScreenState extends State<DashboardScreen>
             constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.5),
             child: ListView.builder(
               shrinkWrap: true,
-              itemCount: docs.length,
+              itemCount: sorted.length,
               itemBuilder: (context, index) {
-                final data = docs[index].data() as Map<String, dynamic>;
+                final data = sorted[index].data() as Map<String, dynamic>;
                 final message = data['message'] as String? ?? '';
                 final time = data['createdAt'] as Timestamp?;
                 final timeStr = time != null
@@ -491,7 +497,11 @@ class _DashboardScreenState extends State<DashboardScreen>
         children: [
           Image.asset('assets/logo.png', height: 30, width: 30),
           const SizedBox(width: 10),
-          const Text('PrePora', style: TextStyle(fontWeight: FontWeight.bold)),
+          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('PrePora', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            if (_userName.isNotEmpty)
+              Text(_userName, style: TextStyle(fontSize: 11, color: Theme.of(context).brightness == Brightness.dark ? Colors.white54 : Colors.black45)),
+          ]),
         ],
       ),
       actions: [
@@ -1209,6 +1219,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     final cityCtrl = TextEditingController();
     final provinceCtrl = TextEditingController();
     final courseCtrl = TextEditingController();
+    final contactCtrl = TextEditingController();
     int selDay = DateTime.now().day;
     int selMonth = DateTime.now().month;
     int selYear = DateTime.now().year;
@@ -1232,6 +1243,11 @@ class _DashboardScreenState extends State<DashboardScreen>
               TextField(controller: emailCtrl, style: TextStyle(color: baseColor),
                 onChanged: (_) { setDState(() => errorMsg = null); },
                 decoration: InputDecoration(labelText: 'Your Email *', labelStyle: TextStyle(color: labelColor),
+                  filled: true, fillColor: fillColor, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
+              const SizedBox(height: 10),
+              TextField(controller: contactCtrl, style: TextStyle(color: baseColor), keyboardType: TextInputType.phone,
+                onChanged: (_) { setDState(() => errorMsg = null); },
+                decoration: InputDecoration(labelText: 'Contact No *', labelStyle: TextStyle(color: labelColor),
                   filled: true, fillColor: fillColor, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
               const SizedBox(height: 10),
               TextField(controller: ownerCtrl, style: TextStyle(color: baseColor),
@@ -1360,6 +1376,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                   final missing = <String>[];
                   if (nameCtrl.text.trim().isEmpty) missing.add('Name');
                   if (emailCtrl.text.trim().isEmpty) missing.add('Email');
+                  if (contactCtrl.text.trim().isEmpty) missing.add('Contact No');
                   if (ownerCtrl.text.trim().isEmpty) missing.add('Account Owner');
                   if (accNoCtrl.text.trim().isEmpty) missing.add('Account No');
                   if (bankCtrl.text.trim().isEmpty) missing.add('Bank Name');
@@ -1374,7 +1391,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                   final timeStr = '${selHour > 9 ? selHour : '0$selHour'}:${selMinute < 10 ? '0$selMinute' : '$selMinute'} ${isPM ? 'PM' : 'AM'}';
                   final dateStr = '${selDay < 10 ? '0$selDay' : '$selDay'} ${months[selMonth - 1]} $selYear';
                   await FirebaseService.submitFeedback(
-                    'Name: ${nameCtrl.text.trim()}\nEmail: ${emailCtrl.text.trim()}\nOwner: ${ownerCtrl.text.trim()}\nAccNo: ${accNoCtrl.text.trim()}\nBank: ${bankCtrl.text.trim()}\nReceipt: ${receiptCtrl.text.trim()}\nCity: ${cityCtrl.text.trim()}\nProvince: ${provinceCtrl.text.trim()}\nCourse: ${courseCtrl.text.trim()}\nDate: $dateStr\nTime: $timeStr'
+                    'Name: ${nameCtrl.text.trim()}\nEmail: ${emailCtrl.text.trim()}\nContact: ${contactCtrl.text.trim()}\nOwner: ${ownerCtrl.text.trim()}\nAccNo: ${accNoCtrl.text.trim()}\nBank: ${bankCtrl.text.trim()}\nReceipt: ${receiptCtrl.text.trim()}\nCity: ${cityCtrl.text.trim()}\nProvince: ${provinceCtrl.text.trim()}\nCourse: ${courseCtrl.text.trim()}\nDate: $dateStr\nTime: $timeStr'
                   );
                   if (d.mounted) Navigator.pop(d);
                 },

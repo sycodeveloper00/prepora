@@ -8,6 +8,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 import '../../../core/widgets/glassmorphic_container.dart';
 import '../../../core/services/firebase_service.dart';
 import 'folder_browser_screen.dart';
@@ -1058,9 +1060,37 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
             SnackBar(content: Text('Cannot open file: ${result.message}'), backgroundColor: Colors.redAccent));
         }
       }
+    } else if (url.isNotEmpty && !kIsWeb) {
+      final cachedFile = await _downloadForOffline(url, name);
+      if (cachedFile != null && mounted) {
+        final result = await OpenFilex.open(cachedFile.path);
+        if (result.type != ResultType.done && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Cannot open file: ${result.message}'), backgroundColor: Colors.redAccent));
+        }
+      } else {
+        context.push('/webview', extra: {'url': url, 'title': displayTitle, 'folderId': widget.folderId, 'parentContentId': widget.parentContentId});
+      }
     } else if (url.isNotEmpty) {
       context.push('/webview', extra: {'url': url, 'title': displayTitle, 'folderId': widget.folderId, 'parentContentId': widget.parentContentId});
     }
+  }
+
+  Future<File?> _downloadForOffline(String url, String name) async {
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final cacheDir = Directory('${dir.path}/offline_files');
+      if (!await cacheDir.exists()) await cacheDir.create(recursive: true);
+      final safeName = name.replaceAll(RegExp(r'[^\w\.\-]'), '_');
+      final file = File('${cacheDir.path}/$safeName');
+      if (await file.exists()) return file;
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode == 200) {
+        await file.writeAsBytes(response.bodyBytes);
+        return file;
+      }
+    } catch (_) {}
+    return null;
   }
 
   // ─── Build ───────────────────────────────────────────────────────────────────

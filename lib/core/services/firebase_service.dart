@@ -706,7 +706,7 @@ class FirebaseService {
     final totalAttempts = recent.length;
     final uniqueDevices = recent.map((d) => d.data()['deviceId'] as String? ?? 'unknown').toSet().toList();
     final isMultiDevice = uniqueDevices.length > 1;
-    final shouldBlock = (isMultiDevice && totalAttempts > 3) || (!isMultiDevice && totalAttempts > 6);
+    final shouldBlock = (isMultiDevice && totalAttempts >= 3);
     if (!shouldBlock) return;
     final userData = userDoc.data() as Map<String, dynamic>?;
     if (userData?['verified'] != true) {
@@ -766,20 +766,28 @@ class FirebaseService {
       final invisible = contentData['invisible'] as bool? ?? false;
       if (locked || updating || invisible) return null;
     }
+    bool folderRestricted = false;
     if (folderId != null) {
       final folderDoc = await firestore.collection('folders').doc(folderId).get();
       if (folderDoc.exists) {
         final folderData = folderDoc.data() as Map<String, dynamic>?;
         if (folderData != null) {
           final folderLocked = folderData['locked'] as bool? ?? false;
+          final folderUpdating = folderData['updating'] as bool? ?? false;
           final folderInvisible = folderData['invisible'] as bool? ?? false;
-          if (folderLocked || folderInvisible) return null;
+          if (folderLocked || folderUpdating || folderInvisible) {
+            folderRestricted = true;
+          }
         }
       }
     }
     final users = await firestore.collection('users').get();
     final batch = firestore.batch();
     for (final u in users.docs) {
+      if (folderRestricted) {
+        final role = (u.data())['role'] as String? ?? '';
+        if (role == 'student') continue;
+      }
       final ref = firestore.collection('notifications').doc();
       batch.set(ref, {
         'uid': u.id,

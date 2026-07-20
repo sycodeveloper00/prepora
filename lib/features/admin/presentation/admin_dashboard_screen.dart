@@ -1092,29 +1092,50 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   void _showAdminNotifications(BuildContext ctx, List<QueryDocumentSnapshot> docs) {
+    FirebaseService.markAdminNotificationsRead();
+    NotificationService.clearBadge();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final baseColor = isDark ? Colors.white : Colors.black87;
     final mutedColor = isDark ? Colors.white70 : Colors.black54;
+    final sorted = List<QueryDocumentSnapshot>.from(docs)
+      ..sort((a, b) {
+        final aTime = (a.data() as Map<String, dynamic>)['createdAt'] as Timestamp?;
+        final bTime = (b.data() as Map<String, dynamic>)['createdAt'] as Timestamp?;
+        return (bTime?.toDate() ?? DateTime(0)).compareTo(aTime?.toDate() ?? DateTime(0));
+      });
     showModalBottomSheet(
       context: ctx,
       backgroundColor: isDark ? const Color(0xFF1A0533) : Colors.white,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) => Padding(
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setLocal) => Padding(
         padding: const EdgeInsets.all(24),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Row(children: [
             Icon(Icons.notifications_none_rounded, color: mutedColor, size: 20),
             const SizedBox(width: 8),
             Text('Notifications', style: TextStyle(color: baseColor, fontSize: 16, fontWeight: FontWeight.bold)),
+            const Spacer(),
+            if (sorted.isNotEmpty)
+              IconButton(
+                icon: const Icon(Icons.delete_sweep_rounded, color: Colors.redAccent, size: 22),
+                tooltip: 'Delete all',
+                onPressed: () async {
+                  await FirebaseService.clearAdminNotifications();
+                  if (ctx.mounted) Navigator.pop(ctx);
+                },
+              ),
           ]),
           const SizedBox(height: 16),
           ConstrainedBox(
             constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.5),
-            child: ListView.builder(
+            child: sorted.isEmpty
+                ? Center(child: Text('No notifications', style: TextStyle(color: mutedColor)))
+                : ListView.builder(
               shrinkWrap: true,
-              itemCount: docs.length,
+              itemCount: sorted.length,
               itemBuilder: (context, index) {
-                final data = docs[index].data() as Map<String, dynamic>;
+                final data = sorted[index].data() as Map<String, dynamic>;
                 final message = data['message'] as String? ?? '';
                 final time = data['createdAt'] as Timestamp?;
                 final timeStr = time != null
@@ -1132,12 +1153,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     const SizedBox(width: 12),
                     Expanded(child: Text(message, style: TextStyle(color: baseColor, fontSize: 13))),
                     Text(timeStr, style: TextStyle(color: mutedColor, fontSize: 11)),
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: () async {
+                        await sorted[index].reference.delete();
+                        setLocal(() => sorted.removeAt(index));
+                      },
+                      child: Icon(Icons.delete_outline_rounded, color: Colors.redAccent.withValues(alpha: 0.7), size: 18),
+                    ),
                   ]),
                 );
               },
             ),
           ),
         ]),
+      ),
       ),
     );
   }

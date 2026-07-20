@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/widgets/glassmorphic_container.dart';
 import '../../../core/services/firebase_service.dart';
+import '../../../core/services/notification_service.dart';
 
 class AssistantDashboardScreen extends StatefulWidget {
   final List<String>? folderIds;
@@ -82,6 +83,76 @@ class _AssistantDashboardScreenState extends State<AssistantDashboardScreen> {
                   ]),
                 ),
                 const SizedBox(width: 8),
+                StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseService.getNotificationsForUser(FirebaseService.currentUser?.uid ?? '', DateTime(2020)),
+                  builder: (context, snap) {
+                    final docs = snap.data?.docs ?? [];
+                    final unread = docs.where((d) => (d.data() as Map<String, dynamic>)['read'] == false).length;
+                    return IconButton(
+                      icon: Stack(clipBehavior: Clip.none, children: [
+                        Icon(Icons.notifications_none_rounded, color: isDark ? Colors.white70 : Colors.black54, size: 24),
+                        if (unread > 0)
+                          Positioned(right: -2, top: -2,
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: const BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle),
+                              constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                              child: Text('$unread', style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+                            ),
+                          ),
+                      ]),
+                      onPressed: () {
+                        FirebaseService.markNotificationsRead(FirebaseService.currentUser?.uid ?? '');
+                        NotificationService.clearBadge();
+                        showModalBottomSheet(
+                          context: context,
+                          backgroundColor: isDark ? const Color(0xFF1A0533) : Colors.white,
+                          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+                          builder: (_) => Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Column(mainAxisSize: MainAxisSize.min, children: [
+                              Row(children: [
+                                Icon(Icons.notifications_none_rounded, color: isDark ? Colors.white54 : Colors.black45, size: 20),
+                                const SizedBox(width: 8),
+                                Text('Notifications', style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 16, fontWeight: FontWeight.bold)),
+                              ]),
+                              const SizedBox(height: 16),
+                              ConstrainedBox(
+                                constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.5),
+                                child: docs.isEmpty
+                                    ? Center(child: Text('No notifications', style: TextStyle(color: isDark ? Colors.white38 : Colors.black54)))
+                                    : ListView.builder(
+                                        shrinkWrap: true,
+                                        itemCount: docs.length,
+                                        itemBuilder: (context, index) {
+                                          final d = docs[index].data() as Map<String, dynamic>;
+                                          final message = d['message'] as String? ?? '';
+                                          final time = d['createdAt'] as Timestamp?;
+                                          final timeStr = time != null ? '${DateTime.now().difference(time.toDate()).inMinutes}m ago' : '';
+                                          return Container(
+                                            margin: const EdgeInsets.only(bottom: 8),
+                                            padding: const EdgeInsets.all(12),
+                                            decoration: BoxDecoration(
+                                              color: (isDark ? Colors.white : Colors.black87).withValues(alpha: isDark ? 0.05 : 0.03),
+                                              borderRadius: BorderRadius.circular(10),
+                                            ),
+                                            child: Row(children: [
+                                              Icon(Icons.circle, size: 8, color: (isDark ? Colors.white : Colors.black87).withValues(alpha: 0.2)),
+                                              const SizedBox(width: 12),
+                                              Expanded(child: Text(message, style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 13))),
+                                              Text(timeStr, style: TextStyle(color: isDark ? Colors.white54 : Colors.black45, fontSize: 11)),
+                                            ]),
+                                          );
+                                        },
+                                      ),
+                              ),
+                            ]),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
                 IconButton(
                   icon: Icon(Icons.settings_outlined, color: isDark ? Colors.white70 : Colors.black54, size: 24),
                   tooltip: 'Settings',
