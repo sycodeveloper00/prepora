@@ -12,6 +12,7 @@ import '../../../core/theme/theme_provider.dart';
 import '../../../core/widgets/notification_bell_box.dart';
 import '../../folders/presentation/folder_details_screen.dart' show GroupLinkDialog;
 import '../../../core/utils.dart';
+import '../../../core/widgets/professional_loader.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   final String? studentUid;
@@ -165,7 +166,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseService.getAllAssistant(),
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+                if (snapshot.connectionState == ConnectionState.waiting) return Center(child: ProfessionalLoader());
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                   return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                     Icon(Icons.person_off_rounded, size: 50, color: isDark ? Colors.white12 : Colors.black12),
@@ -251,7 +252,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       builder: (ctx) => FutureBuilder<List<Map<String, dynamic>>>(
         future: FirebaseService.getAllStudents(),
         builder: (context, snap) {
-          if (snap.connectionState == ConnectionState.waiting) return SizedBox(height: 300, child: Center(child: CircularProgressIndicator(color: isDark ? Colors.white : Colors.black87)));
+          if (snap.connectionState == ConnectionState.waiting) return SizedBox(height: 300, child: Center(child: ProfessionalLoader(size: 20)));
           final students = snap.data ?? [];
           return StatefulBuilder(builder: (ctx, setLocal) {
             if (students.isEmpty) return SizedBox(height: 200, child: Center(child: Text('No students registered', style: TextStyle(color: dimColor))));
@@ -378,7 +379,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ]),
             const SizedBox(height: 16),
             if (loading)
-              const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator()))
+              Center(child: Padding(padding: const EdgeInsets.all(20), child: ProfessionalLoader()))
             else
               Expanded(
                 child: ListView(children: [
@@ -433,7 +434,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       builder: (ctx) => FutureBuilder<List<Map<String, dynamic>>>(
         future: FirebaseService.getAllStudents(),
         builder: (context, snap) {
-          if (snap.connectionState == ConnectionState.waiting) return SizedBox(height: 300, child: Center(child: CircularProgressIndicator(color: isDark ? Colors.white : Colors.black87)));
+          if (snap.connectionState == ConnectionState.waiting) return SizedBox(height: 300, child: Center(child: ProfessionalLoader(size: 20)));
           final students = snap.data ?? [];
           return StatefulBuilder(builder: (ctx, setLocal) {
             if (students.isEmpty) return SizedBox(height: 200, child: Center(child: Text('No students registered', style: TextStyle(color: dimColor))));
@@ -486,14 +487,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     final baseColor = isDark ? Colors.white : Colors.black87;
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Padding(
-        padding: const EdgeInsets.only(left: 4, bottom: 6),
-        child: Text(title, style: TextStyle(color: baseColor.withValues(alpha: 0.5), fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+        padding: const EdgeInsets.only(left: 4, bottom: 8),
+        child: Text(title, style: TextStyle(color: baseColor.withValues(alpha: 0.5), fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.8)),
       ),
       Container(
         decoration: BoxDecoration(
           color: (isDark ? Colors.white : Colors.black87).withValues(alpha: isDark ? 0.05 : 0.03),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: (isDark ? Colors.white : Colors.black87).withValues(alpha: isDark ? 0.08 : 0.06)),
+          boxShadow: [
+            BoxShadow(
+              color: (isDark ? Colors.black : Colors.grey).withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Column(children: tiles),
       ),
@@ -505,7 +513,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     final baseColor = isDark ? Colors.white : Colors.black87;
     final dimColor = isDark ? Colors.white38 : Colors.black54;
     return ListTile(
-      leading: Icon(icon, color: iconColor, size: 22),
+      leading: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: iconColor.withValues(alpha: isDark ? 0.2 : 0.1),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(icon, color: iconColor, size: 20),
+      ),
       title: Text(title, style: TextStyle(color: baseColor, fontWeight: FontWeight.w600, fontSize: 14)),
       subtitle: Text(subtitle, style: TextStyle(color: dimColor, fontSize: 11)),
       trailing: trailing ?? Icon(Icons.chevron_right, color: dimColor, size: 18),
@@ -526,7 +541,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       builder: (ctx) => FutureBuilder<List<Map<String, dynamic>>>(
         future: FirebaseService.getAllStudents(),
         builder: (context, snap) {
-          if (snap.connectionState == ConnectionState.waiting) return SizedBox(height: 300, child: Center(child: CircularProgressIndicator(color: isDark ? Colors.white : Colors.black87)));
+          if (snap.connectionState == ConnectionState.waiting) return SizedBox(height: 300, child: Center(child: ProfessionalLoader(size: 20)));
           final students = snap.data ?? [];
           return StatefulBuilder(builder: (ctx, setLocal) {
             if (students.isEmpty) return SizedBox(height: 200, child: Center(child: Text('No students registered', style: TextStyle(color: dimColor))));
@@ -858,7 +873,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseService.getAssistantLoginsForFolder(folderId),
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+                if (snapshot.connectionState == ConnectionState.waiting) return Center(child: ProfessionalLoader());
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                   return const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                     Icon(Icons.vpn_key_off_rounded, size: 50, color: Colors.white12),
@@ -942,7 +957,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseService.getAllAssistant(),
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+                if (snapshot.connectionState == ConnectionState.waiting) return Center(child: ProfessionalLoader());
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                   return Center(
                     child: Column(
@@ -966,7 +981,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 return FutureBuilder<Set<String>>(
                   future: FirebaseService.getUidsWithFolderAccess(folderId),
                   builder: (context, accessSnap) {
-                    if (accessSnap.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+                    if (accessSnap.connectionState == ConnectionState.waiting) return Center(child: ProfessionalLoader());
                     final grantedUids = accessSnap.data ?? {};
                     return ListView.builder(
                       controller: scrollCtrl,
@@ -1240,8 +1255,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 )
               : null,
           filled: true, fillColor: fillColor,
-          contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+          contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: (isDark ? Colors.white : Colors.black87).withValues(alpha: 0.08))),
+          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: (isDark ? Colors.white : Colors.black87).withValues(alpha: 0.08))),
+          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Color(0xFF00B8D4), width: 1.5)),
         ),
         onChanged: (val) => setState(() => _searchQuery = val.trim()),
         onTapOutside: (_) => FocusScope.of(context).unfocus(),
@@ -1685,7 +1702,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           child: StreamBuilder<QuerySnapshot>(
             stream: _folderStream,
             builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+              if (snapshot.connectionState == ConnectionState.waiting) return Center(child: ProfessionalLoader());
               if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                 return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                   Icon(Icons.folder_open_rounded, size: 80, color: Colors.white12),
@@ -1867,7 +1884,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             Divider(color: isDark ? Colors.white12 : Colors.black12),
             const SizedBox(height: 8),
             if (loadingSettings)
-              const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator()))
+              Center(child: Padding(padding: const EdgeInsets.all(20), child: ProfessionalLoader()))
             else ...[
               Divider(color: isDark ? Colors.white12 : Colors.black12, height: 24),
             ],
@@ -1949,7 +1966,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             if (!snap.hasData) {
               return Padding(
                 padding: const EdgeInsets.all(40),
-                child: Center(child: CircularProgressIndicator(color: isDark ? Colors.white : Colors.black87)),
+                child: Center(child: ProfessionalLoader(size: 20)),
               );
             }
             final students = snap.data!;

@@ -11,6 +11,7 @@ import '../../../core/services/ai_service.dart';
 import '../../../core/services/firebase_service.dart';
 import '../../../core/services/web_scraper_service.dart';
 import '../../../core/services/file_reader_service.dart';
+import '../../../core/widgets/professional_loader.dart';
 
 class AiChatScreen extends StatefulWidget {
   final String? folderContext;
@@ -472,6 +473,13 @@ class _AiChatScreenState extends State<AiChatScreen> with SingleTickerProviderSt
                 color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(28),
                 border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black12),
+                boxShadow: [
+                  BoxShadow(
+                    color: (isDark ? Colors.black : Colors.grey).withValues(alpha: 0.08),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               child: Padding(
                 padding: const EdgeInsets.all(4),
@@ -804,10 +812,7 @@ class _AiChatScreenState extends State<AiChatScreen> with SingleTickerProviderSt
         children: [
           Text('Thinking', style: TextStyle(color: Colors.grey.shade500, fontSize: 14)),
           const SizedBox(width: 8),
-          SizedBox(
-            width: 16, height: 16,
-            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.amber),
-          ),
+          const ProfessionalLoader(size: 16),
         ],
       ),
     );

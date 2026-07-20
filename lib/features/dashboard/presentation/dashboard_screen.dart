@@ -12,6 +12,7 @@ import '../../../core/services/widget_service.dart';
 import '../../../core/theme/theme_provider.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/widgets/notification_bell_box.dart';
+import '../../../core/widgets/professional_loader.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -634,22 +635,36 @@ class _DashboardScreenState extends State<DashboardScreen>
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.fromLTRB(14, 8, 14, 0),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: isDark
-              ? [const Color(0xFF4A148C).withValues(alpha: 0.3), const Color(0xFFFF6F00).withValues(alpha: 0.2)]
+              ? [const Color(0xFF4A148C).withValues(alpha: 0.4), const Color(0xFFFF6F00).withValues(alpha: 0.3)]
               : [const Color(0xFF4A148C).withValues(alpha: 0.08), const Color(0xFFFF6F00).withValues(alpha: 0.06)],
           begin: Alignment.centerLeft,
           end: Alignment.centerRight,
         ),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: isDark ? Colors.white12 : Colors.black.withValues(alpha: 0.06)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFFF6F00).withValues(alpha: isDark ? 0.08 : 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         children: [
-          const Icon(Icons.local_fire_department_rounded, color: Colors.orange, size: 28),
-          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.orange.withValues(alpha: 0.2),
+            ),
+            child: const Icon(Icons.local_fire_department_rounded, color: Colors.orange, size: 22),
+          ),
+          const SizedBox(width: 10),
           Text('$_streakCount', style: TextStyle(
             color: isDark ? Colors.white : Colors.black87,
             fontWeight: FontWeight.bold, fontSize: 18,
@@ -690,10 +705,18 @@ class _DashboardScreenState extends State<DashboardScreen>
               : null,
           filled: true,
           fillColor: fillColor,
-          contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
+          contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: (isDark ? Colors.white : Colors.black87).withValues(alpha: 0.08)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: (isDark ? Colors.white : Colors.black87).withValues(alpha: 0.08)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: Color(0xFF00B8D4), width: 1.5),
           ),
         ),
         onChanged: (val) {
@@ -763,7 +786,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     final dimColor = isDark ? Colors.white38 : Colors.black54;
     final mutedColor = isDark ? Colors.white54 : Colors.black54;
     if (_isSearching) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(child: ProfessionalLoader());
     }
     if (_searchResults.isEmpty) {
       return Center(
@@ -1161,7 +1184,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   void _handleFeedback(BuildContext ctx) async {
     final uid = FirebaseService.currentUser?.uid;
     if (uid == null) return;
-    showDialog(context: context, builder: (_) => const Center(child: CircularProgressIndicator()), barrierDismissible: false);
+    showDialog(context: context, builder: (_) => const Center(child: ProfessionalLoader()), barrierDismissible: false);
     try {
       final isVerified = await FirebaseService.isStudentVerified(uid);
       if (!mounted) return;
@@ -1705,7 +1728,7 @@ class _DashboardGridState extends State<_DashboardGrid> {
       stream: _folderStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return const Center(child: ProfessionalLoader());
         }
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
           final isDark = Theme.of(context).brightness == Brightness.dark;

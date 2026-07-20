@@ -11,6 +11,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import '../../../core/widgets/glassmorphic_container.dart';
+import '../../../core/widgets/professional_loader.dart';
 import '../../../core/services/firebase_service.dart';
 import 'folder_browser_screen.dart';
 
@@ -259,7 +260,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
               Divider(color: isDark ? Colors.white12 : Colors.black12, height: 1),
               Expanded(
                 child: loading
-                    ? const Center(child: CircularProgressIndicator())
+                    ? Center(child: ProfessionalLoader())
                     : assistants.isEmpty
                         ? Center(child: Text('No Assistant accounts.', style: TextStyle(color: dimColor)))
                         : ListView.builder(
@@ -1129,8 +1130,10 @@ child: TextField(
                           ? IconButton(icon: Icon(Icons.clear, color: Theme.of(context).brightness == Brightness.dark ? Colors.white54 : Colors.black54), onPressed: () => setState(() => _searchQuery = ''))
                           : null,
                       filled: true, fillColor: Theme.of(context).brightness == Brightness.dark ? Colors.white10 : Colors.black12,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87).withValues(alpha: 0.08))),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87).withValues(alpha: 0.08))),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Color(0xFF00B8D4), width: 1.5)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                     ),
                   ),
               ),
@@ -1139,7 +1142,7 @@ child: TextField(
                 child: StreamBuilder<QuerySnapshot>(
                   stream: _contentsStream,
                   builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+                    if (snapshot.connectionState == ConnectionState.waiting) return Center(child: ProfessionalLoader());
                     if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                       return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                         const Icon(Icons.folder_open_rounded, size: 80, color: Colors.white12),
@@ -2139,7 +2142,7 @@ class _GroupLinkDialogState extends State<GroupLinkDialog> {
               _loading
                   ? const SizedBox(
                       height: 100,
-                      child: Center(child: CircularProgressIndicator(color: Colors.amber)),
+                      child: Center(child: ProfessionalLoader()),
                     )
                   : Column(mainAxisSize: MainAxisSize.min, children: [
                       TextField(
@@ -2273,7 +2276,7 @@ class _GroupLinkDialogState extends State<GroupLinkDialog> {
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       ),
                       child: _saving
-                          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          ? SizedBox(width: 16, height: 16, child: ProfessionalLoader(size: 16))
                           : const Text('Save'),
                     ),
                   ],

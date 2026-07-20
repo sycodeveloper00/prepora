@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/services/firebase_service.dart';
 import '../../../core/utils.dart';
+import '../../../core/widgets/professional_loader.dart';
 
 class BrowseNode {
   final String id;
@@ -336,7 +337,7 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
             ),
           Expanded(
             child: _loading
-                ? const Center(child: CircularProgressIndicator(color: Colors.amber))
+                ? Center(child: ProfessionalLoader())
                 : _currentNodes.isEmpty
                     ? Center(child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,

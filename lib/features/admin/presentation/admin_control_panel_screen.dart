@@ -6,6 +6,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../../../core/services/firebase_service.dart';
 import '../../../core/theme/theme_provider.dart';
 import '../../../core/utils.dart';
+import '../../../core/widgets/professional_loader.dart';
 
 class AdminControlPanelScreen extends StatefulWidget {
   const AdminControlPanelScreen({super.key});
@@ -52,7 +53,7 @@ class _AdminControlPanelScreenState extends State<AdminControlPanelScreen> {
         leading: IconButton(icon: const Icon(Icons.arrow_back_ios_new_rounded), onPressed: () => context.pop()),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(child: ProfessionalLoader())
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [
@@ -91,14 +92,21 @@ class _AdminControlPanelScreenState extends State<AdminControlPanelScreen> {
     final baseColor = isDark ? Colors.white : Colors.black87;
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Padding(
-        padding: const EdgeInsets.only(left: 4, bottom: 6),
-        child: Text(title, style: TextStyle(color: baseColor.withValues(alpha: 0.5), fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+        padding: const EdgeInsets.only(left: 4, bottom: 8),
+        child: Text(title, style: TextStyle(color: baseColor.withValues(alpha: 0.5), fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.8)),
       ),
       Container(
         decoration: BoxDecoration(
           color: (isDark ? Colors.white : Colors.black87).withValues(alpha: isDark ? 0.05 : 0.03),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: (isDark ? Colors.white : Colors.black87).withValues(alpha: isDark ? 0.08 : 0.06)),
+          boxShadow: [
+            BoxShadow(
+              color: (isDark ? Colors.black : Colors.grey).withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Column(children: tiles),
       ),
@@ -110,7 +118,14 @@ class _AdminControlPanelScreenState extends State<AdminControlPanelScreen> {
     final baseColor = isDark ? Colors.white : Colors.black87;
     final dimColor = isDark ? Colors.white38 : Colors.black54;
     return ListTile(
-      leading: Icon(icon, color: iconColor, size: 22),
+      leading: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: iconColor.withValues(alpha: isDark ? 0.2 : 0.1),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(icon, color: iconColor, size: 20),
+      ),
       title: Text(title, style: TextStyle(color: baseColor, fontWeight: FontWeight.w600, fontSize: 14)),
       subtitle: Text(subtitle, style: TextStyle(color: dimColor, fontSize: 11)),
       trailing: trailing ?? Icon(Icons.chevron_right, color: dimColor, size: 18),
@@ -185,7 +200,7 @@ class _AdminControlPanelScreenState extends State<AdminControlPanelScreen> {
       builder: (ctx) => FutureBuilder<List<Map<String, dynamic>>>(
         future: FirebaseService.getAllStudents(),
         builder: (context, snap) {
-          if (snap.connectionState == ConnectionState.waiting) return SizedBox(height: 300, child: Center(child: CircularProgressIndicator(color: isDark ? Colors.white : Colors.black87)));
+          if (snap.connectionState == ConnectionState.waiting) return SizedBox(height: 300, child: Center(child: ProfessionalLoader(size: 20)));
           final students = snap.data ?? [];
           return StatefulBuilder(builder: (ctx, setLocal) {
             if (students.isEmpty) return SizedBox(height: 200, child: Center(child: Text('No students registered', style: TextStyle(color: dimColor))));
@@ -269,7 +284,7 @@ class _AdminControlPanelScreenState extends State<AdminControlPanelScreen> {
       builder: (ctx) => FutureBuilder<List<Map<String, dynamic>>>(
         future: FirebaseService.getAllStudents(),
         builder: (context, snap) {
-          if (snap.connectionState == ConnectionState.waiting) return SizedBox(height: 300, child: Center(child: CircularProgressIndicator(color: isDark ? Colors.white : Colors.black87)));
+          if (snap.connectionState == ConnectionState.waiting) return SizedBox(height: 300, child: Center(child: ProfessionalLoader(size: 20)));
           final students = snap.data ?? [];
           return StatefulBuilder(builder: (ctx, setLocal) {
             if (students.isEmpty) return SizedBox(height: 200, child: Center(child: Text('No students registered', style: TextStyle(color: dimColor))));
@@ -357,7 +372,7 @@ class _AdminControlPanelScreenState extends State<AdminControlPanelScreen> {
       builder: (ctx) => FutureBuilder<List<Map<String, dynamic>>>(
         future: FirebaseService.getAllStudents(),
         builder: (context, snap) {
-          if (snap.connectionState == ConnectionState.waiting) return SizedBox(height: 300, child: Center(child: CircularProgressIndicator(color: isDark ? Colors.white : Colors.black87)));
+          if (snap.connectionState == ConnectionState.waiting) return SizedBox(height: 300, child: Center(child: ProfessionalLoader(size: 20)));
           final allStudents = snap.data ?? [];
           return StatefulBuilder(builder: (ctx, setLocal) {
             final students = allStudents.where((s) => s['blocked'] == true || s['blocked'] == null || s['blocked'] == false).toList();
@@ -467,7 +482,7 @@ class _AdminControlPanelScreenState extends State<AdminControlPanelScreen> {
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseService.getAllAssistants(),
               builder: (context, snap) {
-                if (snap.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+                if (snap.connectionState == ConnectionState.waiting) return Center(child: ProfessionalLoader());
                 if (!snap.hasData || snap.data!.docs.isEmpty) {
                   return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                     Icon(Icons.person_off_rounded, size: 50, color: isDark ? Colors.white12 : Colors.black12),
@@ -745,7 +760,7 @@ class _StudentActivityPageState extends State<StudentActivityPage> {
                   Text(_error!, style: TextStyle(color: widget.dimColor, fontSize: 12), textAlign: TextAlign.center),
                 ]))
               : _students == null
-              ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: ProfessionalLoader())
               : _students!.isEmpty
                   ? Center(child: Text('No students registered', style: TextStyle(color: widget.dimColor)))
                   : ListView.builder(
@@ -809,7 +824,7 @@ class _StudentActivityPageState extends State<StudentActivityPage> {
                   ]));
                 }
                 if (!snap.hasData) {
-                  return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+                  return Center(child: ProfessionalLoader(size: 20));
                 }
                 final logs = snap.data!.docs.toList();
                 logs.sort((a, b) {

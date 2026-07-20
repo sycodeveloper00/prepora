@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import '../../../core/services/firebase_service.dart';
+import '../../../core/widgets/professional_loader.dart';
 
 class DrawPoint {
   final Offset position;
@@ -190,7 +191,7 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(child: ProfessionalLoader())
           : _error != null
               ? Center(
                   child: Padding(

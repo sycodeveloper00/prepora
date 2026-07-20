@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/services/firebase_service.dart';
+import '../../../core/widgets/professional_loader.dart';
 
 class AppWebViewScreen extends StatefulWidget {
   final String? url;
@@ -88,9 +89,7 @@ class _AppWebViewScreenState extends State<AppWebViewScreen> {
               children: [
                 WebViewWidget(controller: _controller!),
                 if (_isLoading)
-                  const Center(
-                    child: CircularProgressIndicator(color: Color(0xFF4A148C)),
-                  ),
+                  Center(child: ProfessionalLoader()),
                 if (_hasError)
                   Center(
                     child: Column(

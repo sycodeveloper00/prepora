@@ -5,6 +5,7 @@ import '../../../core/widgets/glassmorphic_container.dart';
 import '../../../core/services/firebase_service.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/widgets/notification_bell_box.dart';
+import '../../../core/widgets/professional_loader.dart';
 
 class AssistantDashboardScreen extends StatefulWidget {
   final List<String>? folderIds;
@@ -194,7 +195,7 @@ class _AssistantDashboardScreenState extends State<AssistantDashboardScreen> {
                         Text('Contact admin for folder access', style: TextStyle(color: isDark ? Colors.white24 : Colors.black38, fontSize: 13)),
                       ]))
                     : _loadingAccess
-                        ? const Center(child: CircularProgressIndicator())
+                        ? Center(child: ProfessionalLoader())
                         : _buildFolderList(accessibleIds, extraFolderIds),
               ),
             ]
@@ -228,8 +229,10 @@ class _AssistantDashboardScreenState extends State<AssistantDashboardScreen> {
                   )
                 : null,
             filled: true, fillColor: fillColor,
-            contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+            contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: (isDark ? Colors.white : Colors.black87).withValues(alpha: 0.08))),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: (isDark ? Colors.white : Colors.black87).withValues(alpha: 0.08))),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Color(0xFF00B8D4), width: 1.5)),
           ),
           onChanged: (val) {
             setState(() => _searchQuery = val.trim());
@@ -333,7 +336,7 @@ class _AssistantDashboardScreenState extends State<AssistantDashboardScreen> {
       future: Future.wait(allIds.map((id) => FirebaseService.firestore.collection('folders').doc(id).get())),
       builder: (context, snapshot) {
         final isDark = Theme.of(context).brightness == Brightness.dark;
-        if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+        if (snapshot.connectionState == ConnectionState.waiting) return Center(child: ProfessionalLoader());
         if (!snapshot.hasData) return Center(child: Text('Error loading folders', style: TextStyle(color: isDark ? Colors.white38 : Colors.black54)));
         final docs = snapshot.data!.where((d) => d.exists).toList();
         final filtered = _searchQuery.isNotEmpty
