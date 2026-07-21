@@ -13,6 +13,7 @@ import '../../../core/theme/theme_provider.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/widgets/notification_bell_box.dart';
 import '../../../core/widgets/professional_loader.dart';
+import '../../student/presentation/student_progress_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -543,6 +544,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                   ? [
                       PopupMenuItem(value: 'settings', child: Row(children: [Icon(Icons.settings_outlined, size: 18, color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black87), SizedBox(width: 10), Text('Settings', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87))])),
                       PopupMenuItem(value: 'notes', child: Row(children: [Icon(Icons.note_rounded, size: 18, color: Color(0xFF00B8D4)), SizedBox(width: 10), Text('Notes', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87))])),
+                      PopupMenuItem(value: 'progress', child: Row(children: [Icon(Icons.insights_rounded, size: 18, color: Color(0xFF4A148C)), SizedBox(width: 10), Text('Progress', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87))])),
                       PopupMenuItem(value: 'notices', child: Row(children: [
                         const Icon(Icons.campaign_rounded, size: 18, color: Colors.amber),
                         const SizedBox(width: 10),
@@ -569,6 +571,10 @@ class _DashboardScreenState extends State<DashboardScreen>
                   context.push('/settings');
                 } else if (val == 'notes') {
                   context.push('/notes');
+                } else if (val == 'progress') {
+                  Navigator.push(context, MaterialPageRoute(
+                    builder: (_) => const StudentProgressScreen(),
+                  ));
                 } else if (val == 'notices') {
                   context.push('/student/notices');
                 } else if (val == 'rate_app') {

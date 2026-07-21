@@ -1207,7 +1207,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   title: Text(folderName, style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontWeight: FontWeight.bold)),
                   subtitle: Text('Folder match', style: TextStyle(color: isDark ? Colors.white38 : Colors.black54, fontSize: 12)),
                   trailing: const Icon(Icons.chevron_right, color: Colors.grey),
-                  onTap: () => context.push('/folders/$folderId', extra: {'canEdit': true, 'canManage': true, 'isAdmin': true}),
+                  onTap: () => context.push('/folders/$folderId', extra: {'canEdit': true, 'canManage': true, 'isAdmin': true, if (widget.studentUid != null) 'targetStudentUid': widget.studentUid}),
                 ),
               );
             } else {
@@ -1441,13 +1441,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
+  Future<void> _sendScopedNotification(String message, {String? folderId}) async {
+    if (widget.studentUid != null) {
+      await FirebaseService.addTargetedNotification(widget.studentUid!, message);
+    } else {
+      await FirebaseService.addNotification(message, folderId: folderId);
+    }
+  }
+
   void _pickFileFromStorage(String folderId) async {
     try {
       final result = await FilePicker.platform.pickFiles(type: FileType.any, allowMultiple: false);
       if (result != null && result.files.isNotEmpty) {
         final file = result.files.first;
         await FirebaseService.addFolderContent(folderId, {'type': 'file', 'name': file.name, 'url': file.path ?? '', 'source': 'internal_storage'});
-        await FirebaseService.addNotification('Uploaded file: ${file.name}', folderId: folderId);
+        await _sendScopedNotification('Uploaded file: ${file.name}', folderId: folderId);
       }
     } catch (e) {
       if (mounted) {
@@ -1481,7 +1489,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               if (nameCtrl.text.trim().isEmpty) return;
               Navigator.pop(d);
               await FirebaseService.addFolderContent(folderId, {'type': 'file', 'name': nameCtrl.text.trim(), 'url': urlCtrl.text.trim(), 'source': 'google_drive'});
-              await FirebaseService.addNotification('Uploaded from Drive: ${nameCtrl.text.trim()}', folderId: folderId);
+              await _sendScopedNotification('Uploaded from Drive: ${nameCtrl.text.trim()}', folderId: folderId);
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.amber.shade800),
             child: const Text('Save', style: TextStyle(color: Colors.white)),
@@ -1516,7 +1524,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               if (nameCtrl.text.trim().isEmpty) return;
               Navigator.pop(d);
               await FirebaseService.addFolderContent(folderId, {'type': 'file', 'name': nameCtrl.text.trim(), 'url': linkCtrl.text.trim(), 'source': 'url'});
-              await FirebaseService.addNotification('Uploaded file: ${nameCtrl.text.trim()}', folderId: folderId);
+              await _sendScopedNotification('Uploaded file: ${nameCtrl.text.trim()}', folderId: folderId);
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700),
             child: const Text('Save', style: TextStyle(color: Colors.white)),
@@ -1696,6 +1704,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ),
           ]),
         ),
+        if (widget.studentUid != null)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            color: const Color(0xFF00B8D4).withValues(alpha: 0.15),
+            child: Row(
+              children: [
+                const Icon(Icons.person_pin_rounded, color: Color(0xFF00B8D4), size: 16),
+                const SizedBox(width: 8),
+                Text(
+                  'Controlling: ${widget.studentName ?? 'Student'} — changes are scoped to this student only',
+                  style: const TextStyle(color: Color(0xFF00B8D4), fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+          ),
         _buildAdminSearchBar(),
         const Divider(height: 1, color: Colors.white12),
         Expanded(
@@ -1765,7 +1789,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   final color = colors[index % colors.length];
                   return AnimatedPressable(
                     key: ValueKey(folderId),
-                    onTap: () => context.push('/folders/$folderId', extra: {'canEdit': true, 'canManage': true, 'isAdmin': true}),
+                    onTap: () => context.push('/folders/$folderId', extra: {'canEdit': true, 'canManage': true, 'isAdmin': true, if (widget.studentUid != null) 'targetStudentUid': widget.studentUid}),
                     child: GestureDetector(
                       onLongPress: () {
                         showModalBottomSheet(
@@ -1814,7 +1838,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                               _actionBtn(Icons.people_alt_rounded, Colors.orange, 'Assistant', () => _showGrantAccessDialog(folderId, folderName)),
                               _actionBtn(Icons.lock_outline_rounded, Colors.amber, 'Lock', () => _showFolderLockSheet(folderId, folderName, locked, updating, invisible)),
                               _actionBtn(Icons.groups_rounded, Colors.green, 'Group', () => _groupLinkForFolder(context, folderId)),
-                              _actionBtn(Icons.open_in_new_rounded, Colors.blue, 'Open', () => context.push('/folders/$folderId', extra: {'canEdit': true, 'canManage': true, 'isAdmin': true})),
+                              _actionBtn(Icons.open_in_new_rounded, Colors.blue, 'Open', () => context.push('/folders/$folderId', extra: {'canEdit': true, 'canManage': true, 'isAdmin': true, if (widget.studentUid != null) 'targetStudentUid': widget.studentUid})),
                               const Spacer(),
                               IconButton(icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent), onPressed: () => _confirmDelete(folderId, folderName), tooltip: 'Delete'),
                             ]),

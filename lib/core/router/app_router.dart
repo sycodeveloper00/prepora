@@ -26,6 +26,7 @@ import '../../features/settings/presentation/settings_screen.dart';
 import '../../features/settings/presentation/admin_settings_screen.dart';
 import '../../features/webview/presentation/webview_screen.dart';
 import '../../features/splash_onboarding/presentation/splash_screen.dart';
+import '../../features/student/presentation/student_progress_screen.dart';
 
 class AppRouter {
   static final GoRouter router = GoRouter(
@@ -48,6 +49,7 @@ class AppRouter {
             canEdit: extra?['canEdit'] as bool? ?? false,
             canManage: extra?['canManage'] as bool? ?? false,
             isAdmin: extra?['isAdmin'] as bool? ?? false,
+            targetStudentUid: extra?['targetStudentUid'] as String?,
             assistantContentAccess: extra?['assistantContentAccess'] is List
                 ? (extra!['assistantContentAccess'] as List).cast<String>().toSet()
                 : null,
@@ -64,6 +66,7 @@ class AppRouter {
             canEdit: extra?['canEdit'] as bool? ?? false,
             canManage: extra?['canManage'] as bool? ?? false,
             isAdmin: extra?['isAdmin'] as bool? ?? false,
+            targetStudentUid: extra?['targetStudentUid'] as String?,
             assistantContentAccess: extra?['assistantContentAccess'] is List
                 ? (extra!['assistantContentAccess'] as List).cast<String>().toSet()
                 : null,
@@ -92,6 +95,7 @@ class AppRouter {
       GoRoute(path: '/admin/control-panel', builder: (c, s) => const AdminControlPanelScreen()),
       GoRoute(path: '/student/notices', builder: (c, s) => const StudentNoticeScreen()),
       GoRoute(path: '/student/feedbacks', builder: (c, s) => const StudentFeedbackScreen()),
+      GoRoute(path: '/student/progress', builder: (c, s) => const StudentProgressScreen()),
       GoRoute(
         path: '/media_player',
         builder: (c, s) {

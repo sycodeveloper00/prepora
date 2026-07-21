@@ -156,24 +156,14 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
     final action = widget.isMove ? 'Moved' : 'Copied';
     try {
       for (final contentId in widget.selectedIds) {
-        final doc = await FirebaseService.firestore
-            .collection('folders').doc(srcFolderId)
-            .collection('contents').doc(contentId).get();
-        if (!doc.exists) continue;
-        final data = Map<String, dynamic>.from(doc.data() as Map<String, dynamic>);
-        data.remove('createdAt');
-        data.remove('order');
-        if (targetParentContentId != null) {
-          data['parentContentId'] = targetParentContentId;
-        } else {
-          data.remove('parentContentId');
-        }
-        await FirebaseService.addFolderContent(targetTopLevelFolderId, data);
-        if (widget.isMove) {
-          await FirebaseService.deleteFolderContent(srcFolderId, contentId);
-        }
+        await _copyContentRecursive(
+          srcFolderId: srcFolderId,
+          contentId: contentId,
+          targetTopLevelFolderId: targetTopLevelFolderId,
+          targetParentContentId: targetParentContentId,
+        );
       }
-      await FirebaseService.addNotification('$action ${widget.selectedIds.length} item(s)', folderId: srcFolderId);
+      await FirebaseService.addNotification('$action ${widget.selectedIds.length} item(s)', folderId: srcFolderId, parentContentId: targetParentContentId);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('$action successfully'), backgroundColor: Colors.green),
@@ -186,6 +176,47 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
           SnackBar(content: Text('Error: $e'), backgroundColor: Colors.redAccent),
         );
       }
+    }
+  }
+
+  Future<void> _copyContentRecursive({
+    required String srcFolderId,
+    required String contentId,
+    required String targetTopLevelFolderId,
+    required String? targetParentContentId,
+  }) async {
+    final doc = await FirebaseService.firestore
+        .collection('folders').doc(srcFolderId)
+        .collection('contents').doc(contentId).get();
+    if (!doc.exists) return;
+    final srcData = doc.data() as Map<String, dynamic>;
+    final isSubfolder = srcData['type'] == 'subfolder';
+    final newData = Map<String, dynamic>.from(srcData)
+      ..remove('createdAt')
+      ..remove('order');
+    if (targetParentContentId != null) {
+      newData['parentContentId'] = targetParentContentId;
+    } else {
+      newData.remove('parentContentId');
+    }
+    final newContentId = await FirebaseService.addFolderContent(targetTopLevelFolderId, newData);
+    if (isSubfolder && newContentId != null) {
+      final childrenSnap = await FirebaseService.firestore
+          .collection('folders').doc(srcFolderId)
+          .collection('contents')
+          .where('parentContentId', isEqualTo: contentId)
+          .get();
+      for (final childDoc in childrenSnap.docs) {
+        await _copyContentRecursive(
+          srcFolderId: srcFolderId,
+          contentId: childDoc.id,
+          targetTopLevelFolderId: targetTopLevelFolderId,
+          targetParentContentId: newContentId,
+        );
+      }
+    }
+    if (widget.isMove) {
+      await FirebaseService.deleteFolderContent(srcFolderId, contentId);
     }
   }
 

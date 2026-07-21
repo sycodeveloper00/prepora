@@ -7,6 +7,8 @@ import '../../../core/services/firebase_service.dart';
 import '../../../core/theme/theme_provider.dart';
 import '../../../core/utils.dart';
 import '../../../core/widgets/professional_loader.dart';
+import '../../student/presentation/student_progress_screen.dart';
+import '../../../core/widgets/gender_badge.dart';
 
 class AdminControlPanelScreen extends StatefulWidget {
   const AdminControlPanelScreen({super.key});
@@ -771,13 +773,38 @@ class _StudentActivityPageState extends State<StudentActivityPage> {
                         final uid = s['id'] as String? ?? '';
                         final name = s['name'] as String? ?? 'Unknown';
                         final email = s['email'] as String? ?? '';
+                        final gender = s['gender'] as String? ?? '';
                         return Card(
                           color: widget.cardBg, margin: const EdgeInsets.only(bottom: 8),
                           child: ListTile(
                             leading: CircleAvatar(backgroundColor: Colors.lime.shade800, child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?', style: const TextStyle(color: Colors.white))),
-                            title: Text(name, style: TextStyle(color: widget.baseColor, fontWeight: FontWeight.bold)),
+                            title: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Flexible(child: Text(name, style: TextStyle(color: widget.baseColor, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
+                                if (gender.isNotEmpty) ...[
+                                  const SizedBox(width: 6),
+                                  GenderBadge(gender: gender, size: 16),
+                                ],
+                              ],
+                            ),
                             subtitle: Text(email, style: TextStyle(color: widget.dimColor, fontSize: 12)),
-                            trailing: const Icon(Icons.chevron_right, color: Colors.lime, size: 20),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.insights_rounded, color: Colors.cyan, size: 20),
+                                  tooltip: 'View Progress',
+                                  onPressed: () {
+                                    Navigator.pop(context);
+                                    Navigator.push(context, MaterialPageRoute(
+                                      builder: (_) => StudentProgressScreen(targetUid: uid),
+                                    ));
+                                  },
+                                ),
+                                Icon(Icons.chevron_right, color: Colors.lime, size: 20),
+                              ],
+                            ),
                             onTap: () => _showStudentLoginHistory(uid, name),
                           ),
                         );
@@ -856,6 +883,21 @@ class _StudentActivityPageState extends State<StudentActivityPage> {
             ),
           ),
           const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pop(ctx);
+                Navigator.push(context, MaterialPageRoute(
+                  builder: (_) => StudentProgressScreen(targetUid: uid),
+                ));
+              },
+              icon: const Icon(Icons.insights_rounded, size: 18),
+              label: const Text('View Progress'),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00B8D4), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 12)),
+            ),
+          ),
+          const SizedBox(height: 8),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(

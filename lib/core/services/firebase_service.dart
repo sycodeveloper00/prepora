@@ -110,6 +110,7 @@ class FirebaseService {
     String email,
     String password, {
     String role = 'student',
+    String gender = '',
   }) async {
     try {
       final cred = await fb_auth.FirebaseAuth.instance.createUserWithEmailAndPassword(
@@ -128,6 +129,7 @@ class FirebaseService {
         'verified': role == 'admin',
         'createdAt': FieldValue.serverTimestamp(),
         'termsAccepted': false,
+        'gender': gender,
       });
       await addAdminNotification('registration', 'New student registered: $name ($email)', relatedUid: uid);
       return cred;
@@ -759,7 +761,7 @@ class FirebaseService {
     }
   }
 
-  static Future<String?> addNotification(String message, {String? folderId, Map<String, dynamic>? contentData}) async {
+  static Future<String?> addNotification(String message, {String? folderId, Map<String, dynamic>? contentData, String? parentContentId}) async {
     if (contentData != null) {
       final locked = contentData['locked'] as bool? ?? false;
       final updating = contentData['updating'] as bool? ?? false;
@@ -781,12 +783,26 @@ class FirebaseService {
         }
       }
     }
+    if (!folderRestricted && folderId != null && parentContentId != null) {
+      final parentDoc = await firestore.collection('folders').doc(folderId).collection('contents').doc(parentContentId).get();
+      if (parentDoc.exists) {
+        final parentData = parentDoc.data() as Map<String, dynamic>?;
+        if (parentData != null) {
+          final pLocked = parentData['locked'] as bool? ?? false;
+          final pUpdating = parentData['updating'] as bool? ?? false;
+          final pInvisible = parentData['invisible'] as bool? ?? false;
+          if (pLocked || pUpdating || pInvisible) {
+            folderRestricted = true;
+          }
+        }
+      }
+    }
     final users = await firestore.collection('users').get();
     final batch = firestore.batch();
     for (final u in users.docs) {
       if (folderRestricted) {
         final role = (u.data())['role'] as String? ?? '';
-        if (role == 'student') continue;
+        if (role == 'student' || role == 'assistant') continue;
       }
       final ref = firestore.collection('notifications').doc();
       batch.set(ref, {
@@ -1002,6 +1018,68 @@ class FirebaseService {
 
   static Future<void> updateSetting(String key, dynamic value) async {
     await firestore.collection('settings').doc('general').set({key: value}, SetOptions(merge: true));
+  }
+
+  // ─── Per-User Settings ────────────────────────────────────────────────────────
+
+  static Future<bool> getUserAutoDownload() async {
+    final uid = currentUser?.uid;
+    if (uid == null) return true;
+    final snap = await firestore.collection('users').doc(uid).get();
+    final data = snap.data();
+    if (data == null || !data.containsKey('autoDownload')) return true;
+    return data['autoDownload'] as bool? ?? true;
+  }
+
+  static Future<void> updateUserAutoDownload(bool value) async {
+    final uid = currentUser?.uid;
+    if (uid == null) return;
+    await firestore.collection('users').doc(uid).set({'autoDownload': value}, SetOptions(merge: true));
+  }
+
+  // ─── Student Activity Tracking ───────────────────────────────────────────────
+
+  static Future<String> logActivity({
+    required String uid,
+    required String name,
+    required String type,
+    required String folderPath,
+  }) async {
+    final doc = await firestore.collection('student_activities').add({
+      'uid': uid,
+      'name': name,
+      'type': type,
+      'folderPath': folderPath,
+      'startedAt': FieldValue.serverTimestamp(),
+    });
+    return doc.id;
+  }
+
+  static Future<void> endActivity(String activityId) async {
+    await firestore.collection('student_activities').doc(activityId).update({
+      'endedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  static Stream<QuerySnapshot> getStudentActivities(String uid) {
+    return firestore
+        .collection('student_activities')
+        .where('uid', isEqualTo: uid)
+        .orderBy('startedAt', descending: true)
+        .snapshots();
+  }
+
+  static Future<Map<String, dynamic>?> getUserData(String uid) async {
+    final doc = await firestore.collection('users').doc(uid).get();
+    return doc.exists ? doc.data() : null;
+  }
+
+  static Future<List<Map<String, dynamic>>> getStudentFeedbacks(String uid) async {
+    final snap = await firestore.collection('feedbacks')
+        .where('uid', isEqualTo: uid)
+        .orderBy('createdAt', descending: true)
+        .get();
+    return snap.docs.map((d) => d.data()..['id'] = d.id).toList();
   }
 
   // ─── AI Conversations ──────────────────────────────────────────────────────────

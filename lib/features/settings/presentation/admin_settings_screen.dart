@@ -32,10 +32,10 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
   Future<void> _load() async {
     final settings = await FirebaseService.getSettings();
     final info = await PackageInfo.fromPlatform();
+    _autoDownload = await FirebaseService.getUserAutoDownload();
     if (mounted) setState(() {
       _price = (settings['price'] as num?)?.toDouble() ?? 0;
       _paidAccess = settings['paidAccess'] as bool? ?? false;
-      _autoDownload = settings['autoDownload'] as bool? ?? true;
       _accountTitle = settings['accountTitle'] as String? ?? '';
       _accountNo = settings['accountNo'] as String? ?? '';
       _bankName = settings['bankName'] as String? ?? '';
@@ -93,12 +93,12 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                   child: SwitchListTile(
                     secondary: const Icon(Icons.download_rounded, color: Color(0xFF00B8D4)),
                     title: Text('Auto Download Files', style: TextStyle(color: textColor)),
-                    subtitle: Text('Students files auto-download on first open', style: TextStyle(color: hintColor, fontSize: 12)),
+                    subtitle: Text('Auto-download files on first open', style: TextStyle(color: hintColor, fontSize: 12)),
                     value: _autoDownload,
                     activeColor: const Color(0xFF4A148C),
                     onChanged: (val) async {
                       setState(() => _autoDownload = val);
-                      await FirebaseService.updateSetting('autoDownload', val);
+                      await FirebaseService.updateUserAutoDownload(val);
                     },
                   ),
                 ),

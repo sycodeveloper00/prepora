@@ -22,6 +22,7 @@ class FolderDetailsScreen extends StatefulWidget {
   final bool isAdmin;
   final Set<String>? assistantContentAccess;
   final String? parentContentId;
+  final String? targetStudentUid;
 
   const FolderDetailsScreen({
     super.key,
@@ -31,6 +32,7 @@ class FolderDetailsScreen extends StatefulWidget {
     this.isAdmin = false,
     this.assistantContentAccess,
     this.parentContentId,
+    this.targetStudentUid,
   });
 
   @override
@@ -52,6 +54,15 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
   bool _isSelectMode = false;
   String? _groupLink;
   bool _autoDownload = true;
+  String? _currentActivityId;
+
+  Future<void> _sendScopedNotification(String message, {String? parentContentId, Map<String, dynamic>? contentData}) async {
+    if (widget.targetStudentUid != null) {
+      await FirebaseService.addTargetedNotification(widget.targetStudentUid!, message);
+    } else {
+      await FirebaseService.addNotification(message, folderId: widget.folderId, parentContentId: parentContentId, contentData: contentData);
+    }
+  }
 
   // ─── Cached futures & streams to prevent blinking rebuild loops ───
   late Future<DocumentSnapshot> _folderFuture;
@@ -96,11 +107,12 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
       final settings = await FirebaseService.getSettings();
       final paidAccess = settings['paidAccess'] as bool? ?? false;
       final verified = paidAccess ? await FirebaseService.isStudentVerified(uid) : true;
+      final autoDownload = await FirebaseService.getUserAutoDownload();
       if (mounted) setState(() {
         _isBlocked = blocked;
         _isVerified = verified;
         _isPaidAccess = paidAccess;
-        _autoDownload = settings['autoDownload'] as bool? ?? true;
+        _autoDownload = autoDownload;
       });
     }
   }
@@ -155,10 +167,10 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
                 await FirebaseService.updateContentField(widget.folderId, contentId, 'updating', false);
                 await FirebaseService.updateContentField(widget.folderId, contentId, 'invisible', false);
                 setLocal(() { locked = val; updating = false; invisible = false; });
-                await FirebaseService.addNotification('Locked: $contentName', folderId: widget.folderId, contentData: {'locked': true});
+                await _sendScopedNotification('Locked: $contentName', contentData: {'locked': true});
               } else {
                 setLocal(() => locked = val);
-                await FirebaseService.addNotification('Unlocked: $contentName', folderId: widget.folderId);
+                await _sendScopedNotification('Unlocked: $contentName', parentContentId: widget.parentContentId);
               }
             }),
             const SizedBox(height: 12),
@@ -168,10 +180,10 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
                 await FirebaseService.updateContentField(widget.folderId, contentId, 'locked', false);
                 await FirebaseService.updateContentField(widget.folderId, contentId, 'invisible', false);
                 setLocal(() { updating = val; locked = false; invisible = false; });
-                await FirebaseService.addNotification('Updating: $contentName', folderId: widget.folderId, contentData: {'updating': true});
+                await _sendScopedNotification('Updating: $contentName', contentData: {'updating': true});
               } else {
                 setLocal(() => updating = val);
-                await FirebaseService.addNotification('Updating removed: $contentName', folderId: widget.folderId);
+                await _sendScopedNotification('Updating removed: $contentName', parentContentId: widget.parentContentId);
               }
             }),
             const SizedBox(height: 12),
@@ -181,10 +193,10 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
                 await FirebaseService.updateContentField(widget.folderId, contentId, 'locked', false);
                 await FirebaseService.updateContentField(widget.folderId, contentId, 'updating', false);
                 setLocal(() { invisible = val; locked = false; updating = false; });
-                await FirebaseService.addNotification('Hidden: $contentName', folderId: widget.folderId, contentData: {'invisible': true});
+                await _sendScopedNotification('Hidden: $contentName', contentData: {'invisible': true});
               } else {
                 setLocal(() => invisible = val);
-                await FirebaseService.addNotification('Visible: $contentName', folderId: widget.folderId);
+                await _sendScopedNotification('Visible: $contentName', parentContentId: widget.parentContentId);
               }
             }),
             const SizedBox(height: 16),
@@ -418,7 +430,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
               if (widget.parentContentId != null) data['parentContentId'] = widget.parentContentId!;
               final newId = await FirebaseService.addFolderContent(widget.folderId, data);
               if (newId != null && !widget.isAdmin) { _assistantAccess.add(newId); _pendingOptimistic.add(newId); }
-              await FirebaseService.addNotification('Created sub-folder: ${ctrl.text.trim()}', folderId: widget.folderId);
+              await _sendScopedNotification('Created sub-folder: ${ctrl.text.trim()}', parentContentId: widget.parentContentId);
               _refreshAssistantAccess();
             },
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4A148C)),
@@ -459,7 +471,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
               if (widget.parentContentId != null) data['parentContentId'] = widget.parentContentId!;
               final newId = await FirebaseService.addFolderContent(widget.folderId, data);
               if (newId != null && !widget.isAdmin) { _assistantAccess.add(newId); _pendingOptimistic.add(newId); }
-              await FirebaseService.addNotification('Added lecture: ${titleCtrl.text.trim()}', folderId: widget.folderId);
+              await _sendScopedNotification('Added lecture: ${titleCtrl.text.trim()}', parentContentId: widget.parentContentId);
               _refreshAssistantAccess();
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700),
@@ -537,7 +549,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
           if (widget.parentContentId != null) data['parentContentId'] = widget.parentContentId!;
           final newId = await FirebaseService.addFolderContent(widget.folderId, data);
           if (newId != null && !widget.isAdmin) { _assistantAccess.add(newId); _pendingOptimistic.add(newId); }
-          await FirebaseService.addNotification('Uploaded file: ${file.name}', folderId: widget.folderId);
+          await _sendScopedNotification('Uploaded file: ${file.name}', parentContentId: widget.parentContentId);
           count++;
         }
         _refreshAssistantAccess();
@@ -582,7 +594,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
               if (widget.parentContentId != null) data['parentContentId'] = widget.parentContentId!;
               final newId = await FirebaseService.addFolderContent(widget.folderId, data);
               if (newId != null && !widget.isAdmin) { _assistantAccess.add(newId); _pendingOptimistic.add(newId); }
-              await FirebaseService.addNotification('Uploaded from Drive: ${nameCtrl.text.trim()}', folderId: widget.folderId);
+              await _sendScopedNotification('Uploaded from Drive: ${nameCtrl.text.trim()}', parentContentId: widget.parentContentId);
               _refreshAssistantAccess();
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.amber.shade800),
@@ -623,7 +635,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
               if (widget.parentContentId != null) data['parentContentId'] = widget.parentContentId!;
               final newId = await FirebaseService.addFolderContent(widget.folderId, data);
               if (newId != null && !widget.isAdmin) { _assistantAccess.add(newId); _pendingOptimistic.add(newId); }
-              await FirebaseService.addNotification('Uploaded file: ${nameCtrl.text.trim()}', folderId: widget.folderId);
+              await _sendScopedNotification('Uploaded file: ${nameCtrl.text.trim()}', parentContentId: widget.parentContentId);
               _refreshAssistantAccess();
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700),
@@ -664,7 +676,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
               if (widget.parentContentId != null) data['parentContentId'] = widget.parentContentId!;
               final newId = await FirebaseService.addFolderContent(widget.folderId, data);
               if (newId != null && !widget.isAdmin) { _assistantAccess.add(newId); _pendingOptimistic.add(newId); }
-              await FirebaseService.addNotification('Added Mock Test URL: ${nameCtrl.text.trim()}', folderId: widget.folderId);
+              await _sendScopedNotification('Added Mock Test URL: ${nameCtrl.text.trim()}', parentContentId: widget.parentContentId);
               _refreshAssistantAccess();
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade800),
@@ -705,7 +717,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
               if (widget.parentContentId != null) data['parentContentId'] = widget.parentContentId!;
               final newId = await FirebaseService.addFolderContent(widget.folderId, data);
               if (newId != null && !widget.isAdmin) { _assistantAccess.add(newId); _pendingOptimistic.add(newId); }
-              await FirebaseService.addNotification('Added Mock Test Code: ${nameCtrl.text.trim()}', folderId: widget.folderId);
+              await _sendScopedNotification('Added Mock Test Code: ${nameCtrl.text.trim()}', parentContentId: widget.parentContentId);
               _refreshAssistantAccess();
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade800),
@@ -756,7 +768,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
             onPressed: () async {
               Navigator.pop(d);
               await FirebaseService.deleteFolderContent(widget.folderId, contentId);
-              await FirebaseService.addNotification('Deleted: $contentName', folderId: widget.folderId, contentData: data);
+              await _sendScopedNotification('Deleted: $contentName', parentContentId: widget.parentContentId, contentData: data);
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
             child: const Text('Delete', style: TextStyle(color: Colors.white)),
@@ -787,7 +799,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
               if (ctrl.text.trim().isEmpty) return;
               Navigator.pop(d);
               await FirebaseService.renameFolderContent(widget.folderId, contentId, ctrl.text.trim());
-              await FirebaseService.addNotification('Renamed "$currentName" to "${ctrl.text.trim()}"', folderId: widget.folderId);
+              await _sendScopedNotification('Renamed "$currentName" to "${ctrl.text.trim()}"', parentContentId: widget.parentContentId);
             },
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4A148C)),
             child: const Text('Rename', style: TextStyle(color: Colors.white)),
@@ -836,7 +848,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
               } else if (type == 'mocktest_code') {
                 await FirebaseService.updateContentField(widget.folderId, contentId, 'code', urlCtrl.text.trim());
               }
-              await FirebaseService.addNotification('Updated: ${nameCtrl.text.trim()}', folderId: widget.folderId, contentData: data);
+              await _sendScopedNotification('Updated: ${nameCtrl.text.trim()}', parentContentId: widget.parentContentId, contentData: data);
             },
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4A148C)),
             child: const Text('Save', style: TextStyle(color: Colors.white)),
@@ -919,7 +931,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
     for (final id in _selectedIds) {
       await FirebaseService.deleteFolderContent(widget.folderId, id);
     }
-    await FirebaseService.addNotification('Deleted $count item(s)', folderId: widget.folderId);
+    await _sendScopedNotification('Deleted $count item(s)', parentContentId: widget.parentContentId);
     _clearSelection();
   }
 
@@ -985,6 +997,12 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
       if (updating) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('This content is being updated'), backgroundColor: Colors.orange));
         return;
+      }
+      final uid = FirebaseService.currentUser?.uid ?? '';
+      if (uid.isNotEmpty) {
+        FirebaseService.logActivity(uid: uid, name: name, type: type, folderPath: folderName).then((id) {
+          _currentActivityId = id;
+        });
       }
     }
 
@@ -1658,6 +1676,7 @@ child: TextField(
               context.push('/folders/${widget.folderId}/sub/$id', extra: {
                 'canEdit': widget.canEdit, 'canManage': widget.canManage,
                 'isAdmin': widget.isAdmin,
+                if (widget.targetStudentUid != null) 'targetStudentUid': widget.targetStudentUid,
                 if (widget.assistantContentAccess != null) 'assistantContentAccess': widget.assistantContentAccess!.toList(),
               });
             },
@@ -2054,6 +2073,14 @@ child: TextField(
     if (['zip', 'rar', '7z', 'tar', 'gz'].contains(ext)) return Icons.folder_zip_rounded;
     if (['txt', 'rtf'].contains(ext)) return Icons.article_rounded;
     return Icons.book_rounded;
+  }
+
+  @override
+  void dispose() {
+    if (_currentActivityId != null) {
+      FirebaseService.endActivity(_currentActivityId!);
+    }
+    super.dispose();
   }
 }
 

@@ -21,9 +21,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _load() async {
-    final settings = await FirebaseService.getSettings();
+    _autoDownload = await FirebaseService.getUserAutoDownload();
     if (mounted) setState(() {
-      _autoDownload = settings['autoDownload'] as bool? ?? true;
       _loading = false;
     });
   }
@@ -68,7 +67,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               activeColor: const Color(0xFF4A148C),
               onChanged: (val) async {
                 setState(() => _autoDownload = val);
-                await FirebaseService.updateSetting('autoDownload', val);
+                await FirebaseService.updateUserAutoDownload(val);
               },
             ),
           ),
