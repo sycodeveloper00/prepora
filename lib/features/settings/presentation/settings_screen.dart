@@ -12,6 +12,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _autoDownload = true;
+  bool _notificationsEnabled = true;
   bool _loading = true;
 
   @override
@@ -22,6 +23,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _load() async {
     _autoDownload = await FirebaseService.getUserAutoDownload();
+    _notificationsEnabled = await FirebaseService.getUserNotificationsEnabled();
     if (mounted) setState(() {
       _loading = false;
     });
@@ -68,6 +70,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onChanged: (val) async {
                 setState(() => _autoDownload = val);
                 await FirebaseService.updateUserAutoDownload(val);
+              },
+            ),
+          ),
+          const SizedBox(height: 16),
+          Card(
+            color: cardColor,
+            child: SwitchListTile(
+              secondary: const Icon(Icons.notifications_rounded, color: Colors.purpleAccent),
+              title: Text('Notifications', style: TextStyle(color: textColor)),
+              subtitle: Text('Receive updates & alerts', style: TextStyle(color: hintColor, fontSize: 12)),
+              value: _notificationsEnabled,
+              activeColor: const Color(0xFF4A148C),
+              onChanged: (val) async {
+                setState(() => _notificationsEnabled = val);
+                await FirebaseService.updateUserNotificationsEnabled(val);
               },
             ),
           ),

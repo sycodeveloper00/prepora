@@ -800,10 +800,13 @@ class FirebaseService {
     final users = await firestore.collection('users').get();
     final batch = firestore.batch();
     for (final u in users.docs) {
+      final userData = u.data();
       if (folderRestricted) {
-        final role = (u.data())['role'] as String? ?? '';
+        final role = userData['role'] as String? ?? '';
         if (role == 'student' || role == 'assistant') continue;
       }
+      final notificationsEnabled = userData['notificationsEnabled'] as bool? ?? true;
+      if (!notificationsEnabled) continue;
       final ref = firestore.collection('notifications').doc();
       batch.set(ref, {
         'uid': u.id,
@@ -869,9 +872,15 @@ class FirebaseService {
     final snap = await firestore
         .collection('feedbacks')
         .where('uid', isEqualTo: uid)
-        .orderBy('createdAt', descending: true)
         .get();
-    return snap.docs.map((e) => {'id': e.id, ...e.data()}).toList();
+    final list = snap.docs.map((e) => {'id': e.id, ...e.data()}).toList();
+    list.sort((a, b) {
+      final aTime = a['createdAt'];
+      final bTime = b['createdAt'];
+      if (aTime is Timestamp && bTime is Timestamp) return bTime.compareTo(aTime);
+      return 0;
+    });
+    return list;
   }
 
   static Stream<QuerySnapshot> getAllFeedbacks() {
@@ -1037,6 +1046,21 @@ class FirebaseService {
     await firestore.collection('users').doc(uid).set({'autoDownload': value}, SetOptions(merge: true));
   }
 
+  static Future<bool> getUserNotificationsEnabled() async {
+    final uid = currentUser?.uid;
+    if (uid == null) return true;
+    final snap = await firestore.collection('users').doc(uid).get();
+    final data = snap.data();
+    if (data == null || !data.containsKey('notificationsEnabled')) return true;
+    return data['notificationsEnabled'] as bool? ?? true;
+  }
+
+  static Future<void> updateUserNotificationsEnabled(bool value) async {
+    final uid = currentUser?.uid;
+    if (uid == null) return;
+    await firestore.collection('users').doc(uid).set({'notificationsEnabled': value}, SetOptions(merge: true));
+  }
+
   // ─── Student Activity Tracking ───────────────────────────────────────────────
 
   static Future<String> logActivity({
@@ -1065,7 +1089,6 @@ class FirebaseService {
     return firestore
         .collection('student_activities')
         .where('uid', isEqualTo: uid)
-        .orderBy('startedAt', descending: true)
         .snapshots();
   }
 
@@ -1077,9 +1100,15 @@ class FirebaseService {
   static Future<List<Map<String, dynamic>>> getStudentFeedbacks(String uid) async {
     final snap = await firestore.collection('feedbacks')
         .where('uid', isEqualTo: uid)
-        .orderBy('createdAt', descending: true)
         .get();
-    return snap.docs.map((d) => d.data()..['id'] = d.id).toList();
+    final list = snap.docs.map((d) => d.data()..['id'] = d.id).toList();
+    list.sort((a, b) {
+      final aTime = a['createdAt'];
+      final bTime = b['createdAt'];
+      if (aTime is Timestamp && bTime is Timestamp) return bTime.compareTo(aTime);
+      return 0;
+    });
+    return list;
   }
 
   // ─── AI Conversations ──────────────────────────────────────────────────────────
