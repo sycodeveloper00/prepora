@@ -39,62 +39,28 @@ jobs:
         run: flutter pub get
       
       - name: Build Split APKs (per ABI)
-        run: flutter build apk --split-per-abi --obfuscate --split-debug-info=debug-info --verbose 2>&1 | tee build_log.txt
+        run: flutter build apk --split-per-abi --target-platform android-arm64,android-arm,android-x64 --verbose
       
-      - name: Find APK files and check sizes
-        id: find_apk
+      - name: Check APK sizes
         run: |
-          echo "=== All APK files ==="
+          echo "=== APK sizes ==="
           find build/app/outputs/flutter-apk -name "*.apk" -type f -exec ls -lh {} \;
-          
           echo ""
-          echo "=== Size check (25MB limit) ==="
-          OVER_LIMIT=false
           for apk in $(find build/app/outputs/flutter-apk -name "*.apk" -type f); do
             SIZE_KB=$(du -k "$apk" | cut -f1)
             SIZE_MB=$((SIZE_KB / 1024))
             BASENAME=$(basename "$apk")
-            echo "$BASENAME: ${SIZE_MB}MB (${SIZE_KB}KB)"
+            echo "$BASENAME: ${SIZE_MB}MB"
             if [ "$SIZE_KB" -gt 25600 ]; then
-              echo "WARNING: $BASENAME exceeds 25MB limit (${SIZE_MB}MB)"
-              OVER_LIMIT=true
+              echo "ERROR: $BASENAME exceeds 25MB!"
+              exit 1
             fi
           done
-          
-          if [ "$OVER_LIMIT" = true ]; then
-            echo ""
-            echo "ERROR: One or more APKs exceed 25MB limit!"
-            exit 1
-          fi
-          
-          echo ""
-          echo "All APKs are under 25MB"
-          
-          # Set primary APK (arm64) for upload
-          ARM64_APK=$(find build/app/outputs/flutter-apk -name "*arm64-v8a*.apk" -type f | head -1)
-          if [ -z "$ARM64_APK" ]; then
-            ARM64_APK=$(find build/app/outputs/flutter-apk -name "*.apk" -type f | head -1)
-          fi
-          echo "Primary APK: $ARM64_APK"
-          echo "apk_path=$ARM64_APK" >> $GITHUB_OUTPUT
+          echo "All APKs under 25MB"
       
-      - name: Upload build log
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: build-log
-          path: build_log.txt
-      
-      - name: Upload All Split APKs
+      - name: Upload APKs
         uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: prepora-split-apks
+          name: prepora-apks
           path: build/app/outputs/flutter-apk/*.apk
-      
-      - name: Upload Primary APK (arm64)
-        uses: actions/upload-artifact@v4
-        if: success()
-        with:
-          name: prepora-apk
-          path: ${{ steps.find_apk.outputs.apk_path }}
