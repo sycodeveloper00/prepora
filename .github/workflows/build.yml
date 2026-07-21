@@ -38,31 +38,38 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
       
-      - name: Build APK (arm64 only)
-        run: flutter build apk --target-platform android-arm64 --verbose
-      
-      - name: Check APK size
+      - name: Build APK (arm64 only, small size)
         run: |
-          APK=$(find build/app/outputs/flutter-apk -name "*.apk" -type f | head -1)
-          if [ -z "$APK" ]; then
-            echo "ERROR: No APK found!"
-            find build/app/outputs -type f 2>/dev/null
+          flutter build apk \
+            --target-platform android-arm64 \
+            --obfuscate \
+            --split-debug-info=build/debug-info \
+            --verbose 2>&1 | tee build_log.txt
+      
+      - name: Check APK exists
+        if: success()
+        run: |
+          APK="build/app/outputs/flutter-apk/app-release.apk"
+          if [ ! -f "$APK" ]; then
+            echo "APK not found at expected path. Searching..."
+            find build/app/outputs -name "*.apk" -type f
+            echo "=== Last 100 lines of build log ==="
+            tail -100 build_log.txt
             exit 1
           fi
-          SIZE_KB=$(du -k "$APK" | cut -f1)
-          SIZE_MB=$((SIZE_KB / 1024))
-          echo "APK: $(basename $APK) = ${SIZE_MB}MB (${SIZE_KB}KB)"
-          if [ "$SIZE_KB" -gt 25600 ]; then
-            echo "WARNING: APK is ${SIZE_MB}MB (exceeds 25MB limit)"
-          else
-            echo "APK is under 25MB"
-          fi
-          echo "apk_path=$APK" >> $GITHUB_OUTPUT
-        id: apk_check
+          ls -lh "$APK"
+          echo "APK built successfully!"
+      
+      - name: Upload build log
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: build-log
+          path: build_log.txt
       
       - name: Upload APK
         uses: actions/upload-artifact@v4
         if: success()
         with:
           name: prepora-apk
-          path: ${{ steps.apk_check.outputs.apk_path }}
+          path: build/app/outputs/flutter-apk/app-release.apk
