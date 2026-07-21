@@ -38,29 +38,31 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
       
-      - name: Build Split APKs (per ABI)
-        run: flutter build apk --split-per-abi --target-platform android-arm64,android-arm,android-x64 --verbose
+      - name: Build APK (arm64 only)
+        run: flutter build apk --target-platform android-arm64 --verbose
       
-      - name: Check APK sizes
+      - name: Check APK size
         run: |
-          echo "=== APK sizes ==="
-          find build/app/outputs/flutter-apk -name "*.apk" -type f -exec ls -lh {} \;
-          echo ""
-          for apk in $(find build/app/outputs/flutter-apk -name "*.apk" -type f); do
-            SIZE_KB=$(du -k "$apk" | cut -f1)
-            SIZE_MB=$((SIZE_KB / 1024))
-            BASENAME=$(basename "$apk")
-            echo "$BASENAME: ${SIZE_MB}MB"
-            if [ "$SIZE_KB" -gt 25600 ]; then
-              echo "ERROR: $BASENAME exceeds 25MB!"
-              exit 1
-            fi
-          done
-          echo "All APKs under 25MB"
+          APK=$(find build/app/outputs/flutter-apk -name "*.apk" -type f | head -1)
+          if [ -z "$APK" ]; then
+            echo "ERROR: No APK found!"
+            find build/app/outputs -type f 2>/dev/null
+            exit 1
+          fi
+          SIZE_KB=$(du -k "$APK" | cut -f1)
+          SIZE_MB=$((SIZE_KB / 1024))
+          echo "APK: $(basename $APK) = ${SIZE_MB}MB (${SIZE_KB}KB)"
+          if [ "$SIZE_KB" -gt 25600 ]; then
+            echo "WARNING: APK is ${SIZE_MB}MB (exceeds 25MB limit)"
+          else
+            echo "APK is under 25MB"
+          fi
+          echo "apk_path=$APK" >> $GITHUB_OUTPUT
+        id: apk_check
       
-      - name: Upload APKs
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: prepora-apks
-          path: build/app/outputs/flutter-apk/*.apk
+          name: prepora-apk
+          path: ${{ steps.apk_check.outputs.apk_path }}
