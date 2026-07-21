@@ -39,5 +39,9 @@
 -dontwarn okhttp3.**
 -dontwarn okio.**
 
-# Keep Flutter DeferredComponent classes
--keep class io.flutter.embedding.engine.deferredcomponents.** { *; }
+# Remove logging
+-assumenosideeffects class android.util.Log {
+    public static int v(...);
+    public static int d(...);
+    public static int i(...);
+}
