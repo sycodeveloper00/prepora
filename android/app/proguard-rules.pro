@@ -1,36 +1,26 @@
 # Flutter
 -keep class io.flutter.app.** { *; }
--keep class io.flutter.plugin.**  { *; }
+-keep class io.flutter.plugin.** { *; }
 -keep class io.flutter.util.** { *; }
 -keep class io.flutter.view.** { *; }
 -keep class io.flutter.embedding.** { *; }
 -keep class io.flutter.plugins.** { *; }
 
-# Firebase - keep only entry points
--keep class com.google.firebase.FirebaseApp { *; }
--keep class com.google.firebase.auth.** { *; }
--keep class com.google.firebase.firestore.** { *; }
--keep class com.google.firebase.storage.** { *; }
--keep class com.google.firebase.messaging.** { *; }
--keep class com.google.firebase.analytics.** { *; }
+# Firebase
+-keep class com.google.firebase.** { *; }
+-keep class com.google.android.gms.** { *; }
 -keepattributes Signature
 -keepattributes *Annotation*
 
-# Google Play Services
--keep class com.google.android.gms.common.** { *; }
--dontwarn com.google.android.gms.**
-
-# Syncfusion PDF - keep only required classes
--keep class com.syncfusion.pdfviewer.** { *; }
--keep class com.syncfusion.pdfviewer.control.** { *; }
+# Syncfusion PDF
+-keep class com.syncfusion.** { *; }
 -dontwarn com.syncfusion.**
 
 # Google ML Kit
 -keep class com.google.mlkit.** { *; }
--keep class com.google.android.gms.vision.** { *; }
 -dontwarn com.google.mlkit.**
 
-# Google Play Core
+# Google Play Core (split compat)
 -dontwarn com.google.android.play.core.splitcompat.**
 -dontwarn com.google.android.play.core.splitinstall.**
 -dontwarn com.google.android.play.core.tasks.**
@@ -38,10 +28,5 @@
 # OkHttp / Okio
 -dontwarn okhttp3.**
 -dontwarn okio.**
-
-# Remove logging
--assumenosideeffects class android.util.Log {
-    public static int v(...);
-    public static int d(...);
-    public static int i(...);
-}
+-keep class okhttp3.** { *; }
+-keep class okio.** { *; }
