@@ -43,7 +43,10 @@ jobs:
       
       - name: Show APK size
         if: success()
-        run: find build/app/outputs/flutter-apk -name "*.apk" -exec ls -lh {} \;
+        run: |
+          find build/app/outputs/flutter-apk -name "*.apk" -type f -exec ls -lh {} \; || true
+          echo "Build output:"
+          ls -la build/app/outputs/flutter-apk/ || true
       
       - name: Upload build log
         uses: actions/upload-artifact@v4
