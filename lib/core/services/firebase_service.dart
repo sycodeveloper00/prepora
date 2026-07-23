@@ -805,8 +805,6 @@ class FirebaseService {
         final role = userData['role'] as String? ?? '';
         if (role == 'student' || role == 'assistant') continue;
       }
-      final notificationsEnabled = userData['notificationsEnabled'] as bool? ?? true;
-      if (!notificationsEnabled) continue;
       final ref = firestore.collection('notifications').doc();
       batch.set(ref, {
         'uid': u.id,
@@ -1044,21 +1042,6 @@ class FirebaseService {
     final uid = currentUser?.uid;
     if (uid == null) return;
     await firestore.collection('users').doc(uid).set({'autoDownload': value}, SetOptions(merge: true));
-  }
-
-  static Future<bool> getUserNotificationsEnabled() async {
-    final uid = currentUser?.uid;
-    if (uid == null) return true;
-    final snap = await firestore.collection('users').doc(uid).get();
-    final data = snap.data();
-    if (data == null || !data.containsKey('notificationsEnabled')) return true;
-    return data['notificationsEnabled'] as bool? ?? true;
-  }
-
-  static Future<void> updateUserNotificationsEnabled(bool value) async {
-    final uid = currentUser?.uid;
-    if (uid == null) return;
-    await firestore.collection('users').doc(uid).set({'notificationsEnabled': value}, SetOptions(merge: true));
   }
 
   // ─── Student Activity Tracking ───────────────────────────────────────────────

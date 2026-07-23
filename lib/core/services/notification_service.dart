@@ -73,16 +73,15 @@ class NotificationService {
         .orderBy('createdAt', descending: true)
         .snapshots()
         .listen((snap) async {
-      final userDoc = await FirebaseService.firestore.collection('users').doc(uid).get();
-      final notificationsEnabled = (userDoc.data()?['notificationsEnabled'] as bool?) ?? true;
-
       int unreadCount = 0;
       for (final doc in snap.docs) {
         final data = doc.data() as Map<String, dynamic>;
         if (data['read'] != true) unreadCount++;
       }
       await setBadgeCount(unreadCount);
-      if (!notificationsEnabled) return;
+      final enabled = await _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+          ?.areNotificationsEnabled() ?? true;
+      if (!enabled) return;
       for (final change in snap.docChanges) {
         if (change.type == DocumentChangeType.added) {
           final data = change.doc.data() as Map<String, dynamic>;
@@ -195,10 +194,13 @@ class NotificationService {
 
     final hoursSince = now.difference(lastLogin).inHours;
 
+    final enabled = await _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+        ?.areNotificationsEnabled() ?? true;
+
     if (hoursSince >= 72) {
-      await _showStreakNotification('Long time no see!', "I am frustrated, when will you come back? Your streak is waiting.");
+      if (enabled) await _showStreakNotification('Long time no see!', "I am frustrated, when will you come back? Your streak is waiting.");
     } else if (hoursSince >= 24) {
-      await _showStreakNotification("Let's Come Back to Learn", "I am waiting for you. Waiting for your return, I am tired!");
+      if (enabled) await _showStreakNotification("Let's Come Back to Learn", "I am waiting for you. Waiting for your return, I am tired!");
     }
   }
 

@@ -17,7 +17,6 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
   double _price = 0;
   bool _paidAccess = false;
   bool _autoDownload = true;
-  bool _notificationsEnabled = true;
   bool _loading = true;
   String _accountTitle = '';
   String _accountNo = '';
@@ -34,7 +33,6 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
     final settings = await FirebaseService.getSettings();
     final info = await PackageInfo.fromPlatform();
     _autoDownload = await FirebaseService.getUserAutoDownload();
-    _notificationsEnabled = await FirebaseService.getUserNotificationsEnabled();
     if (mounted) setState(() {
       _price = (settings['price'] as num?)?.toDouble() ?? 0;
       _paidAccess = settings['paidAccess'] as bool? ?? false;
@@ -101,21 +99,6 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                     onChanged: (val) async {
                       setState(() => _autoDownload = val);
                       await FirebaseService.updateUserAutoDownload(val);
-                    },
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Card(
-                  color: cardColor,
-                  child: SwitchListTile(
-                    secondary: const Icon(Icons.notifications_rounded, color: Colors.purpleAccent),
-                    title: Text('Notifications', style: TextStyle(color: textColor)),
-                    subtitle: Text('Receive updates & alerts', style: TextStyle(color: hintColor, fontSize: 12)),
-                    value: _notificationsEnabled,
-                    activeColor: const Color(0xFF4A148C),
-                    onChanged: (val) async {
-                      setState(() => _notificationsEnabled = val);
-                      await FirebaseService.updateUserNotificationsEnabled(val);
                     },
                   ),
                 ),
