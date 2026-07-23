@@ -63,12 +63,16 @@ class NotificationService {
         .orderBy('createdAt', descending: true)
         .snapshots()
         .listen((snap) async {
+      final userDoc = await FirebaseService.firestore.collection('users').doc(uid).get();
+      final notificationsEnabled = (userDoc.data()?['notificationsEnabled'] as bool?) ?? true;
+
       int unreadCount = 0;
       for (final doc in snap.docs) {
         final data = doc.data() as Map<String, dynamic>;
         if (data['read'] != true) unreadCount++;
       }
       await setBadgeCount(unreadCount);
+      if (!notificationsEnabled) return;
       for (final change in snap.docChanges) {
         if (change.type == DocumentChangeType.added) {
           final data = change.doc.data() as Map<String, dynamic>;
@@ -168,14 +172,17 @@ class NotificationService {
     final doc = await FirebaseService.firestore.collection('users').doc(user.uid).get();
     if (!doc.exists) return;
 
-    final lastLogin = (doc.data()?['lastLogin'] as Timestamp?)?.toDate();
+    final userData = doc.data();
+    final notificationsEnabled = userData?['notificationsEnabled'] as bool? ?? true;
+
+    final lastLogin = (userData?['lastLogin'] as Timestamp?)?.toDate();
     final now = DateTime.now();
 
     await FirebaseService.firestore.collection('users').doc(user.uid).update({
       'lastLogin': Timestamp.fromDate(now),
     });
 
-    if (lastLogin == null) return;
+    if (lastLogin == null || !notificationsEnabled) return;
 
     final hoursSince = now.difference(lastLogin).inHours;
 
