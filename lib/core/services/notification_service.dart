@@ -100,7 +100,7 @@ class NotificationService {
     if (kIsWeb) return;
     const androidDetails = AndroidNotificationDetails(
       _studentChannelId, 'Student Notifications',
-      description: 'Notifications from admin',
+      channelDescription: 'Notifications from admin',
       importance: Importance.high,
       priority: Priority.high,
       icon: '@mipmap/ic_launcher',
@@ -157,7 +157,7 @@ class NotificationService {
     }
     const androidDetails = AndroidNotificationDetails(
       _adminChannelId, 'Admin Notifications',
-      description: 'Student activity notifications',
+      channelDescription: 'Student activity notifications',
       importance: Importance.high,
       priority: Priority.high,
       icon: '@mipmap/ic_launcher',
@@ -207,7 +207,7 @@ class NotificationService {
   static Future<void> _showStreakNotification(String title, String body) async {
     if (kIsWeb) return;
     const androidDetails = AndroidNotificationDetails('streak_channel', 'Daily Streak',
-      description: 'Daily streak reminders', importance: Importance.high, priority: Priority.high);
+      channelDescription: 'Daily streak reminders', importance: Importance.high, priority: Priority.high);
     const details = NotificationDetails(android: androidDetails, iOS: DarwinNotificationDetails());
     await _plugin.show(id: DateTime.now().millisecondsSinceEpoch ~/ 1000, title: title, body: body, notificationDetails: details);
   }
@@ -215,7 +215,7 @@ class NotificationService {
   static Future<void> showFeedbackNotification(String studentName, String message) async {
     if (kIsWeb) return;
     const androidDetails = AndroidNotificationDetails('feedback_channel', 'Feedbacks',
-      description: 'New student feedbacks', importance: Importance.high, priority: Priority.high);
+      channelDescription: 'New student feedbacks', importance: Importance.high, priority: Priority.high);
     const details = NotificationDetails(android: androidDetails, iOS: DarwinNotificationDetails());
     await _plugin.show(id: DateTime.now().millisecondsSinceEpoch ~/ 1000, title: 'New Feedback from $studentName', body: message, notificationDetails: details);
   }
@@ -227,7 +227,7 @@ class NotificationService {
     if (count > 0) {
       final androidDetails = AndroidNotificationDetails(
         _badgeChannelId, 'App Badge',
-        description: 'App icon badge count',
+        channelDescription: 'App icon badge count',
         importance: Importance.min,
         priority: Priority.min,
         playSound: false,
