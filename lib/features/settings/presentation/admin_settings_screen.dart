@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/services/firebase_service.dart';
 import '../../../core/theme/theme_provider.dart';
 import '../../../core/widgets/professional_loader.dart';
@@ -13,10 +16,11 @@ class AdminSettingsScreen extends StatefulWidget {
   State<AdminSettingsScreen> createState() => _AdminSettingsScreenState();
 }
 
-class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
+class _AdminSettingsScreenState extends State<AdminSettingsScreen> with WidgetsBindingObserver {
   double _price = 0;
   bool _paidAccess = false;
   bool _autoDownload = true;
+  bool _notificationsEnabled = true;
   bool _loading = true;
   String _accountTitle = '';
   String _accountNo = '';
@@ -26,13 +30,36 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _load();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) async {
+    if (state == AppLifecycleState.resumed && !kIsWeb) {
+      final enabled = await FlutterLocalNotificationsPlugin()
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+          ?.areNotificationsEnabled();
+      if (mounted) setState(() => _notificationsEnabled = enabled ?? true);
+    }
   }
 
   Future<void> _load() async {
     final settings = await FirebaseService.getSettings();
     final info = await PackageInfo.fromPlatform();
     _autoDownload = await FirebaseService.getUserAutoDownload();
+    if (!kIsWeb) {
+      final enabled = await FlutterLocalNotificationsPlugin()
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+          ?.areNotificationsEnabled();
+      _notificationsEnabled = enabled ?? true;
+    }
     if (mounted) setState(() {
       _price = (settings['price'] as num?)?.toDouble() ?? 0;
       _paidAccess = settings['paidAccess'] as bool? ?? false;
@@ -99,6 +126,26 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                     onChanged: (val) async {
                       setState(() => _autoDownload = val);
                       await FirebaseService.updateUserAutoDownload(val);
+                    },
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Card(
+                  color: cardColor,
+                  child: SwitchListTile(
+                    secondary: const Icon(Icons.notifications_rounded, color: Colors.purpleAccent),
+                    title: Text('Notifications', style: TextStyle(color: textColor)),
+                    subtitle: Text(_notificationsEnabled ? 'System notifications ON' : 'System notifications OFF', style: TextStyle(color: hintColor, fontSize: 12)),
+                    value: _notificationsEnabled,
+                    activeColor: const Color(0xFF4A148C),
+                    onChanged: (val) async {
+                      if (!kIsWeb) {
+                        const packageName = 'com.project.dreams.general';
+                        final uri = Uri.parse('package:$packageName');
+                        if (await canLaunchUrl(uri)) {
+                          await launchUrl(uri, mode: LaunchMode.externalApplication);
+                        }
+                      }
                     },
                   ),
                 ),

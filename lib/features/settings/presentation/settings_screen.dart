@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/services/firebase_service.dart';
 import '../../../core/theme/theme_provider.dart';
 
@@ -10,18 +13,42 @@ class SettingsScreen extends StatefulWidget {
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
+class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObserver {
   bool _autoDownload = true;
+  bool _notificationsEnabled = true;
   bool _loading = true;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _load();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) async {
+    if (state == AppLifecycleState.resumed && !kIsWeb) {
+      final enabled = await FlutterLocalNotificationsPlugin()
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+          ?.areNotificationsEnabled();
+      if (mounted) setState(() => _notificationsEnabled = enabled ?? true);
+    }
   }
 
   Future<void> _load() async {
     _autoDownload = await FirebaseService.getUserAutoDownload();
+    if (!kIsWeb) {
+      final enabled = await FlutterLocalNotificationsPlugin()
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+          ?.areNotificationsEnabled();
+      _notificationsEnabled = enabled ?? true;
+    }
     if (mounted) setState(() {
       _loading = false;
     });
@@ -68,6 +95,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onChanged: (val) async {
                 setState(() => _autoDownload = val);
                 await FirebaseService.updateUserAutoDownload(val);
+              },
+            ),
+          ),
+          const SizedBox(height: 16),
+          Card(
+            color: cardColor,
+            child: SwitchListTile(
+              secondary: const Icon(Icons.notifications_rounded, color: Colors.purpleAccent),
+              title: Text('Notifications', style: TextStyle(color: textColor)),
+              subtitle: Text(_notificationsEnabled ? 'System notifications ON' : 'System notifications OFF', style: TextStyle(color: hintColor, fontSize: 12)),
+              value: _notificationsEnabled,
+              activeColor: const Color(0xFF4A148C),
+              onChanged: (val) async {
+                if (!kIsWeb) {
+                  await _openSystemNotificationSettings();
+                }
               },
             ),
           ),
@@ -131,6 +174,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _openSystemNotificationSettings() async {
+    const packageName = 'com.project.dreams.general';
+    final uri = Uri.parse('package:$packageName');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      final settingsUri = Uri.parse('android.app.notification_settings');
+      if (await canLaunchUrl(settingsUri)) {
+        await launchUrl(settingsUri, mode: LaunchMode.externalApplication);
+      }
+    }
   }
 
   void _showThemeDialog(BuildContext context, WidgetRef ref) {
