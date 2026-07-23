@@ -83,9 +83,12 @@ class _NotificationBellBoxState extends State<NotificationBellBox> {
                     constraints: const BoxConstraints(),
                   ),
                 if (_docs.isNotEmpty)
-                  TextButton(
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, color: Colors.redAccent, size: 20),
+                    tooltip: 'Clear all',
                     onPressed: widget.onClear,
-                    child: Text('Clear all', style: TextStyle(color: mutedColor, fontSize: 12)),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
                   ),
               ]),
             ),
