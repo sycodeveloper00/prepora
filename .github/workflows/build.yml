@@ -41,7 +41,7 @@ jobs:
       - name: Build APK
         id: build_apk
         run: |
-          flutter build apk --target-platform android-arm64 2>&1 | tee build_output.txt
+          flutter build apk --split-per-abi --target-platform android-arm64 2>&1 | tee build_output.txt
           BUILD_EXIT=${PIPESTATUS[0]}
           echo "build_exit=$BUILD_EXIT" >> $GITHUB_OUTPUT
           exit $BUILD_EXIT
