@@ -49,6 +49,16 @@ class NotificationService {
     );
     await _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(adminChannel);
+    const streakChannel = AndroidNotificationChannel(
+      'streak_channel', 'Daily Streak',
+      channelDescription: 'Daily streak reminders',
+      importance: Importance.high,
+      playSound: true,
+      enableVibration: true,
+      showBadge: true,
+    );
+    await _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(streakChannel);
   }
 
   // ─── Student Notification Listener (badge + mobile panel) ──────────────────
@@ -173,7 +183,6 @@ class NotificationService {
     if (!doc.exists) return;
 
     final userData = doc.data();
-    final notificationsEnabled = userData?['notificationsEnabled'] as bool? ?? true;
 
     final lastLogin = (userData?['lastLogin'] as Timestamp?)?.toDate();
     final now = DateTime.now();
@@ -182,14 +191,14 @@ class NotificationService {
       'lastLogin': Timestamp.fromDate(now),
     });
 
-    if (lastLogin == null || !notificationsEnabled) return;
+    if (lastLogin == null) return;
 
     final hoursSince = now.difference(lastLogin).inHours;
 
     if (hoursSince >= 72) {
-      await _showStreakNotification('Long time no see!', "We miss you! Come back to continue your study streak.");
+      await _showStreakNotification('Long time no see!', "I am frustrated, when will you come back? Your streak is waiting.");
     } else if (hoursSince >= 24) {
-      await _showStreakNotification('Daily Streak', "You missed a day! Open PrePora to keep your streak alive.");
+      await _showStreakNotification("Let's Come Back to Learn", "I am waiting for you. Waiting for your return, I am tired!");
     }
   }
 
