@@ -58,7 +58,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
 
   Future<void> _sendScopedNotification(String message, {String? parentContentId, Map<String, dynamic>? contentData}) async {
     if (widget.targetStudentUid != null) {
-      await FirebaseService.addTargetedNotification(widget.targetStudentUid!, message);
+      await FirebaseService.addTargetedNotification(widget.targetStudentUid!, message, folderId: widget.folderId, parentContentId: parentContentId, contentData: contentData);
     } else {
       await FirebaseService.addNotification(message, folderId: widget.folderId, parentContentId: parentContentId, contentData: contentData);
     }

@@ -1441,11 +1441,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  Future<void> _sendScopedNotification(String message, {String? folderId}) async {
+  Future<void> _sendScopedNotification(String message, {String? folderId, String? parentContentId, Map<String, dynamic>? contentData}) async {
     if (widget.studentUid != null) {
-      await FirebaseService.addTargetedNotification(widget.studentUid!, message);
+      await FirebaseService.addTargetedNotification(widget.studentUid!, message, folderId: folderId, parentContentId: parentContentId, contentData: contentData);
     } else {
-      await FirebaseService.addNotification(message, folderId: folderId);
+      await FirebaseService.addNotification(message, folderId: folderId, parentContentId: parentContentId, contentData: contentData);
     }
   }
 

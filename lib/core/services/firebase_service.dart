@@ -761,50 +761,55 @@ class FirebaseService {
     }
   }
 
-  static Future<String?> addNotification(String message, {String? folderId, Map<String, dynamic>? contentData, String? parentContentId}) async {
+  static Future<bool> _isAnyAncestorRestricted(String folderId, String? contentId) async {
+    if (contentId == null) return false;
+    try {
+      final doc = await firestore.collection('folders').doc(folderId).collection('contents').doc(contentId).get();
+      if (!doc.exists) return false;
+      final data = doc.data() as Map<String, dynamic>?;
+      if (data == null) return false;
+      final locked = data['locked'] as bool? ?? false;
+      final invisible = data['invisible'] as bool? ?? false;
+      final updating = data['updating'] as bool? ?? false;
+      if (locked || invisible || updating) return true;
+      final parentContentId = data['parentContentId'] as String?;
+      if (parentContentId != null) {
+        return _isAnyAncestorRestricted(folderId, parentContentId);
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  static Future<bool> _isNotificationBlocked(String? folderId, String? parentContentId, Map<String, dynamic>? contentData) async {
     if (contentData != null) {
       final locked = contentData['locked'] as bool? ?? false;
       final updating = contentData['updating'] as bool? ?? false;
       final invisible = contentData['invisible'] as bool? ?? false;
-      if (locked || updating || invisible) return null;
+      if (locked || updating || invisible) return true;
     }
-    bool folderRestricted = false;
     if (folderId != null) {
       final folderDoc = await firestore.collection('folders').doc(folderId).get();
       if (folderDoc.exists) {
         final folderData = folderDoc.data() as Map<String, dynamic>?;
         if (folderData != null) {
           final folderLocked = folderData['locked'] as bool? ?? false;
-          final folderUpdating = folderData['updating'] as bool? ?? false;
           final folderInvisible = folderData['invisible'] as bool? ?? false;
-          if (folderLocked || folderUpdating || folderInvisible) {
-            folderRestricted = true;
-          }
+          final folderUpdating = folderData['updating'] as bool? ?? false;
+          if (folderLocked || folderInvisible || folderUpdating) return true;
         }
       }
-    }
-    if (!folderRestricted && folderId != null && parentContentId != null) {
-      final parentDoc = await firestore.collection('folders').doc(folderId).collection('contents').doc(parentContentId).get();
-      if (parentDoc.exists) {
-        final parentData = parentDoc.data() as Map<String, dynamic>?;
-        if (parentData != null) {
-          final pLocked = parentData['locked'] as bool? ?? false;
-          final pUpdating = parentData['updating'] as bool? ?? false;
-          final pInvisible = parentData['invisible'] as bool? ?? false;
-          if (pLocked || pUpdating || pInvisible) {
-            folderRestricted = true;
-          }
-        }
+      if (parentContentId != null) {
+        if (await _isAnyAncestorRestricted(folderId, parentContentId)) return true;
       }
     }
+    return false;
+  }
+
+  static Future<String?> addNotification(String message, {String? folderId, String? parentContentId, Map<String, dynamic>? contentData}) async {
+    if (await _isNotificationBlocked(folderId, parentContentId, contentData)) return null;
     final users = await firestore.collection('users').get();
     final batch = firestore.batch();
     for (final u in users.docs) {
-      final userData = u.data();
-      if (folderRestricted) {
-        final role = userData['role'] as String? ?? '';
-        if (role == 'student' || role == 'assistant') continue;
-      }
       final ref = firestore.collection('notifications').doc();
       batch.set(ref, {
         'uid': u.id,
@@ -819,7 +824,8 @@ class FirebaseService {
     return 'batch';
   }
 
-  static Future<String?> addTargetedNotification(String uid, String message) async {
+  static Future<String?> addTargetedNotification(String uid, String message, {String? folderId, String? parentContentId, Map<String, dynamic>? contentData}) async {
+    if (await _isNotificationBlocked(folderId, parentContentId, contentData)) return null;
     final doc = await firestore.collection('notifications').add({
       'uid': uid,
       'message': message,
