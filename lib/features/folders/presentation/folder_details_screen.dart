@@ -1193,7 +1193,7 @@ child: TextField(
                         ? filteredDocs
                         : filteredDocs.where((doc) {
                             final d = doc.data() as Map<String, dynamic>;
-                            return d['invisible'] != true && d['locked'] != true && d['updating'] != true;
+                            return d['invisible'] != true;
                           }).toList();
 
                     // If local order has missing or extra IDs vs stream, reset local order

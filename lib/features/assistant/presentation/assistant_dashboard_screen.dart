@@ -311,7 +311,7 @@ class _AssistantDashboardScreenState extends State<AssistantDashboardScreen> {
             .collection('folders').doc(folderId).collection('content').get();
         for (final contentDoc in contentSnap.docs) {
           final contentData = contentDoc.data() as Map<String, dynamic>;
-          if (contentData['invisible'] == true || contentData['locked'] == true || contentData['updating'] == true) continue;
+          if (contentData['invisible'] == true) continue;
           final contentName = contentData['name'] as String? ?? '';
           if (contentName.toLowerCase().contains(q)) {
             results.add({

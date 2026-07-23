@@ -767,7 +767,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         final contentData = contentDoc.data() as Map<String, dynamic>;
         final contentName = contentData['name'] as String? ?? contentData['title'] as String? ?? '';
         if (contentName.toLowerCase().contains(q)) {
-          if (contentData['invisible'] == true || contentData['locked'] == true || contentData['updating'] == true) continue;
+          if (contentData['invisible'] == true) continue;
           final docType = contentData['type'] as String?;
           final isSubfolder = docType == 'subfolder' || (docType == null && contentData['url'] == null);
           final contentParentId = contentData['parentContentId'] as String?;
