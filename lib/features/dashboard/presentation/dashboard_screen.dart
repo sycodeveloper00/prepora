@@ -741,6 +741,14 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
+  bool _isAncestorRestricted(String? contentId, Map<String, Map<String, dynamic>> contentMap, {int depth = 0}) {
+    if (contentId == null || contentId == 'root' || depth > 10) return false;
+    final data = contentMap[contentId];
+    if (data == null) return false;
+    if (data['invisible'] == true || data['locked'] == true || data['updating'] == true) return true;
+    return _isAncestorRestricted(data['parentContentId'] as String?, contentMap, depth: depth + 1);
+  }
+
   Future<void> _performSearch(String query) async {
     if (query.length < 2) {
       if (mounted) setState(() { _searchResults = []; _isSearching = false; });
@@ -764,15 +772,20 @@ class _DashboardScreenState extends State<DashboardScreen>
       final contentsSnap = await FirebaseService.firestore
           .collection('folders').doc(folderId)
           .collection('contents').get();
+      final contentMap = <String, Map<String, dynamic>>{};
+      for (final cd in contentsSnap.docs) {
+        contentMap[cd.id] = cd.data();
+      }
       for (final contentDoc in contentsSnap.docs) {
         final contentData = contentDoc.data() as Map<String, dynamic>;
         final contentName = contentData['name'] as String? ?? contentData['title'] as String? ?? '';
         if (contentName.toLowerCase().contains(q)) {
           if (contentData['invisible'] == true) continue;
           if (contentData['locked'] == true || contentData['updating'] == true) continue;
+          final contentParentId = contentData['parentContentId'] as String?;
+          if (_isAncestorRestricted(contentParentId, contentMap)) continue;
           final docType = contentData['type'] as String?;
           final isSubfolder = docType == 'subfolder' || (docType == null && contentData['url'] == null);
-          final contentParentId = contentData['parentContentId'] as String?;
           results.add(_SearchResult(
             title: contentName,
             folderId: folderId,

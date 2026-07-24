@@ -286,6 +286,14 @@ class _AssistantDashboardScreenState extends State<AssistantDashboardScreen> {
     );
   }
 
+  bool _isAncestorRestricted(String? contentId, Map<String, Map<String, dynamic>> contentMap, {int depth = 0}) {
+    if (contentId == null || contentId == 'root' || depth > 10) return false;
+    final data = contentMap[contentId];
+    if (data == null) return false;
+    if (data['invisible'] == true || data['locked'] == true || data['updating'] == true) return true;
+    return _isAncestorRestricted(data['parentContentId'] as String?, contentMap, depth: depth + 1);
+  }
+
   Future<void> _performSearch() async {
     if (_searching) return;
     setState(() => _searching = true);
@@ -310,10 +318,16 @@ class _AssistantDashboardScreenState extends State<AssistantDashboardScreen> {
         }
         final contentSnap = await FirebaseService.firestore
             .collection('folders').doc(folderId).collection('contents').get();
+        final contentMap = <String, Map<String, dynamic>>{};
+        for (final cd in contentSnap.docs) {
+          contentMap[cd.id] = cd.data();
+        }
         for (final contentDoc in contentSnap.docs) {
           final contentData = contentDoc.data() as Map<String, dynamic>;
           if (contentData['invisible'] == true) continue;
           if (contentData['locked'] == true || contentData['updating'] == true) continue;
+          final contentParentId = contentData['parentContentId'] as String?;
+          if (_isAncestorRestricted(contentParentId, contentMap)) continue;
           final contentName = contentData['name'] as String? ?? '';
           if (contentName.toLowerCase().contains(q)) {
             results.add({
