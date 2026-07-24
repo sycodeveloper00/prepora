@@ -362,11 +362,16 @@ class FirebaseService {
   }
 
   static Future<void> deleteRootFolder(String folderId) async {
-    final contents = await firestore.collection('folders').doc(folderId).collection('contents').get();
-    for (final c in contents.docs) {
-      await c.reference.delete();
-    }
+    await _deleteAllContentsRecursive(folderId, 'contents');
+    await _deleteAllContentsRecursive(folderId, 'content');
     await firestore.collection('folders').doc(folderId).delete();
+  }
+
+  static Future<void> _deleteAllContentsRecursive(String folderId, String subcollection) async {
+    final snap = await firestore.collection('folders').doc(folderId).collection(subcollection).get();
+    for (final doc in snap.docs) {
+      await doc.reference.delete();
+    }
   }
 
   static Future<void> deleteFolder(String folderId) async {
@@ -533,8 +538,28 @@ class FirebaseService {
   }
 
   static Future<void> deleteFolderContent(String folderId, String contentId) async {
+    final contentDoc = await firestore.collection('folders').doc(folderId).collection('contents').doc(contentId).get();
+    if (contentDoc.exists) {
+      final data = contentDoc.data() as Map<String, dynamic>?;
+      if (data != null && data['type'] == 'subfolder') {
+        await _deleteSubfolderChildrenRecursive(folderId, contentId, 'contents');
+        await _deleteSubfolderChildrenRecursive(folderId, contentId, 'content');
+      }
+    }
     await firestore.collection('folders').doc(folderId).collection('contents').doc(contentId).delete();
     await firestore.collection('folders').doc(folderId).update({'item_count': FieldValue.increment(-1)});
+  }
+
+  static Future<void> _deleteSubfolderChildrenRecursive(String folderId, String parentContentId, String subcollection) async {
+    final snap = await firestore.collection('folders').doc(folderId)
+        .collection(subcollection).where('parentContentId', isEqualTo: parentContentId).get();
+    for (final doc in snap.docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      if (data['type'] == 'subfolder') {
+        await _deleteSubfolderChildrenRecursive(folderId, doc.id, subcollection);
+      }
+      await doc.reference.delete();
+    }
   }
 
   static Future<void> updateContentField(String folderId, String contentId, String field, dynamic value) async {
