@@ -32,6 +32,7 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
   bool _isLoading = true;
   String? _error;
   String? _fileName;
+  bool _accessGranted = false;
 
   // Annotation state
   bool _isAnnotating = false;
@@ -47,7 +48,33 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
   @override
   void initState() {
     super.initState();
-    _loadPdf();
+    _checkAccess();
+  }
+
+  Future<void> _checkAccess() async {
+    final user = FirebaseService.currentUser;
+    if (user == null) {
+      if (mounted) setState(() { _accessGranted = false; _isLoading = false; });
+      return;
+    }
+    try {
+      final doc = await FirebaseService.getUser(user.uid);
+      final data = doc?.data() as Map<String, dynamic>?;
+      final isVerified = data?['verified'] == true;
+      final isBlocked = data?['blocked'] == true;
+      if (isBlocked) {
+        if (mounted) setState(() { _accessGranted = false; _isLoading = false; });
+        return;
+      }
+      if (isVerified) {
+        if (mounted) setState(() { _accessGranted = true; });
+        _loadPdf();
+      } else {
+        if (mounted) setState(() { _accessGranted = false; _isLoading = false; });
+      }
+    } catch (_) {
+      if (mounted) setState(() { _accessGranted = false; _isLoading = false; });
+    }
   }
 
   Future<void> _loadPdf() async {
@@ -135,6 +162,68 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final user = FirebaseService.currentUser;
+
+    if (!_accessGranted && !_isLoading) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Access Required')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  user == null ? Icons.login_rounded : Icons.lock_rounded,
+                  size: 80,
+                  color: const Color(0xFFB388FF),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  user == null ? 'Login Required' : 'Paid Access Required',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : const Color(0xFF1A0533),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  user == null
+                      ? 'Please login to your PrePora account to view this PDF.'
+                      : 'Your account is not verified yet. Please complete verification to access PDF content.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: isDark ? Colors.white70 : Colors.black54,
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 32),
+                ElevatedButton.icon(
+                  onPressed: () => context.go('/auth/login'),
+                  icon: const Icon(Icons.login_rounded, size: 20),
+                  label: const Text('Login to PrePora'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF4A148C),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                ),
+                if (user != null) ...[
+                  const SizedBox(height: 12),
+                  TextButton(
+                    onPressed: () => context.go('/dashboard'),
+                    child: const Text('Go to Dashboard', style: TextStyle(color: Color(0xFF00B8D4))),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(
