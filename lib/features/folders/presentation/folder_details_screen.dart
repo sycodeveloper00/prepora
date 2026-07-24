@@ -55,6 +55,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
   String? _groupLink;
   bool _autoDownload = true;
   String? _currentActivityId;
+  final Map<String, double> _uploadProgress = {};
 
   Future<void> _sendScopedNotification(String message, {String? parentContentId, Map<String, dynamic>? contentData}) async {
     if (widget.targetStudentUid != null) {
@@ -538,19 +539,28 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
             }
             continue;
           }
-          if (ctx.mounted) {
-            ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Uploading ${file.name}...'), backgroundColor: Colors.orange, duration: const Duration(seconds: 1)));
+
+          if (mounted) setState(() => _uploadProgress[file.name] = 0);
+
+          try {
+            final storageName = '${DateTime.now().millisecondsSinceEpoch}_${file.name}';
+            final ref = FirebaseService.storage.ref('folder_files/$storageName');
+            await ref.putData(bytes, metadata: SettableMetadata(contentDisposition: 'inline; filename="${file.name}"'), onProgress: (p) {
+              if (mounted) setState(() => _uploadProgress[file.name] = p);
+            });
+            if (mounted) setState(() => _uploadProgress.remove(file.name));
+
+            final downloadUrl = await ref.getDownloadURL();
+            final data = <String, dynamic>{'type': 'file', 'name': file.name, 'url': downloadUrl, 'source': 'supabase_storage'};
+            if (widget.parentContentId != null) data['parentContentId'] = widget.parentContentId!;
+            final newId = await FirebaseService.addFolderContent(widget.folderId, data);
+            if (newId != null && !widget.isAdmin) { _assistantAccess.add(newId); _pendingOptimistic.add(newId); }
+            await _sendScopedNotification('Uploaded file: ${file.name}', parentContentId: widget.parentContentId);
+            count++;
+          } catch (e) {
+            if (mounted) setState(() => _uploadProgress.remove(file.name));
+            rethrow;
           }
-          final fileName = '${DateTime.now().millisecondsSinceEpoch}_${file.name}';
-          final ref = FirebaseService.storage.ref('folder_files/$fileName');
-          await ref.putData(bytes, metadata: SettableMetadata(contentDisposition: 'inline; filename="${file.name}"'));
-          final downloadUrl = await ref.getDownloadURL();
-          final data = <String, dynamic>{'type': 'file', 'name': file.name, 'url': downloadUrl, 'source': 'supabase_storage'};
-          if (widget.parentContentId != null) data['parentContentId'] = widget.parentContentId!;
-          final newId = await FirebaseService.addFolderContent(widget.folderId, data);
-          if (newId != null && !widget.isAdmin) { _assistantAccess.add(newId); _pendingOptimistic.add(newId); }
-          await _sendScopedNotification('Uploaded file: ${file.name}', parentContentId: widget.parentContentId);
-          count++;
         }
         _refreshAssistantAccess();
         if (ctx.mounted && count > 0) {
@@ -1298,6 +1308,12 @@ child: TextField(
                             },
                           );
 
+                    if (_uploadProgress.isNotEmpty) {
+                      return Column(children: [
+                        ..._uploadProgress.entries.map((e) => _buildUploadingFileCard(e.key, e.value)),
+                        Expanded(child: listWidget),
+                      ]);
+                    }
                     if (_groupLink == null || _groupLink!.isEmpty || !widget.isAdmin) return listWidget;
                     return Column(children: [_buildGroupBanner(), Expanded(child: listWidget)]);
                   },
@@ -1434,6 +1450,45 @@ child: TextField(
           ),
           child: const Icon(Icons.groups_rounded, color: Colors.white, size: 28),
         ),
+      ),
+    );
+  }
+
+  Widget _buildUploadingFileCard(String fileName, double progress) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12, left: 16, right: 16, top: 16),
+      child: GlassmorphicContainer(
+        padding: const EdgeInsets.all(16),
+        child: Row(children: [
+          SizedBox(
+            width: 36,
+            height: 36,
+            child: Stack(alignment: Alignment.center, children: [
+              CircularProgressIndicator(
+                value: progress,
+                strokeWidth: 3,
+                backgroundColor: isDark ? Colors.white12 : Colors.black12,
+                valueColor: const AlwaysStoppedAnimation(Color(0xFF7C4DFF)),
+              ),
+              Text('${(progress * 100).toInt()}%', style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Color(0xFF7C4DFF))),
+            ]),
+          ),
+          const SizedBox(width: 14),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(fileName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis),
+            const SizedBox(height: 4),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: progress,
+                minHeight: 4,
+                backgroundColor: isDark ? Colors.white12 : Colors.black12,
+                valueColor: const AlwaysStoppedAnimation(Color(0xFF7C4DFF)),
+              ),
+            ),
+          ])),
+        ]),
       ),
     );
   }
