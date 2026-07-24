@@ -706,9 +706,8 @@ class FirebaseService {
       return ts.compareTo(yesterday.toIso8601String()) >= 0;
     }).toList();
     final totalAttempts = recent.length;
-    final uniqueDevices = recent.map((d) => d.data()['deviceId'] as String? ?? 'unknown').toSet().toList();
-    final isMultiDevice = uniqueDevices.length > 1;
-    final shouldBlock = (isMultiDevice && totalAttempts >= 3);
+    final uniqueDevices = recent.map((d) => d.data()['deviceId'] as String? ?? 'unknown').toSet();
+    final shouldBlock = uniqueDevices.length >= 3;
     if (!shouldBlock) return;
     final userData = userDoc.data() as Map<String, dynamic>?;
     if (userData?['verified'] != true) {
