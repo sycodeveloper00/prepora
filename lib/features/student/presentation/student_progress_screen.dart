@@ -311,7 +311,7 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
         gradient: LinearGradient(
           colors: _streakCount > 0
               ? [const Color(0xFFFF6B35), const Color(0xFFFF8F00)]
-              : [isDark ? Colors.white10 : Colors.grey.shade200, isDark ? Colors.white5 : Colors.grey.shade100],
+              : [isDark ? Colors.white10 : Colors.grey.shade200, isDark ? Colors.white10 : Colors.grey.shade100],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),

@@ -1107,7 +1107,14 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
         context.push('/webview', extra: {'url': url, 'title': displayTitle, 'folderId': widget.folderId, 'parentContentId': widget.parentContentId});
       }
     } else if (url.isNotEmpty) {
-      context.push('/webview', extra: {'url': url, 'title': displayTitle, 'folderId': widget.folderId, 'parentContentId': widget.parentContentId});
+      final uri = Uri.parse(url);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Cannot open $name'), backgroundColor: Colors.redAccent));
+      }
+      if (activityId != null) FirebaseService.endActivity(activityId);
     }
   }
 
@@ -2011,10 +2018,16 @@ child: TextField(
                     child: Icon(Icons.drag_indicator, size: 20, color: Theme.of(context).brightness == Brightness.dark ? Colors.white24 : Colors.black26),
                   ),
                 ),
-              Icon(_fileIcon(name), color: disabled ? Colors.grey : (updating ? Colors.orange : Colors.teal), size: 36),
+              Icon(_fileIcon(name, data['source'] as String?), color: disabled ? Colors.grey : (updating ? Colors.orange : (data['source'] == 'google_drive' ? const Color(0xFF4285F4) : Colors.teal)), size: 36),
               const SizedBox(width: 14),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(name, style: TextStyle(color: disabled ? Colors.grey : null, fontWeight: FontWeight.bold, fontSize: 14)),
+                if (data['source'] == 'google_drive')
+                  const Row(children: [
+                    Icon(Icons.cloud_rounded, color: Color(0xFF4285F4), size: 12),
+                    SizedBox(width: 4),
+                    Text('Google Drive', style: TextStyle(color: Color(0xFF4285F4), fontSize: 11)),
+                  ]),
                 if (updating)
                   const Row(children: [Icon(Icons.update_rounded, color: Colors.orange, size: 12), SizedBox(width: 4), Text('Updating...', style: TextStyle(color: Colors.orange, fontSize: 11))]),
                 if (locked && !updating)
@@ -2116,7 +2129,8 @@ child: TextField(
     );
   }
 
-  IconData _fileIcon(String name) {
+  IconData _fileIcon(String name, String? source) {
+    if (source == 'google_drive') return Icons.cloud_rounded;
     final ext = name.split('.').last.toLowerCase();
     if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].contains(ext)) return Icons.image_rounded;
     if (ext == 'pdf') return Icons.picture_as_pdf_rounded;
