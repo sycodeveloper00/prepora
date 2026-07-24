@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'webview_stub.dart'
+    if (dart.library.html) 'webview_web.dart';
 import '../../../core/services/firebase_service.dart';
 import '../../../core/widgets/professional_loader.dart';
 
@@ -24,39 +26,34 @@ class AppWebViewScreen extends StatefulWidget {
 class _AppWebViewScreenState extends State<AppWebViewScreen> {
   late final WebViewController? _controller;
   bool _isLoading = true;
-  bool _hasError = false;
-  String? _errorMsg;
+  double _loadingProgress = 0;
+  String _currentUrl = '';
 
   @override
   void initState() {
     super.initState();
     if (kIsWeb) {
-      if (widget.url != null && widget.url!.isNotEmpty) {
-        launchUrl(Uri.parse(widget.url!), mode: LaunchMode.externalApplication);
-      }
       _isLoading = false;
     } else {
       _controller = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
         ..setNavigationDelegate(NavigationDelegate(
-          onPageStarted: (_) => setState(() { _isLoading = true; _hasError = false; }),
+          onPageStarted: (url) => setState(() { _isLoading = true; _currentUrl = url; }),
+          onProgress: (progress) => setState(() => _loadingProgress = progress / 100),
           onPageFinished: (_) => setState(() => _isLoading = false),
-          onWebResourceError: (error) {
-            final isNetwork = error.description.toLowerCase().contains('socket') ||
-                error.description.toLowerCase().contains('host') ||
-                error.description.toLowerCase().contains('network') ||
-                error.description.toLowerCase().contains('connection');
-            setState(() {
-              _isLoading = false;
-              _hasError = true;
-              _errorMsg = isNetwork ? 'No Internet Connection' : 'Failed to load page';
-            });
+          onNavigationRequest: (request) {
+            final url = request.url;
+            if (url.contains('accounts.google.com') || url.contains('login.microsoftonline.com') || url.contains('onedrive.live.com') || url.contains('drive.google.com')) {
+              return NavigationDecision.navigate;
+            }
+            return NavigationDecision.navigate;
           },
         ));
 
       if (widget.html != null && widget.html!.isNotEmpty) {
         _controller!.loadHtmlString(widget.html!);
       } else if (widget.url != null && widget.url!.isNotEmpty) {
+        _currentUrl = widget.url!;
         _controller!.loadRequest(Uri.parse(widget.url!));
       }
     }
@@ -64,57 +61,65 @@ class _AppWebViewScreenState extends State<AppWebViewScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
+      backgroundColor: isDark ? const Color(0xFF0D0D2E) : Colors.white,
       appBar: AppBar(
-        title: Text(widget.title, style: const TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: isDark ? const Color(0xFF1A0533) : Colors.white,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: isDark ? Colors.white : Colors.black87),
           onPressed: () => Navigator.pop(context),
         ),
-      ),
-      body: kIsWeb
-          ? Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.open_in_browser, size: 64, color: Colors.white38),
-                  const SizedBox(height: 16),
-                  Text('Opened in browser', style: TextStyle(color: Colors.white54, fontSize: 16)),
-                  const SizedBox(height: 8),
-                  Text(widget.url ?? '', style: TextStyle(color: Colors.white38, fontSize: 12)),
-                ],
-              ),
-            )
-          : Stack(
-              children: [
-                WebViewWidget(controller: _controller!),
-                if (_isLoading)
-                  Center(child: ProfessionalLoader()),
-                if (_hasError)
-                  Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.wifi_off_rounded, size: 64, color: Colors.redAccent),
-                        const SizedBox(height: 16),
-                        Text(_errorMsg ?? 'No Internet Connection', textAlign: TextAlign.center,
-                            style: const TextStyle(color: Colors.redAccent, fontSize: 16)),
-                        const SizedBox(height: 24),
-                        ElevatedButton.icon(
-                          onPressed: () {
-                            setState(() { _isLoading = true; _hasError = false; });
-                            if (widget.url != null) {
-                              _controller!.loadRequest(Uri.parse(widget.url!));
-                            }
-                          },
-                          icon: const Icon(Icons.refresh_rounded),
-                          label: const Text('Retry'),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
+        title: Text(widget.title, style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontWeight: FontWeight.bold, fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis),
+        actions: [
+          if (!kIsWeb && _controller != null) ...[
+            IconButton(
+              icon: Icon(Icons.arrow_back_ios_rounded, size: 18, color: isDark ? Colors.white70 : Colors.black54),
+              onPressed: () async {
+                try { if (await _controller!.canGoBack()) await _controller!.goBack(); } catch (_) {}
+              },
+              tooltip: 'Back',
             ),
+            IconButton(
+              icon: Icon(Icons.arrow_forward_ios_rounded, size: 18, color: isDark ? Colors.white70 : Colors.black54),
+              onPressed: () async {
+                try { if (await _controller!.canGoForward()) await _controller!.goForward(); } catch (_) {}
+              },
+              tooltip: 'Forward',
+            ),
+            IconButton(
+              icon: Icon(Icons.refresh_rounded, size: 18, color: isDark ? Colors.white70 : Colors.black54),
+              onPressed: () => _controller!.reload(),
+              tooltip: 'Refresh',
+            ),
+            IconButton(
+              icon: Icon(Icons.open_in_browser_rounded, size: 18, color: isDark ? Colors.white70 : Colors.black54),
+              onPressed: () async {
+                final url = _currentUrl.isNotEmpty ? _currentUrl : (widget.url ?? '');
+                if (url.isNotEmpty) {
+                  final uri = Uri.parse(url);
+                  if (await canLaunchUrl(uri)) await launchUrl(uri, mode: LaunchMode.externalApplication);
+                }
+              },
+              tooltip: 'Open in browser',
+            ),
+          ],
+        ],
+      ),
+      body: Column(
+        children: [
+          if (_isLoading && !kIsWeb)
+            LinearProgressIndicator(
+              value: _loadingProgress > 0 ? _loadingProgress : null,
+              backgroundColor: isDark ? Colors.white12 : Colors.black12,
+              valueColor: const AlwaysStoppedAnimation(Color(0xFF4A148C)),
+              minHeight: 2,
+            ),
+          Expanded(
+            child: kIsWeb ? _buildWebBody() : _buildMobileBody(),
+          ),
+        ],
+      ),
       floatingActionButton: !widget.isMockTest && widget.folderId != null
           ? FutureBuilder<String?>(
               future: FirebaseService.getGroupLinkForLevel(widget.folderId!, parentContentId: widget.parentContentId),
@@ -136,14 +141,33 @@ class _AppWebViewScreenState extends State<AppWebViewScreen> {
     );
   }
 
+  Widget _buildWebBody() {
+    if (widget.html != null && widget.html!.isNotEmpty) {
+      return WebViewWebWidget(html: widget.html!);
+    }
+    if (widget.url != null && widget.url!.isNotEmpty) {
+      return WebViewWebWidget(url: widget.url!);
+    }
+    return const Center(child: Text('No content'));
+  }
+
+  Widget _buildMobileBody() {
+    if (_controller == null) return const Center(child: ProfessionalLoader());
+    return Stack(
+      children: [
+        WebViewWidget(controller: _controller!),
+        if (_isLoading)
+          const Center(child: ProfessionalLoader()),
+      ],
+    );
+  }
+
   Widget _buildAiFab(BuildContext context) {
     return SizedBox(
       width: 56, height: 56,
       child: FloatingActionButton(
         heroTag: 'ai_chat_webview_${widget.title}',
-        onPressed: () {
-          context.push('/ai_tutor');
-        },
+        onPressed: () => context.push('/ai_tutor'),
         backgroundColor: Colors.transparent, elevation: 0,
         child: Container(
           width: 56, height: 56,
@@ -164,9 +188,9 @@ class _AppWebViewScreenState extends State<AppWebViewScreen> {
       child: FloatingActionButton(
         heroTag: 'group_webview_${widget.title}',
         onPressed: () async {
-      if (link.isNotEmpty) {
-        if (context.mounted) context.push('/webview', extra: {'url': link, 'title': 'Group'});
-      }
+          if (link.isNotEmpty && context.mounted) {
+            context.push('/webview', extra: {'url': link, 'title': 'Group'});
+          }
         },
         backgroundColor: Colors.transparent, elevation: 0,
         child: Container(
