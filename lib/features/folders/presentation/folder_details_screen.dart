@@ -545,9 +545,13 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
           try {
             final storageName = '${DateTime.now().millisecondsSinceEpoch}_${file.name}';
             final ref = FirebaseService.storage.ref('folder_files/$storageName');
-            await ref.putData(bytes, metadata: SettableMetadata(contentDisposition: 'inline; filename="${file.name}"'), onProgress: (p) {
-              if (mounted) setState(() => _uploadProgress[file.name] = p);
+            final task = ref.putData(bytes, metadata: SettableMetadata(contentDisposition: 'inline; filename="${file.name}"'));
+            task.snapshotEvents.listen((snap) {
+              if (snap.totalBytes > 0 && mounted) {
+                setState(() => _uploadProgress[file.name] = snap.bytesTransferred / snap.totalBytes);
+              }
             });
+            await task;
             if (mounted) setState(() => _uploadProgress.remove(file.name));
 
             final downloadUrl = await ref.getDownloadURL();
@@ -1118,7 +1122,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
         }
       } else {
         context.push('/webview', extra: {'url': url, 'title': displayTitle, 'folderId': widget.folderId, 'parentContentId': widget.parentContentId}).then((_) {
-          if (activityId != null) FirebaseService.endActivity(activityId);
+          if (_currentActivityId != null) FirebaseService.endActivity(_currentActivityId!);
         });
       }
     }
