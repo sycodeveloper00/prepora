@@ -707,7 +707,8 @@ class FirebaseService {
     }).toList();
     final totalAttempts = recent.length;
     final uniqueDevices = recent.map((d) => d.data()['deviceId'] as String? ?? 'unknown').toSet();
-    final shouldBlock = uniqueDevices.length >= 3;
+    final isMultiDevice = uniqueDevices.length >= 2;
+    final shouldBlock = isMultiDevice && totalAttempts >= 3;
     if (!shouldBlock) return;
     final userData = userDoc.data() as Map<String, dynamic>?;
     if (userData?['verified'] != true) {
