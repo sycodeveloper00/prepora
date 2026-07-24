@@ -300,6 +300,7 @@ class _AssistantDashboardScreenState extends State<AssistantDashboardScreen> {
         if (!folderDoc.exists) continue;
         final folderData = folderDoc.data() as Map<String, dynamic>;
         if (folderData['invisible'] == true) continue;
+        if (folderData['locked'] == true || folderData['updating'] == true) continue;
         final folderName = folderData['name'] as String? ?? '';
         if (folderName.toLowerCase().contains(q)) {
           results.add({
@@ -308,10 +309,11 @@ class _AssistantDashboardScreenState extends State<AssistantDashboardScreen> {
           });
         }
         final contentSnap = await FirebaseService.firestore
-            .collection('folders').doc(folderId).collection('content').get();
+            .collection('folders').doc(folderId).collection('contents').get();
         for (final contentDoc in contentSnap.docs) {
           final contentData = contentDoc.data() as Map<String, dynamic>;
           if (contentData['invisible'] == true) continue;
+          if (contentData['locked'] == true || contentData['updating'] == true) continue;
           final contentName = contentData['name'] as String? ?? '';
           if (contentName.toLowerCase().contains(q)) {
             results.add({

@@ -753,6 +753,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     for (final folderDoc in foldersSnap.docs) {
       final folderData = folderDoc.data() as Map<String, dynamic>;
       if (folderData['invisible'] == true) continue;
+      if (folderData['locked'] == true || folderData['updating'] == true) continue;
       final folderName = folderData['name'] as String? ?? '';
       final folderId = folderDoc.id;
       if (folderName.toLowerCase().contains(q)) {
@@ -768,6 +769,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         final contentName = contentData['name'] as String? ?? contentData['title'] as String? ?? '';
         if (contentName.toLowerCase().contains(q)) {
           if (contentData['invisible'] == true) continue;
+          if (contentData['locked'] == true || contentData['updating'] == true) continue;
           final docType = contentData['type'] as String?;
           final isSubfolder = docType == 'subfolder' || (docType == null && contentData['url'] == null);
           final contentParentId = contentData['parentContentId'] as String?;
