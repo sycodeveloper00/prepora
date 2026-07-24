@@ -103,6 +103,17 @@ class _AppWebViewScreenState extends State<AppWebViewScreen> {
               },
               tooltip: 'Open in browser',
             ),
+            IconButton(
+              icon: Icon(Icons.download_rounded, size: 18, color: isDark ? Colors.white70 : Colors.black54),
+              onPressed: () async {
+                final url = _currentUrl.isNotEmpty ? _currentUrl : (widget.url ?? '');
+                if (url.isNotEmpty) {
+                  final uri = Uri.parse(url);
+                  if (await canLaunchUrl(uri)) await launchUrl(uri, mode: LaunchMode.externalApplication);
+                }
+              },
+              tooltip: 'Download',
+            ),
           ],
         ],
       ),

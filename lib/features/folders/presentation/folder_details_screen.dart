@@ -1107,9 +1107,20 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
         context.push('/webview', extra: {'url': url, 'title': displayTitle, 'folderId': widget.folderId, 'parentContentId': widget.parentContentId});
       }
     } else if (url.isNotEmpty) {
-      context.push('/webview', extra: {'url': url, 'title': displayTitle, 'folderId': widget.folderId, 'parentContentId': widget.parentContentId}).then((_) {
-        if (activityId != null) FirebaseService.endActivity(activityId);
-      });
+      final isCloudDrive = url.contains('drive.google.com') || url.contains('docs.google.com') ||
+          url.contains('googleapis.com/drive') || url.contains('onedrive.live.com') ||
+          url.contains('1drv.ms') || url.contains('sharepoint.com') || url.contains('dropbox.com');
+
+      if (isCloudDrive) {
+        final uri = Uri.parse(url);
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.platformDefault);
+        }
+      } else {
+        context.push('/webview', extra: {'url': url, 'title': displayTitle, 'folderId': widget.folderId, 'parentContentId': widget.parentContentId}).then((_) {
+          if (activityId != null) FirebaseService.endActivity(activityId);
+        });
+      }
     }
   }
 
