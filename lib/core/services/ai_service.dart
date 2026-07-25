@@ -160,31 +160,32 @@ class AiService {
         .replaceAll('\u0009', '\\t')
         .replaceAll('\u0008', '\\b');
 
-    // Auto-wrap bare LaTeX commands that are NOT already inside $...$
+    // Auto-wrap bare \frac{...}{...} patterns not already inside $...$
     result = result.replaceAllMapped(
-      RegExp(r'(?<!\$)(\\(?:frac|sqrt|int|sum|prod|lim|alpha|beta|gamma|delta|epsilon|theta|lambda|mu|pi|sigma|omega|infty|partial|nabla|forall|exists|in|notin|subset|supset|cup|cap|cdot|times|div|pm|mp|leq|geq|neq|approx|equiv|sim|propto|rightarrow|leftarrow|Rightarrow|Leftarrow|leftrightarrow|quad|qquad|text)\b(?:\{[^{}]*\})*|\\[a-zA-Z]+\{[^{}]*\}(?:\{[^{}]*\})*)',
+      RegExp(r'(?<!\$)\\frac\{([^{}]*)\}\{([^{}]*)\}'),
+      (m) => '\$\\frac{${m[1]}}{${m[2]}}\$',
+    );
+
+    // Auto-wrap bare \sqrt{...} not already inside $...$
+    result = result.replaceAllMapped(
+      RegExp(r'(?<!\$)\\sqrt\{([^{}]*)\}'),
+      (m) => '\$\\sqrt{${m[1]}}\$',
+    );
+
+    // Auto-wrap bare \int, \sum, \prod with sub/superscripts
+    result = result.replaceAllMapped(
+      RegExp(r'(?<!\$)\\(int|sum|prod|lim)(_[^$\s]+)?(\^[^$\s]+)?'),
       (m) {
-        final cmd = m.group(0)!;
-        final start = m.start;
-        final end = m.end;
-        final before = start > 0 ? result.substring(start - 1, start) : '';
-        final after = end < result.length ? result.substring(end, end + 1) : '';
-        if (before == '\$' || after == '\$') return cmd;
-        return '\$$cmd\$';
+        final sub = m[2] ?? '';
+        final sup = m[3] ?? '';
+        return '\$\\${m[1]}$sub$sup\$';
       },
     );
 
-    // Fix remaining bare \frac{...}{...} patterns specifically
+    // Auto-wrap standalone Greek letters
     result = result.replaceAllMapped(
-      RegExp(r'(?<!\$)(\\frac\{[^{}]*\}\{[^{}]*\})'),
-      (m) {
-        final start = m.start;
-        final end = m.end;
-        final before = start > 0 ? result.substring(start - 1, start) : '';
-        final after = end < result.length ? result.substring(end, end + 1) : '';
-        if (before == '\$' || after == '\$') return m.group(0)!;
-        return '\$${m.group(0)!}\$';
-      },
+      RegExp(r'(?<!\$)\\(alpha|beta|gamma|delta|epsilon|theta|lambda|mu|pi|sigma|omega|infty|partial|nabla)'),
+      (m) => '\$\\${m[1]}\$',
     );
 
     // Escape | inside inline math $...$
