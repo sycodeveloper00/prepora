@@ -1,7 +1,8 @@
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:http/http.dart' as http;
 import '../../../core/widgets/professional_loader.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
@@ -112,17 +113,19 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           return;
         }
       }
-      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
-      if (mounted) setState(() { _sent = true; _isLoading = false; });
-    } on FirebaseAuthException catch (e) {
-      if (mounted) setState(() {
-        _error = e.code == 'user-not-found' ? 'No account found with this email.'
-            : e.code == 'invalid-email' ? 'Invalid email address.'
-            : e.message ?? 'Failed to send reset email.';
-        _isLoading = false;
-      });
+      final res = await http.post(
+        Uri.parse('https://prepora-web.vercel.app/api/send-reset-email'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'email': email}),
+      );
+      if (res.statusCode == 200) {
+        if (mounted) setState(() { _sent = true; _isLoading = false; });
+      } else {
+        final data = jsonDecode(res.body);
+        if (mounted) setState(() { _error = data['error'] ?? 'Failed to send email.'; _isLoading = false; });
+      }
     } catch (e) {
-      if (mounted) setState(() { _error = e.toString(); _isLoading = false; });
+      if (mounted) setState(() { _error = 'Network error. Please try again.'; _isLoading = false; });
     }
   }
 
