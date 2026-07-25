@@ -404,7 +404,7 @@ class _AiChatScreenState extends State<AiChatScreen> with SingleTickerProviderSt
                   itemCount: _messages.length + (_isLoading ? 1 : 0),
                   itemBuilder: (context, index) {
                     if (index == _messages.length) return _buildTypingIndicator();
-                    return _buildMessage(_messages[index], isDark);
+                    return _buildMessage(_messages[index], isDark, isStreaming: _isLoading && index == _messages.length - 1);
                   },
                 ),
               ),
@@ -614,7 +614,7 @@ class _AiChatScreenState extends State<AiChatScreen> with SingleTickerProviderSt
     );
   }
 
-  Widget _buildMessage(_Message msg, bool isDark) {
+  Widget _buildMessage(_Message msg, bool isDark, {bool isStreaming = false}) {
     final isUser = msg.isUser;
     final isError = msg.isError;
 
@@ -734,7 +734,7 @@ class _AiChatScreenState extends State<AiChatScreen> with SingleTickerProviderSt
                       ),
                     ),
                   ),
-              if (!isUser)
+              if (!isUser && !isStreaming)
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: Row(

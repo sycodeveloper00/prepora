@@ -177,7 +177,7 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
   }
 
   Future<void> _openSystemNotificationSettings() async {
-    const packageName = 'com.project.dreams.general';
+    const packageName = 'com.prepora.academy.prepora';
     final uri = Uri.parse('package:$packageName');
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);

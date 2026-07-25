@@ -23,6 +23,7 @@ class FirebaseService {
 
   static bool _initialized = false;
   static String? _cachedDeviceId;
+  static String? cachedRole;
 
   static const String supabaseUrl = 'https://zynfizrocesynbaguhtj.supabase.co';
   static const String serviceRoleKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp5bmZpenJvY2VzeW5iYWd1aHRqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MzY3MjkzOSwiZXhwIjoyMDk5MjQ4OTM5fQ.CdfQUkM_-O9lYZ8MIcJh8H1n_-SHIWUuwI8DE5HGdZU';
@@ -147,6 +148,8 @@ class FirebaseService {
       await addAdminNotification('logout', '$label logged out: ${user.email}', relatedUid: user.uid);
     }
     await fb_auth.FirebaseAuth.instance.signOut();
+    cachedRole = null;
+    SessionManager.stop();
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('uid');
   }
@@ -1254,6 +1257,62 @@ class _SupabaseStorageReference {
     if (streamed.statusCode >= 400) {
       final body = await streamed.stream.bytesToString();
       throw Exception('Supabase delete failed ($fullPath): $body');
+    }
+  }
+}
+
+class SessionManager {
+  static const Duration _timeout = Duration(minutes: 12);
+  static Timer? _timer;
+  static DateTime? _lastActivity;
+  static VoidCallback? onExpired;
+  static bool _isPaused = false;
+
+  static DateTime? get lastActivity => _lastActivity;
+
+  static void start({VoidCallback? onExpiredCallback}) {
+    onExpired = onExpiredCallback;
+    _lastActivity = DateTime.now();
+    _isPaused = false;
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 30), (_) => _check());
+  }
+
+  static void reset() {
+    _lastActivity = DateTime.now();
+  }
+
+  static void stop() {
+    _timer?.cancel();
+    _timer = null;
+    _lastActivity = null;
+    _isPaused = false;
+  }
+
+  static void pause() {
+    _isPaused = true;
+    _timer?.cancel();
+    _timer = null;
+  }
+
+  static void resume() {
+    if (_lastActivity == null || onExpired == null) return;
+    final elapsed = DateTime.now().difference(_lastActivity!);
+    if (elapsed >= _timeout) {
+      stop();
+      onExpired?.call();
+      return;
+    }
+    _isPaused = false;
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 30), (_) => _check());
+  }
+
+  static void _check() {
+    if (_lastActivity == null || _isPaused) return;
+    if (DateTime.now().difference(_lastActivity!) >= _timeout) {
+      stop();
+      onExpired?.call();
     }
   }
 }

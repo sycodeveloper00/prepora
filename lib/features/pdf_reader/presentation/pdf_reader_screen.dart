@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:path_provider/path_provider.dart';
@@ -33,6 +34,7 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
   String? _error;
   String? _fileName;
   bool _accessGranted = false;
+  static const _pdfChannel = MethodChannel('com.prepora.academy.prepora/pdf_intent');
 
   // Annotation state
   bool _isAnnotating = false;
@@ -107,6 +109,22 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
         } else {
           setState(() { _error = 'Downloaded file not found'; _isLoading = false; });
         }
+      } else if (url.startsWith('content://')) {
+        final dir = await getTemporaryDirectory();
+        final safeName = _fileName!.replaceAll(RegExp(r'[^\w\.\-]'), '_');
+        final localFile = File('${dir.path}/$safeName');
+        try {
+          final uri = Uri.parse(url);
+          final bytes = await _readContentUri(uri);
+          if (bytes != null) {
+            await localFile.writeAsBytes(bytes);
+            if (mounted) setState(() { _localPath = localFile.path; _isLoading = false; });
+          } else {
+            if (mounted) setState(() { _error = 'Failed to read PDF from device'; _isLoading = false; });
+          }
+        } catch (_) {
+          if (mounted) setState(() { _error = 'Failed to open PDF from device'; _isLoading = false; });
+        }
       } else {
         final file = File(url);
         if (await file.exists()) {
@@ -127,6 +145,19 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
         setState(() { _error = 'Error: $e'; _isLoading = false; });
       }
     }
+  }
+
+  Future<Uint8List?> _readContentUri(Uri uri) async {
+    try {
+      final filePath = await _pdfChannel.invokeMethod<String>('copyContentUriToTemp', uri.toString());
+      if (filePath != null) {
+        final file = File(filePath);
+        if (await file.exists()) {
+          return await file.readAsBytes();
+        }
+      }
+    } catch (_) {}
+    return null;
   }
 
   Future<void> _saveAnnotation() async {

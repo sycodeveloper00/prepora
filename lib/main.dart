@@ -1,6 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:home_widget/home_widget.dart';
@@ -10,14 +13,42 @@ import 'core/router/app_router.dart';
 import 'core/services/firebase_service.dart';
 import 'core/services/notification_service.dart';
 
+const _pdfChannel = MethodChannel('com.prepora.academy.prepora/pdf_intent');
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   if (!kIsWeb) {
     HomeWidget.registerBackgroundCallback(backgroundCallback);
+    _listenPdfIntent();
   }
   runApp(const ProviderScope(child: PrePoraApp()));
   await FirebaseService.initialize();
   _initStorage();
+}
+
+void _listenPdfIntent() {
+  _pdfChannel.setMethodCallHandler((call) async {
+    if (call.method == 'openPdf') {
+      final uri = call.arguments as String?;
+      if (uri != null && uri.isNotEmpty) {
+        await Future.delayed(const Duration(milliseconds: 500));
+        if (AppRouter.router.currentContext != null) {
+          AppRouter.router.go('/pdf_reader/view', extra: {'url': uri});
+        }
+      }
+    }
+  });
+  _pdfChannel.invokeMethod<String>('getInitialPdfUri').then((uri) {
+    if (uri != null && uri.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Future.delayed(const Duration(seconds: 1), () {
+          if (AppRouter.router.currentContext != null) {
+            AppRouter.router.go('/pdf_reader/view', extra: {'url': uri});
+          }
+        });
+      });
+    }
+  }).catchError((_) {});
 }
 
 @pragma('vm:entry-point')
@@ -43,14 +74,45 @@ class _AppLifecycle extends StatefulWidget {
   State<_AppLifecycle> createState() => _AppLifecycleState();
 }
 
-class _AppLifecycleState extends State<_AppLifecycle> {
+class _AppLifecycleState extends State<_AppLifecycle> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
-    if (!kIsWeb) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        NotificationService.initialize();
-        NotificationService.checkAndNotify();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      NotificationService.initialize();
+      NotificationService.checkAndNotify();
+      if (kIsWeb && FirebaseService.currentUser != null) {
+        NotificationService.startListeningForNotifications(FirebaseService.currentUser!.uid);
+      }
+      _startSessionIfAdminOrAssistant();
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      SessionManager.pause();
+    } else if (state == AppLifecycleState.resumed) {
+      SessionManager.resume();
+    }
+  }
+
+  Future<void> _startSessionIfAdminOrAssistant() async {
+    final user = FirebaseService.currentUser;
+    if (user == null) return;
+    String? role = FirebaseService.cachedRole;
+    role ??= await FirebaseService.getUserRole(user.uid);
+    FirebaseService.cachedRole = role;
+    if (role == 'admin' || role == 'Assistant') {
+      SessionManager.start(onExpiredCallback: () async {
+        await FirebaseService.signOut();
       });
     }
   }
@@ -66,13 +128,17 @@ class PrePoraApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final themeMode = ref.watch(themeModeProvider);
     return _AppLifecycle(
-      child: MaterialApp.router(
-        title: 'PrePora',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.lightTheme,
-        darkTheme: AppTheme.darkTheme,
-        themeMode: themeMode,
-        routerConfig: AppRouter.router,
+      child: Listener(
+        onPointerDown: (_) => SessionManager.reset(),
+        onPointerMove: (_) => SessionManager.reset(),
+        child: MaterialApp.router(
+          title: 'PrePora',
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.lightTheme,
+          darkTheme: AppTheme.darkTheme,
+          themeMode: themeMode,
+          routerConfig: AppRouter.router,
+        ),
       ),
     );
   }

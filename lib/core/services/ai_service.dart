@@ -83,10 +83,11 @@ class AiService {
       'politely apologize and guide them to use the Feedback option in the Settings menu '
       'to report it to the admin. Do NOT try to fix the app yourself.\n\n'
       'CONTENT ACCESS:\n'
-      'You have full access to the student\'s study catalog — folders, lectures, files, '
-      'mock tests, and notes (excluding admin-locked content). Use this to provide '
-      'contextually relevant answers. When discussing a topic, reference available '
-      'lectures or resources the student can review for deeper understanding.\n'
+      'You have access to the user\'s study catalog — folders, lectures, files, '
+      'mock tests, and notes. Only unlocked and visible content is included. '
+      'Locked or hidden items are NOT accessible. For assistants, only assigned folders are shown.\n'
+      'Use this to provide contextually relevant answers. When discussing a topic, '
+      'reference available lectures or resources the user can review for deeper understanding.\n'
       'IMPORTANT: Never output any URLs, file paths, folder IDs, or document links '
       'from the catalog. Only mention folder or lecture names in plain text.';
 
@@ -314,6 +315,24 @@ If the student seems confused, offer simpler explanations. Suggest relevant topi
         'Here is the complete study content catalog available to this user in the PrePora app:');
 
     try {
+      final userDoc = await FirebaseService.firestore.collection('users').doc(uid).get();
+      final role = (userDoc.data()?['role'] as String?) ?? 'student';
+
+      Set<String> allowedFolderIds;
+      if (role == 'Assistant') {
+        final accessSnap = await FirebaseService.firestore
+            .collection('Assistant_access')
+            .where('uid', isEqualTo: uid)
+            .get();
+        allowedFolderIds = accessSnap.docs
+            .map((d) => d.data()['folderId'] as String? ?? '')
+            .where((id) => id.isNotEmpty)
+            .toSet();
+        if (allowedFolderIds.isEmpty) return '';
+      } else {
+        allowedFolderIds = {};
+      }
+
       final foldersSnap = await FirebaseService.firestore
           .collection('folders')
           .orderBy('createdAt')
@@ -325,8 +344,10 @@ If the student seems confused, offer simpler explanations. Suggest relevant topi
         final folderId = folderDoc.id;
         final folderLocked = folderData['locked'] as bool? ?? false;
         final folderUpdating = folderData['updating'] as bool? ?? false;
+        final folderInvisible = folderData['invisible'] as bool? ?? false;
 
-        if (folderLocked || folderUpdating) continue;
+        if (folderLocked || folderUpdating || folderInvisible) continue;
+        if (role == 'Assistant' && !allowedFolderIds.contains(folderId)) continue;
 
         buffer.writeln('\n📁 Folder: $folderName');
 
@@ -337,40 +358,89 @@ If the student seems confused, offer simpler explanations. Suggest relevant topi
             .orderBy('createdAt')
             .get();
 
+        final contentMap = <String, Map<String, dynamic>>{};
+        for (final c in contentsSnap.docs) {
+          contentMap[c.id] = c.data();
+        }
+
+        final lockedIds = <String>{};
+        final invisibleIds = <String>{};
+        for (final entry in contentMap.entries) {
+          final d = entry.value;
+          final t = d['type'] as String? ?? '';
+          if (d['locked'] == true && t == 'subfolder') lockedIds.add(entry.key);
+          if (d['invisible'] == true && t == 'subfolder') invisibleIds.add(entry.key);
+        }
+
+        String buildPath(String? parentContentId) {
+          if (parentContentId == null || parentContentId.isEmpty) return '';
+          final parent = contentMap[parentContentId];
+          if (parent == null) return '';
+          final parentName = parent['name'] as String? ?? '';
+          final grandParent = parent['parentContentId'] as String? ?? '';
+          if (grandParent.isNotEmpty) {
+            return '${buildPath(grandParent)} > $parentName';
+          }
+          return parentName;
+        }
+
+        bool isAncestorLocked(String? parentContentId, {int depth = 0}) {
+          if (parentContentId == null || parentContentId.isEmpty || depth > 10) return false;
+          if (lockedIds.contains(parentContentId) || invisibleIds.contains(parentContentId)) return true;
+          final parent = contentMap[parentContentId];
+          if (parent == null) return false;
+          final gp = parent['parentContentId'] as String? ?? '';
+          return isAncestorLocked(gp, depth: depth + 1);
+        }
+
         for (final contentDoc in contentsSnap.docs) {
           final data = contentDoc.data();
           final type = data['type'] as String? ?? 'file';
           final name = data['name'] as String? ?? 'Unnamed';
           final locked = data['locked'] as bool? ?? false;
+          final invisible = data['invisible'] as bool? ?? false;
+          final parentContentId = data['parentContentId'] as String? ?? '';
 
-          if (locked) continue;
+          if (locked || invisible) continue;
+          if (isAncestorLocked(parentContentId)) continue;
+
+          final path = buildPath(parentContentId);
+          final prefix = path.isNotEmpty ? '  [$path] ' : '  ';
 
           switch (type) {
             case 'lecture':
               final url = data['youtubeUrl'] as String? ?? '';
-              buffer.writeln('  🎬 Lecture: "$name" → $url');
+              buffer.writeln(url.isNotEmpty
+                  ? '$prefix🎬 Lecture: "$name" → $url'
+                  : '$prefix🎬 Lecture: "$name"');
             case 'file':
               final url = data['url'] as String? ?? '';
-              buffer.writeln('  📄 File: "$name"');
-              if (url.isNotEmpty) buffer.writeln('    URL: $url');
+              buffer.writeln(url.isNotEmpty
+                  ? '$prefix📄 File: "$name" → $url'
+                  : '$prefix📄 File: "$name"');
             case 'link':
               final url = data['url'] as String? ?? '';
-              buffer.writeln('  🔗 Link: "$name" → $url');
+              buffer.writeln(url.isNotEmpty
+                  ? '$prefix🔗 Link: "$name" → $url'
+                  : '$prefix🔗 Link: "$name"');
             case 'mocktest_url':
               final url = data['url'] as String? ?? '';
-              buffer.writeln('  📝 Mock Test (URL): "$name" → $url');
+              buffer.writeln(url.isNotEmpty
+                  ? '$prefix📝 Mock Test: "$name" → $url'
+                  : '$prefix📝 Mock Test: "$name"');
             case 'mocktest_code':
-              buffer.writeln('  📝 Mock Test (Code): "$name"');
+              buffer.writeln('$prefix📝 Mock Test (Code): "$name"');
             case 'subfolder':
-              buffer.writeln('  📂 Sub-folder: "$name"');
+              buffer.writeln('$prefix📂 Sub-folder: "$name"');
             case 'group':
-              final url = data['url'] as String? ?? '';
-              buffer.writeln('  💬 Group: "$name" → $url');
+              final url = data['url'] as String? ?? data['group_link'] as String? ?? '';
+              buffer.writeln(url.isNotEmpty
+                  ? '$prefix💬 Group: "$name" → $url'
+                  : '$prefix💬 Group: "$name"');
           }
         }
       }
 
-      // Fetch user's saved notes
       final notesSnap = await FirebaseService.firestore
           .collection('users')
           .doc(uid)

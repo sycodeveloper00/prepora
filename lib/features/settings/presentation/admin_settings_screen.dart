@@ -140,7 +140,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> with WidgetsB
                     activeColor: const Color(0xFF4A148C),
                     onChanged: (val) async {
                       if (!kIsWeb) {
-                        const packageName = 'com.project.dreams.general';
+                        const packageName = 'com.prepora.academy.prepora';
                         final uri = Uri.parse('package:$packageName');
                         if (await canLaunchUrl(uri)) {
                           await launchUrl(uri, mode: LaunchMode.externalApplication);

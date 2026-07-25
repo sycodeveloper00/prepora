@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/signup_screen.dart';
 import '../../features/auth/presentation/forgot_password_screen.dart';
+import '../../features/auth/presentation/reset_password_screen.dart';
 import '../../features/auth/presentation/terms_accept_screen.dart';
 import '../../features/dashboard/presentation/dashboard_screen.dart';
 import '../../features/folders/presentation/folder_details_screen.dart';
@@ -31,11 +32,46 @@ import '../../features/student/presentation/student_progress_screen.dart';
 class AppRouter {
   static final GoRouter router = GoRouter(
     initialLocation: '/splash',
+    errorBuilder: (context, state) {
+      final uri = state.uri.toString();
+      if (uri.contains('.pdf') || uri.startsWith('content://') || uri.startsWith('file://')) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          context.go('/pdf_reader/view', extra: {'url': uri});
+        });
+        return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      }
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 64, color: Colors.redAccent),
+              const SizedBox(height: 16),
+              Text('Page not found', style: TextStyle(fontSize: 18, color: Colors.grey.shade600)),
+              const SizedBox(height: 8),
+              Text(uri, style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: () => context.go('/dashboard'),
+                child: const Text('Go to Dashboard'),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
     routes: <RouteBase>[
       GoRoute(path: '/splash', builder: (c, s) => const SplashScreen()),
       GoRoute(path: '/auth/login', builder: (c, s) => const LoginScreen()),
       GoRoute(path: '/auth/signup', builder: (c, s) => const SignupScreen()),
       GoRoute(path: '/auth/forgot-password', builder: (c, s) => const ForgotPasswordScreen()),
+      GoRoute(
+        path: '/auth/reset-password',
+        builder: (c, s) {
+          final token = s.uri.queryParameters['token'];
+          return ResetPasswordScreen(token: token);
+        },
+      ),
 
       GoRoute(path: '/dashboard', builder: (c, s) => const DashboardScreen()),
       GoRoute(
