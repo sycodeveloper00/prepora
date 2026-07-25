@@ -29,8 +29,11 @@ import '../../features/webview/presentation/webview_screen.dart';
 import '../../features/splash_onboarding/presentation/splash_screen.dart';
 import '../../features/student/presentation/student_progress_screen.dart';
 
+final rootNavigatorKey = GlobalKey<NavigatorState>();
+
 class AppRouter {
   static final GoRouter router = GoRouter(
+    navigatorKey: rootNavigatorKey,
     initialLocation: '/splash',
     errorBuilder: (context, state) {
       final uri = state.uri.toString();

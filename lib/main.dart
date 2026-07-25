@@ -32,8 +32,9 @@ void _listenPdfIntent() {
       final uri = call.arguments as String?;
       if (uri != null && uri.isNotEmpty) {
         await Future.delayed(const Duration(milliseconds: 500));
-        if (AppRouter.router.currentContext != null) {
-          AppRouter.router.go('/pdf_reader/view', extra: {'url': uri});
+        final ctx = rootNavigatorKey.currentContext;
+        if (ctx != null) {
+          ctx.go('/pdf_reader/view', extra: {'url': uri});
         }
       }
     }
@@ -42,8 +43,9 @@ void _listenPdfIntent() {
     if (uri != null && uri.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         Future.delayed(const Duration(seconds: 1), () {
-          if (AppRouter.router.currentContext != null) {
-            AppRouter.router.go('/pdf_reader/view', extra: {'url': uri});
+          final ctx = rootNavigatorKey.currentContext;
+          if (ctx != null) {
+            ctx.go('/pdf_reader/view', extra: {'url': uri});
           }
         });
       });
@@ -82,9 +84,6 @@ class _AppLifecycleState extends State<_AppLifecycle> with WidgetsBindingObserve
     WidgetsBinding.instance.addPostFrameCallback((_) {
       NotificationService.initialize();
       NotificationService.checkAndNotify();
-      if (kIsWeb && FirebaseService.currentUser != null) {
-        NotificationService.startListeningForNotifications(FirebaseService.currentUser!.uid);
-      }
       _startSessionIfAdminOrAssistant();
     });
   }
