@@ -39,6 +39,25 @@ class MainActivity : FlutterActivity() {
                         result.error("COPY_FAILED", e.message, null)
                     }
                 }
+                "openNotificationSettings" -> {
+                    try {
+                        val intent = Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                        intent.putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, packageName)
+                        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        startActivity(intent)
+                        result.success(true)
+                    } catch (e: Exception) {
+                        try {
+                            val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                            intent.data = android.net.Uri.parse("package:$packageName")
+                            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                            startActivity(intent)
+                            result.success(true)
+                        } catch (e2: Exception) {
+                            result.error("OPEN_FAILED", e2.message, null)
+                        }
+                    }
+                }
                 else -> result.notImplemented()
             }
         }

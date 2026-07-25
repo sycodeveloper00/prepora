@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../../core/services/firebase_service.dart';
 import '../../../core/theme/theme_provider.dart';
 import '../../../core/widgets/professional_loader.dart';
@@ -140,11 +140,9 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> with WidgetsB
                     activeColor: const Color(0xFF4A148C),
                     onChanged: (val) async {
                       if (!kIsWeb) {
-                        const packageName = 'com.prepora.academy.prepora';
-                        final uri = Uri.parse('package:$packageName');
-                        if (await canLaunchUrl(uri)) {
-                          await launchUrl(uri, mode: LaunchMode.externalApplication);
-                        }
+                        try {
+                          await MethodChannel('com.prepora.academy.prepora/pdf_intent').invokeMethod('openNotificationSettings');
+                        } catch (_) {}
                       }
                     },
                   ),

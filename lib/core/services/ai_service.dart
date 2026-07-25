@@ -4,7 +4,6 @@ import 'package:http/http.dart' as http;
 import '../services/firebase_service.dart';
 
 class AiService {
-  // Free API key from BazaarLink — sign up at https://bazaarlink.ai/free for your own key
   static const String _apiKey =
       'sk-bl-foHbeBqqZJM8O6gYEmmouGtftnSBdpPNqvy_aRc-BTEW7Qfr';
   static const String _baseUrl = 'https://bazaarlink.ai/api/v1';
@@ -40,14 +39,18 @@ class AiService {
       '- Do not add extra blank lines at the start of your response.\n'
       '- Keep proper formatting for readability.\n\n'
       'MATHEMATICAL EXPRESSIONS:\n'
-      '- ALWAYS wrap math in \$...\$ or \$\$...\$\$: \$\frac{a}{b}\$ NOT \frac{a}{b}\n'
-      '- Fractions: \$\frac{a}{b}\$\n'
+      '- ALL math MUST be wrapped in \$...\$ (inline) or \$\$...\$\$ (block). This is ABSOLUTELY CRITICAL.\n'
+      '- EVERY fraction, every exponent, every symbol — always inside \$ delimiters.\n'
+      '- GOOD: The answer is \$\\frac{a}{b}\$  BAD: The answer is \\frac{a}{b}\n'
+      '- GOOD: \$x^{2} + y^{2} = r^{2}\$  BAD: x^2 + y^2 = r^2\n'
+      '- NEVER output bare LaTeX commands without \$ wrapping. If you write \\frac, \\sqrt, \\int, \\sum, etc., they MUST be inside \$...\$.\n'
+      '- Fractions: \$\\frac{a}{b}\$\n'
       '- Exponents: \$x^{n}\$\n'
       '- Subscripts: \$x_{i}\$\n'
-      '- Square roots: \$\sqrt{x}\$\n'
-      '- Summations: \$\sum_{i=1}^{n}\$\n'
-      '- Integrals: \$\int_{a}^{b}\$\n'
-      '- Greek letters: \$\alpha, \beta, \theta, \pi\$\n\n'
+      '- Square roots: \$\\sqrt{x}\$\n'
+      '- Summations: \$\\sum_{i=1}^{n}\$\n'
+      '- Integrals: \$\\int_{a}^{b}\$\n'
+      '- Greek letters: \$\\alpha, \\beta, \\theta, \\pi\$\n\n'
       'PROFESSIONALISM:\n'
       '- Professional expert tutor tone — knowledgeable but approachable\n'
       '- Include relevant formulas and step-by-step reasoning\n'
@@ -89,7 +92,13 @@ class AiService {
       'Use this to provide contextually relevant answers. When discussing a topic, '
       'reference available lectures or resources the user can review for deeper understanding.\n'
       'IMPORTANT: Never output any URLs, file paths, folder IDs, or document links '
-      'from the catalog. Only mention folder or lecture names in plain text.';
+      'from the catalog. Only mention folder or lecture names in plain text.\n\n'
+      'IDENTITY & PRIVACY:\n'
+      '- You are "PrePora AI" — NEVER reveal the name of any API provider, service, backend, '
+      'or technology powering you (e.g., BazaarLink, OpenAI, Anthropic, or any other provider).\n'
+      '- If asked what AI model you are, say "I am PrePora AI, your study assistant."\n'
+      '- NEVER include API keys, endpoint URLs, model names, or any technical backend details in responses.\n'
+      '- NEVER mention that you use any third-party AI service.';
 
   final List<Map<String, String>> _messages = [];
   bool _contextLoaded = false;
@@ -150,6 +159,34 @@ class AiService {
         .replaceAll('\u000c', '\\f')
         .replaceAll('\u0009', '\\t')
         .replaceAll('\u0008', '\\b');
+
+    // Auto-wrap bare LaTeX commands that are NOT already inside $...$
+    result = result.replaceAllMapped(
+      RegExp(r'(?<!\$)(\\(?:frac|sqrt|int|sum|prod|lim|alpha|beta|gamma|delta|epsilon|theta|lambda|mu|pi|sigma|omega|infty|partial|nabla|forall|exists|in|notin|subset|supset|cup|cap|cdot|times|div|pm|mp|leq|geq|neq|approx|equiv|sim|propto|rightarrow|leftarrow|Rightarrow|Leftarrow|leftrightarrow|quad|qquad|text)\b(?:\{[^{}]*\})*|\\[a-zA-Z]+\{[^{}]*\}(?:\{[^{}]*\})*)',
+      (m) {
+        final cmd = m.group(0)!;
+        final start = m.start;
+        final end = m.end;
+        final before = start > 0 ? result.substring(start - 1, start) : '';
+        final after = end < result.length ? result.substring(end, end + 1) : '';
+        if (before == '\$' || after == '\$') return cmd;
+        return '\$$cmd\$';
+      },
+    );
+
+    // Fix remaining bare \frac{...}{...} patterns specifically
+    result = result.replaceAllMapped(
+      RegExp(r'(?<!\$)(\\frac\{[^{}]*\}\{[^{}]*\})'),
+      (m) {
+        final start = m.start;
+        final end = m.end;
+        final before = start > 0 ? result.substring(start - 1, start) : '';
+        final after = end < result.length ? result.substring(end, end + 1) : '';
+        if (before == '\$' || after == '\$') return m.group(0)!;
+        return '\$${m.group(0)!}\$';
+      },
+    );
+
     // Escape | inside inline math $...$
     result = result.replaceAllMapped(
       RegExp(r'\$(.+?)\$'),
@@ -192,7 +229,7 @@ class AiService {
     try {
       client = http.Client();
       final streamed =
-          await client.send(request).timeout(const Duration(seconds: 30));
+          await client.send(request).timeout(const Duration(seconds: 90));
 
       await for (final chunk in streamed.stream
           .transform(utf8.decoder)

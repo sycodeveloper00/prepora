@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../../core/services/firebase_service.dart';
 import '../../../core/theme/theme_provider.dart';
 
@@ -176,17 +176,12 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
     );
   }
 
+  static const _platformChannel = MethodChannel('com.prepora.academy.prepora/pdf_intent');
+
   Future<void> _openSystemNotificationSettings() async {
-    const packageName = 'com.prepora.academy.prepora';
-    final uri = Uri.parse('package:$packageName');
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } else {
-      final settingsUri = Uri.parse('android.app.notification_settings');
-      if (await canLaunchUrl(settingsUri)) {
-        await launchUrl(settingsUri, mode: LaunchMode.externalApplication);
-      }
-    }
+    try {
+      await _platformChannel.invokeMethod('openNotificationSettings');
+    } catch (_) {}
   }
 
   void _showThemeDialog(BuildContext context, WidgetRef ref) {

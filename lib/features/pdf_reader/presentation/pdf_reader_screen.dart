@@ -50,7 +50,15 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
   @override
   void initState() {
     super.initState();
-    _checkAccess();
+    final isLocal = widget.documentId.startsWith('content://') ||
+        widget.documentId.startsWith('file://') ||
+        (!widget.documentId.startsWith('http://') && !widget.documentId.startsWith('https://'));
+    if (isLocal) {
+      _accessGranted = true;
+      _loadPdf();
+    } else {
+      _checkAccess();
+    }
   }
 
   Future<void> _checkAccess() async {
