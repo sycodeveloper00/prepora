@@ -491,7 +491,7 @@ class _AiChatScreenState extends State<AiChatScreen> with SingleTickerProviderSt
                       child: TextField(
                         controller: _controller,
                         focusNode: _focusNode,
-                        style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 14),
+                        style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 14, fontFamilyFallback: const ['Noto Nastaliq Urdu']),
                         maxLines: 6,
                         minLines: 1,
                         scrollPhysics: const BouncingScrollPhysics(),
@@ -499,7 +499,7 @@ class _AiChatScreenState extends State<AiChatScreen> with SingleTickerProviderSt
                         textInputAction: TextInputAction.newline,
                         decoration: InputDecoration(
                           hintText: 'Ask anything...',
-                          hintStyle: TextStyle(color: isDark ? Colors.white38 : Colors.black45),
+                          hintStyle: TextStyle(color: isDark ? Colors.white38 : Colors.black45, fontFamilyFallback: const ['Noto Nastaliq Urdu']),
                           filled: false,
                           border: InputBorder.none,
                           contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
@@ -682,11 +682,12 @@ class _AiChatScreenState extends State<AiChatScreen> with SingleTickerProviderSt
                     color: msg.isError ? Colors.redAccent : Colors.white,
                     fontSize: 14,
                     height: 1.5,
+                    fontFamilyFallback: const ['Noto Nastaliq Urdu'],
                   ),
                 )
               else
                 MarkdownBody(
-                    data: msg.text,
+                    data: AiService.fixLatex(msg.text),
                     selectable: true,
                     inlineSyntaxes: [
                       MathBlockSyntax(),
@@ -696,13 +697,14 @@ class _AiChatScreenState extends State<AiChatScreen> with SingleTickerProviderSt
                       'mathBlock': MathBlockBuilder(),
                       'mathInline': MathInlineBuilder(),
                       'code': CodeBlockBuilder(isDark: isDark),
+                      'table': ScrollableTableBuilder(isDark: isDark),
                     },
                     styleSheet: MarkdownStyleSheet(
                       textScaleFactor: 1.0,
-                      p: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 14, height: 1.6),
-                      h1: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 18, fontWeight: FontWeight.bold),
-                      h2: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 16, fontWeight: FontWeight.bold),
-                      h3: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 15, fontWeight: FontWeight.w600),
+                      p: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 14, height: 1.6, fontFamilyFallback: const ['Noto Nastaliq Urdu']),
+                      h1: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 18, fontWeight: FontWeight.bold, fontFamilyFallback: const ['Noto Nastaliq Urdu']),
+                      h2: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 16, fontWeight: FontWeight.bold, fontFamilyFallback: const ['Noto Nastaliq Urdu']),
+                      h3: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 15, fontWeight: FontWeight.w600, fontFamilyFallback: const ['Noto Nastaliq Urdu']),
                       code: TextStyle(
                         color: const Color(0xFF00E5FF),
                         backgroundColor: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.grey.withValues(alpha: 0.15),
@@ -718,7 +720,7 @@ class _AiChatScreenState extends State<AiChatScreen> with SingleTickerProviderSt
                         border: Border(left: BorderSide(color: const Color(0xFFCE93D8), width: 3)),
                         color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.withValues(alpha: 0.1),
                       ),
-                      listBullet: const TextStyle(color: Color(0xFFCE93D8)),
+                      listBullet: const TextStyle(color: Color(0xFFCE93D8), fontFamilyFallback: ['Noto Nastaliq Urdu']),
                       tableBorder: TableBorder.all(color: isDark ? Colors.white24 : Colors.black26),
                       tableHead: TextStyle(fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87),
                       tableColumnWidth: const IntrinsicColumnWidth(),
@@ -875,37 +877,21 @@ class MathInlineBuilder extends MarkdownElementBuilder {
   Widget? visitElementAfter(md.Element element, TextStyle? preferredStyle) {
     final text = element.attributes['raw'] ?? element.textContent;
     if (text.isEmpty) return const SizedBox.shrink();
-    try {
-      return FittedBox(
-        fit: BoxFit.scaleDown,
-        child: Math.tex(
-          text,
-          textStyle: const TextStyle(
-            color: Color(0xFF00E5FF),
-            fontSize: 16,
-          ),
-          onErrorFallback: (_) => Text(
-            text,
-            style: const TextStyle(
-              color: Color(0xFF00E5FF),
-              fontFamily: 'monospace',
-              fontSize: 13,
-              fontStyle: FontStyle.italic,
-            ),
-          ),
-        ),
-      );
-    } catch (_) {
-      return Text(
+    return Math.tex(
+      text,
+      textStyle: const TextStyle(
+        color: Color(0xFF00E5FF),
+        fontSize: 16,
+      ),
+      onErrorFallback: (e) => Text(
         text,
         style: const TextStyle(
           color: Color(0xFF00E5FF),
-          fontFamily: 'monospace',
-          fontSize: 13,
+          fontSize: 15,
           fontStyle: FontStyle.italic,
         ),
-      );
-    }
+      ),
+    );
   }
 }
 
@@ -969,6 +955,89 @@ class MathBlockBuilder extends MarkdownElementBuilder {
         ),
       );
     }
+  }
+}
+
+class ScrollableTableBuilder extends MarkdownElementBuilder {
+  final bool isDark;
+  ScrollableTableBuilder({this.isDark = true});
+
+  @override
+  Widget? visitElementAfter(md.Element element, TextStyle? preferredStyle) {
+    final rows = <TableRow>[];
+    int maxCols = 0;
+
+    for (final section in element.children?.whereType<md.Element>() ?? <md.Element>[]) {
+      final isHeader = section.tag == 'thead';
+      for (final tr in section.children?.whereType<md.Element>().where((e) => e.tag == 'tr') ?? <md.Element>[]) {
+        final cells = <TableCell>[];
+        int colIdx = 0;
+        for (final cell in tr.children?.whereType<md.Element>().where((e) => e.tag == 'td' || e.tag == 'th') ?? <md.Element>[]) {
+          final align = cell.attributes['align'];
+          TextAlign textAlign = TextAlign.left;
+          if (align == 'center') textAlign = TextAlign.center;
+          else if (align == 'right') textAlign = TextAlign.right;
+
+          cells.add(TableCell(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                border: Border(
+                  right: BorderSide(color: isDark ? Colors.white12 : Colors.black12, width: 0.5),
+                  bottom: BorderSide(color: isDark ? Colors.white12 : Colors.black12, width: 0.5),
+                ),
+              ),
+              child: Text(
+                cell.textContent.trim(),
+                style: TextStyle(
+                  color: isDark ? Colors.white : Colors.black87,
+                  fontSize: 13,
+                  fontWeight: isHeader ? FontWeight.bold : FontWeight.normal,
+                ),
+                textAlign: textAlign,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ));
+          colIdx++;
+        }
+        if (colIdx > maxCols) maxCols = colIdx;
+
+        rows.add(TableRow(
+          decoration: isHeader
+              ? BoxDecoration(
+                  color: isDark
+                      ? const Color(0xFF1A1040).withValues(alpha: 0.8)
+                      : Colors.grey.withValues(alpha: 0.2),
+                )
+              : null,
+          children: cells,
+        ));
+      }
+    }
+
+    if (rows.isEmpty) return null;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      decoration: BoxDecoration(
+        border: Border.all(color: isDark ? Colors.white24 : Colors.black26),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minWidth: maxCols * 120.0),
+          child: Table(
+            defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+            columnWidths: {for (int i = 0; i < maxCols; i++) i: const IntrinsicColumnWidth()},
+            children: rows,
+          ),
+        ),
+      ),
+    );
   }
 }
 

@@ -1,6 +1,9 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:timezone/timezone.dart' as tz;
+import 'package:timezone/data/latest_all.dart' as tz_data;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'firebase_service.dart';
 
@@ -10,11 +13,13 @@ class NotificationService {
   static const String _studentChannelId = 'student_notifications';
   static const String _adminChannelId = 'admin_notifications';
   static const int _badgeNotificationId = 9999;
+  static const int _dailyStreakNotificationId = 8888;
   static StreamSubscription? _studentSub;
   static StreamSubscription? _adminSub;
 
   static Future<void> initialize() async {
     if (kIsWeb) return;
+    tz_data.initializeTimeZones();
     const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
     const iosSettings = DarwinInitializationSettings();
     await _plugin.initialize(settings: const InitializationSettings(android: androidSettings, iOS: iosSettings));
@@ -61,6 +66,56 @@ class NotificationService {
         ?.createNotificationChannel(streakChannel);
   }
 
+  // ─── Notification Permission (Android 13+) ────────────────────────────────
+
+  static Future<void> requestNotificationPermission() async {
+    if (kIsWeb) return;
+    final status = await Permission.notification.status;
+    if (status.isDenied || status.isPermanentlyDenied) {
+      await Permission.notification.request();
+    }
+  }
+
+  // ─── Daily Streak Reminder Scheduling ─────────────────────────────────────
+
+  static Future<void> scheduleDailyStreakReminder() async {
+    if (kIsWeb) return;
+
+    // Cancel any existing scheduled streak notification
+    await _plugin.cancel(id: _dailyStreakNotificationId);
+
+    // Schedule daily at 9:00 AM local time
+    final now = tz.TZDateTime.now(tz.local);
+    var scheduledDate = tz.TZDateTime(tz.local, now.year, now.month, now.day, 9, 0, 0);
+    if (scheduledDate.isBefore(now)) {
+      scheduledDate = scheduledDate.add(const Duration(days: 1));
+    }
+
+    const androidDetails = AndroidNotificationDetails(
+      'streak_channel', 'Daily Streak',
+      channelDescription: 'Daily streak reminders',
+      importance: Importance.high,
+      priority: Priority.high,
+      icon: '@mipmap/ic_launcher',
+    );
+    const details = NotificationDetails(android: androidDetails, iOS: DarwinNotificationDetails());
+
+    await _plugin.zonedSchedule(
+      id: _dailyStreakNotificationId,
+      title: 'Don\'t break your streak!',
+      body: 'Open PrePora today and keep learning. Your streak is waiting for you!',
+      scheduledDate: scheduledDate,
+      notificationDetails: details,
+      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      matchDateTimeComponents: DateTimeComponents.time,
+    );
+  }
+
+  static Future<void> cancelDailyStreakReminder() async {
+    if (kIsWeb) return;
+    await _plugin.cancel(id: _dailyStreakNotificationId);
+  }
+
   // ─── Student Notification Listener (badge + mobile panel) ──────────────────
 
   static void startStudentNotificationListener(String uid, DateTime userCreatedAt) {
@@ -79,8 +134,8 @@ class NotificationService {
         if (data['read'] != true) unreadCount++;
       }
       await setBadgeCount(unreadCount);
-      final enabled = await _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-          ?.areNotificationsEnabled() ?? true;
+      final androidPlugin = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+      final enabled = await androidPlugin?.areNotificationsEnabled() ?? true;
       if (!enabled) return;
       for (final change in snap.docChanges) {
         if (change.type == DocumentChangeType.added) {
@@ -194,8 +249,8 @@ class NotificationService {
 
     final hoursSince = now.difference(lastLogin).inHours;
 
-    final enabled = await _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-        ?.areNotificationsEnabled() ?? true;
+    final plugin = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    final enabled = await plugin?.areNotificationsEnabled() ?? true;
 
     if (hoursSince >= 72) {
       if (enabled) await _showStreakNotification('Long time no see!', "I am frustrated, when will you come back? Your streak is waiting.");

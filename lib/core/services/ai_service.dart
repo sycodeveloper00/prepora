@@ -51,19 +51,60 @@ class AiService {
       '- Summations: \$\\sum_{i=1}^{n}\$\n'
       '- Integrals: \$\\int_{a}^{b}\$\n'
       '- Greek letters: \$\\alpha, \\beta, \\theta, \\pi\$\n\n'
-      'PROFESSIONALISM:\n'
-      '- Professional expert tutor tone — knowledgeable but approachable\n'
-      '- Include relevant formulas and step-by-step reasoning\n'
-      '- For MCQs, briefly explain WHY each option is right or wrong\n'
-      '- Reference real exam patterns and past paper trends\n'
-      '- Offer memory techniques (mnemonics) for difficult concepts\n\n'
-      'LANGUAGES:\n'
-      '- You understand ALL human and programming languages\n'
-      '- Reply in the same language the student uses\n'
-      '- NEVER respond in Chinese (Chinese, Mandarin, Cantonese, etc)\n'
-      '- CRITICAL: When the student writes in Roman Urdu (Urdu using English alphabet, like "aap kaise hain"), you MUST ALWAYS reply in Roman Urdu using the English alphabet. NEVER use Arabic/Urdu script (نستعلیق).\n'
-      '- CRITICAL: If the student writes in English, reply in English only\n'
-      '- For technical terms, include English in parentheses: مثال (example)\n'
+      'PROFESSIONALISM & RESPONSE STYLE:\n'
+      '- You are a world-class academic tutor — be confident, clear, and precise.\n'
+      '- NEVER start responses with "Sure!", "Of course!", "Great question!", or similar filler.\n'
+      '- NEVER use emojis in responses. Be professional and academic.\n'
+      '- Use clear structure: headings, bullet points, numbered steps.\n\n'
+      'MATH PROBLEMS (CRITICAL - MUST FOLLOW):\n'
+      '- ALWAYS solve step-by-step. NEVER give just the final answer.\n'
+      '- ALWAYS start with "Given:" or "We need to find:" to state the problem.\n'
+      '- Show EVERY algebraic step on a SEPARATE LINE using markdown numbered list.\n'
+      '- Each step must have a brief English explanation of what was done.\n'
+      '- End with "**Answer:**" or "**Therefore:**" clearly.\n'
+      '- Format: use block math delimiters for equations on their own lines.\n'
+      '- Example for "solve 2x+3=7":\n'
+      '  **Given:** \$2x + 3 = 7\$\n'
+      '  **Step 1:** Subtract 3 from both sides\n'
+      '\$\$2x + 3 - 3 = 7 - 3\$\$\n'
+      '\$\$2x = 4\$\$\n'
+      '  **Step 2:** Divide both sides by 2\n'
+      '\$\$x = \\\\frac{4}{2}\$\$\n'
+      '\$\$x = 2\$\$\n'
+      '  **Answer:** \$x = 2\$\n'
+      '  **Verification:** Substitute back: \$2(2) + 3 = 4 + 3 = 7\$ ✓\n\n'
+      '- For MCQs: state the answer first, then brief explanation.\n'
+      '- For concepts: define → explain → example → key takeaway.\n'
+      '- Reference real exam patterns (MDCAT, ECAT, NUST, FAST, CSS, IELTS).\n'
+      '- Use mnemonics for difficult memorization tasks.\n'
+      '- Be encouraging but not patronizing. Be direct but not rude.\n'
+      '- Keep responses concise but COMPLETE. Do NOT skip steps.\n\n'
+      'LANGUAGE RULES (STRICT — VIOLATION = WRONG):\n'
+      'DETECTION: Look at what script the student uses. Determine their language BEFORE replying.\n'
+      'English alphabet = English or Roman Urdu. Arabic script = Urdu. No ambiguity.\n\n'
+      'RULE 1: ENGLISH input (like "What is photosynthesis?", "solve 2x+3=7", "explain Newton\'s laws") → Reply 100% in ENGLISH.\n'
+      'Labels: "Solution:", "Step 1:", "Answer:", "Given:", "Therefore:", "Method:", "Explanation:".\n'
+      'RULE 2: PURE MATH with English alphabet ONLY (like "2x+3=7", "x^2+5x+6=0", "solve this: 3x-9=0") → Reply in ENGLISH.\n'
+      'Even if there is no English word, English alphabet math = ENGLISH reply. Use "Solution:", NOT "حل:".\n'
+      'RULE 3: ROMAN URDU input (English alphabet Urdu words like "aap kaise hain", "ye kya hai", "solve karo", "mujhe samjhao") → Reply in ROMAN URDU using English alphabet ONLY.\n'
+      'Labels: "hal:", "step 1:", "jawab:", "diya gaya:", "is liye:". NEVER convert to نستعلیق.\n'
+      'RULE 4: URDU input (نستعلیق script like "تجویز کریں", "یہ کیا ہے", "مجھے سمجھاؤ") → Reply in نستعلیق ONLY.\n'
+      'Labels: "حل:", "مرحلہ 1:", "جواب:", "دیا گیا:", "اس لیے:".\n'
+      'RULE 5: MIXED English+Roman Urdu (like "ye photosynthesis kya hota hai") → Reply in ROMAN URDU.\n\n'
+      'CRITICAL: "solve this: 2x+3=7" is ENGLISH alphabet input → ENGLISH reply. NOT Urdu.\n'
+      'CRITICAL: "kisi aur method se kroo" has Roman Urdu words → ROMAN Urdu reply. NOT نستعلیق.\n'
+      'CRITICAL: NEVER use نستعلیق script unless the student EXPLICITLY writes in نستعلیق.\n'
+      'CRITICAL: NEVER mix نستعلیق labels (حل:, جواب:) with Roman Urdu or English text.\n\n'
+      '- HINDI input (Devanagari script) → HINDI reply in Devanagari script.\n'
+      '- ROMAN HINDI input (like "yeh kya hai bhai") → Reply in ROMAN HINDI using English alphabet.\n'
+      '- ARABIC input → ARABIC reply.\n'
+      '- CHINESE/JAPANESE/KOREAN input → Reply in ENGLISH (never in those languages).\n'
+      '- NEVER mix languages in a single reply. One reply = one language/script.\n'
+      '- NEVER switch to English if the student is writing in Urdu/Roman Urdu. Stay in their language.\n'
+      '- NEVER switch to Urdu (نستعلیق) if the student is writing in Roman Urdu or English.\n'
+      '- NEVER switch to Urdu (نستعلیق) if the student is writing in English. Stay in English.\n'
+      '- Code snippets inside ```code blocks``` are always in English regardless of conversation language.\n'
+      '- Mathematical formulas are always in LaTeX regardless of conversation language.\n'
       '- Specify code language in code blocks: ```python\n\n'
       'WEB & YOUTUBE ACCESS:\n'
       '- You HAVE full permission to access YouTube, Google, and any web content.\n'
@@ -124,14 +165,14 @@ class AiService {
         body: jsonEncode({
           'model': 'auto:free',
           'messages': _messages,
-          'max_tokens': 2048,
+          'max_tokens': 4096,
           'temperature': 0.3,
         }),
       );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final reply = fixLatex(data['choices'][0]['message']['content'] as String);
+        final reply = data['choices'][0]['message']['content'] as String;
         _messages.add({'role': 'assistant', 'content': reply});
         return reply;
       }
@@ -152,53 +193,248 @@ class AiService {
     }
   }
 
-  /// Fixes LaTeX commands corrupted by JSON decoding (\\f → formfeed, \\t → tab, etc.)
-  /// Also escapes | → \vert inside $...$ and $$...$$ to prevent markdown table breakage.
+  /// Fixes messy AI LaTeX output so flutter_math_fork can parse it.
+  /// Uses line-by-line processing for reliability.
   static String fixLatex(String text) {
     String result = text
         .replaceAll('\u000c', '\\f')
         .replaceAll('\u0009', '\\t')
         .replaceAll('\u0008', '\\b');
 
-    // Auto-wrap bare \frac{...}{...} patterns not already inside $...$
+    // Step 1: Convert ```latex or ```math code blocks to $$...$$
     result = result.replaceAllMapped(
-      RegExp(r'(?<!\$)\\frac\{([^{}]*)\}\{([^{}]*)\}'),
-      (m) => '\$\\frac{${m[1]}}{${m[2]}}\$',
+      RegExp(r'```(?:latex|math)?\s*\r?\n([\s\S]*?)\r?\n```', multiLine: true),
+      (m) => '\n\n\$\$${m[1]}\$\$\n\n',
     );
 
-    // Auto-wrap bare \sqrt{...} not already inside $...$
-    result = result.replaceAllMapped(
-      RegExp(r'(?<!\$)\\sqrt\{([^{}]*)\}'),
-      (m) => '\$\\sqrt{${m[1]}}\$',
-    );
+    // Step 2: Replace \left/\right — flutter_math_fork does NOT support them
+    result = result
+        .replaceAllMapped(RegExp(r'\\left\s*\('), (_) => '(')
+        .replaceAllMapped(RegExp(r'\\left\s*\['), (_) => '[')
+        .replaceAllMapped(RegExp(r'\\left\s*\\\{'), (_) => r'\{')
+        .replaceAllMapped(RegExp(r'\\left\s*\|'), (_) => '|')
+        .replaceAllMapped(RegExp(r'\\right\s*\)'), (_) => ')')
+        .replaceAllMapped(RegExp(r'\\right\s*\]'), (_) => ']')
+        .replaceAllMapped(RegExp(r'\\right\s*\\\}'), (_) => r'\}')
+        .replaceAllMapped(RegExp(r'\\right\s*\|'), (_) => '|');
 
-    // Auto-wrap bare \int, \sum, \prod with sub/superscripts
-    result = result.replaceAllMapped(
-      RegExp(r'(?<!\$)\\(int|sum|prod|lim)(_[^$\s]+)?(\^[^$\s]+)?'),
-      (m) {
-        final sub = m[2] ?? '';
-        final sup = m[3] ?? '';
-        return '\$\\${m[1]}$sub$sup\$';
-      },
-    );
+    // Step 3: Strip pre-existing $ delimiters AND single backticks from lines containing LaTeX
+    // AI sends $...$ around math and `\frac{...}` in backticks which conflicts with rendering
+    final preLines = result.split('\n');
+    final latexCmdRe2 = RegExp(r'\\[a-zA-Z]+');
+    final strippedLines = <String>[];
+    for (var line in preLines) {
+      final t = line.trim();
+      if (t.isNotEmpty && latexCmdRe2.hasMatch(t)) {
+        var stripped = line.replaceAll('\$', '');
+        // Strip single backticks around LaTeX: `\frac{4}{2}` → \frac{4}{2}
+        stripped = stripped.replaceAllMapped(
+          RegExp(r'`([^`]*\\[a-zA-Z][^`]*?)`'),
+          (m) => m[1]!,
+        );
+        strippedLines.add(stripped);
+      } else {
+        strippedLines.add(line);
+      }
+    }
+    result = strippedLines.join('\n');
 
-    // Auto-wrap standalone Greek letters
-    result = result.replaceAllMapped(
-      RegExp(r'(?<!\$)\\(alpha|beta|gamma|delta|epsilon|theta|lambda|mu|pi|sigma|omega|infty|partial|nabla)'),
-      (m) => '\$\\${m[1]}\$',
-    );
+    // Step 3.5: Split crammed multi-step equations into separate lines
+    // AI sometimes sends "2x + 3 = 7 2x = 7 - 3 2x = 4 x =\frac{4}{2} = 2" all on one line
+    // Split before patterns like "2x =", "x =" when preceded by other math (multiple = signs)
+    final equationSplitRe = RegExp(r'(?<=\S)\s+(?=\d*x\s*=|x\s*=|Solution|Step\s|Method|hal:|jawab:)');
+    final splitLines = result.split('\n');
+    final splitProcessed = <String>[];
+    for (var line in splitLines) {
+      final trimmed = line.trim();
+      // Only split lines with 3+ equals signs (multi-step equations crammed together)
+      if (trimmed.isNotEmpty &&
+          !trimmed.startsWith('\$\$') &&
+          !trimmed.startsWith('#') &&
+          !trimmed.startsWith('```') &&
+          RegExp(r'=').allMatches(trimmed).length >= 3) {
+        final parts = trimmed.split(equationSplitRe);
+        for (var part in parts) {
+          if (part.trim().isNotEmpty) {
+            splitProcessed.add(part.trim());
+          }
+        }
+      } else {
+        splitProcessed.add(line);
+      }
+    }
+    result = splitProcessed.join('\n');
 
-    // Escape | inside inline math $...$
+    // Step 4: Process line-by-line
+    final lines = result.split('\n');
+    final processed = <String>[];
+    final latexCmdRe = RegExp(r'\\[a-zA-Z]+');
+    final textWordRe = RegExp(r'(?<!\\)[a-zA-Z]{3,}');
+
+    for (var line in lines) {
+      final trimmed = line.trim();
+
+      if (trimmed.isEmpty ||
+          trimmed.startsWith('\$\$') ||
+          trimmed.startsWith('    ') ||
+          trimmed.startsWith('\t') ||
+          trimmed.startsWith('#') ||
+          trimmed.startsWith('---') ||
+          trimmed.startsWith('***')) {
+        processed.add(line);
+        continue;
+      }
+
+      if (!latexCmdRe.hasMatch(trimmed)) {
+        processed.add(line);
+        continue;
+      }
+
+      final hasBoldMarkers = trimmed.contains('**');
+      final hasTextWords = textWordRe.hasMatch(trimmed);
+      final isJustNumber = RegExp(r'^[\d\s\.\+\-\*\/\=\(\)\√]+$', caseSensitive: false).hasMatch(trimmed);
+
+      final isFullMath = !hasTextWords && !hasBoldMarkers && !isJustNumber;
+
+      if (isFullMath) {
+        processed.add('\n\n\$\$$trimmed\$\$\n');
+      } else {
+        processed.add(_wrapInlineMath(trimmed));
+      }
+    }
+    result = processed.join('\n');
+
+    // Step 5: Escape | inside inline math $...$
     result = result.replaceAllMapped(
       RegExp(r'\$(.+?)\$'),
       (m) => '\$${m[1]!.replaceAll('|', '\\vert')}\$',
     );
-    // Escape | inside block math $$...$$
+    // Step 6: Escape | inside block math $$...$$
     result = result.replaceAllMapped(
       RegExp(r'\$\$(.+?)\$\$', dotAll: true),
       (m) => '\$\$${m[1]!.replaceAll('|', '\\vert')}\$\$',
     );
+
     return result;
+  }
+
+  /// Reads a brace-enclosed group starting at [start] (the char after \command).
+  /// Returns the index after the closing }, or -1 if unbalanced.
+  /// Skips escaped braces \{ and \} so they don't break depth counting.
+  static int _readBraceGroup(String text, int start) {
+    if (start >= text.length || text[start] != '{') return -1;
+    int depth = 0;
+    for (int i = start; i < text.length; i++) {
+      if (text[i] == '\\' && i + 1 < text.length && (text[i + 1] == '{' || text[i + 1] == '}')) {
+        i++;
+        continue;
+      }
+      if (text[i] == '{') depth++;
+      else if (text[i] == '}') {
+        depth--;
+        if (depth == 0) return i;
+      }
+    }
+    return -1;
+  }
+
+  /// Extracts a full LaTeX command (with all its brace groups) starting at [pos]
+  /// where text[pos] == '\'. Returns the full command string or null.
+  static String? _extractLatexCommand(String text, int pos) {
+    if (pos >= text.length || text[pos] != '\\') return null;
+    final nameMatch = RegExp(r'\\([a-zA-Z]+)').firstMatch(text.substring(pos));
+    if (nameMatch == null) return null;
+    final cmdName = nameMatch.group(0)!;
+    int end = pos + cmdName.length;
+
+    if (cmdName == '\\sqrt' && end < text.length && text[end] == '[') {
+      final bracketEnd = text.indexOf(']', end);
+      if (bracketEnd != -1) end = bracketEnd + 1;
+    }
+
+    int braceArgs = 0;
+    if (cmdName == '\\frac' || cmdName == '\\dfrac' || cmdName == '\\tfrac') {
+      braceArgs = 2;
+    } else if (cmdName == '\\boxed' || cmdName == '\\sqrt' || cmdName == '\\text' ||
+        cmdName == '\\mathrm' || cmdName == '\\mathbf' || cmdName == '\\overline' ||
+        cmdName == '\\underline' || cmdName == '\\hat' || cmdName == '\\bar' ||
+        cmdName == '\\vec' || cmdName == '\\dot' || cmdName == '\\ddot' ||
+        cmdName == '\\tilde' || cmdName == '\\widehat' || cmdName == '\\overbrace' ||
+        cmdName == '\\underbrace' || cmdName == '\\color' || cmdName == '\\operatorname') {
+      braceArgs = 1;
+    }
+
+    for (int i = 0; i < braceArgs; i++) {
+      while (end < text.length && text[end] == ' ') end++;
+      if (end < text.length && text[end] == '{') {
+        final closeIdx = _readBraceGroup(text, end);
+        if (closeIdx != -1) {
+          end = closeIdx + 1;
+        } else {
+          break;
+        }
+      } else {
+        break;
+      }
+    }
+
+    if (braceArgs == 0) {
+      if (end < text.length && text[end] == '_') {
+        end++;
+        if (end < text.length && text[end] == '{') {
+          final close = _readBraceGroup(text, end);
+          if (close != -1) end = close + 1;
+          else if (end < text.length) end++;
+        } else if (end < text.length) end++;
+      }
+      if (end < text.length && text[end] == '^') {
+        end++;
+        if (end < text.length && text[end] == '{') {
+          final close = _readBraceGroup(text, end);
+          if (close != -1) end = close + 1;
+          else if (end < text.length) end++;
+        } else if (end < text.length) end++;
+      }
+    }
+
+    return text.substring(pos, end);
+  }
+
+  static String _wrapInlineMath(String line) {
+    final buf = StringBuffer();
+    int i = 0;
+
+    while (i < line.length) {
+      if (line[i] == '\\' && i + 1 < line.length) {
+        final next = line[i + 1];
+
+        if (next == '{' || next == '}') {
+          buf.write(line.substring(i, i + 2));
+          i += 2;
+          continue;
+        }
+
+        if (next == '\$') {
+          buf.write(line.substring(i, i + 2));
+          i += 2;
+          continue;
+        }
+
+        if (RegExp(r'[a-zA-Z]').hasMatch(next)) {
+          final cmd = _extractLatexCommand(line, i);
+          if (cmd != null && cmd.length > 1) {
+            buf.write('\$$cmd\$');
+            i += cmd.length;
+            continue;
+          }
+        }
+      }
+
+      buf.write(line[i]);
+      i++;
+    }
+
+    return buf.toString();
   }
 
   /// Streams a response chunk-by-chunk via SSE for a live typing effect.
@@ -219,7 +455,7 @@ class AiService {
     request.body = jsonEncode({
       'model': 'auto:free',
       'messages': _messages,
-      'max_tokens': 2048,
+      'max_tokens': 4096,
       'temperature': 0.3,
       'stream': true,
     });
@@ -244,9 +480,8 @@ class AiService {
                 as Map<String, dynamic>?)?['delta'] as Map<String, dynamic>?;
             final raw = delta?['content'] as String?;
             if (raw != null && raw.isNotEmpty) {
-              final content = fixLatex(raw);
-              fullBuffer.write(content);
-              yield content;
+              fullBuffer.write(raw);
+              yield raw;
             }
           } catch (_) {
             // skip malformed chunks
