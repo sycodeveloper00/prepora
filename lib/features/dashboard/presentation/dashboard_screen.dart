@@ -542,7 +542,6 @@ class _DashboardScreenState extends State<DashboardScreen>
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               itemBuilder: (_) => showFullMenu
                   ? [
-                      PopupMenuItem(value: 'settings', child: Row(children: [Icon(Icons.settings_outlined, size: 18, color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black87), SizedBox(width: 10), Text('Settings', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87))])),
                       PopupMenuItem(value: 'notes', child: Row(children: [Icon(Icons.note_rounded, size: 18, color: Color(0xFF00B8D4)), SizedBox(width: 10), Text('Notes', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87))])),
                       PopupMenuItem(value: 'progress', child: Row(children: [Icon(Icons.insights_rounded, size: 18, color: Color(0xFF4A148C)), SizedBox(width: 10), Text('Progress', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87))])),
                       PopupMenuItem(value: 'notices', child: Row(children: [
@@ -558,9 +557,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                           ),
                         ],
                       ])),
-                      PopupMenuItem(value: 'rate_app', child: Row(children: [const Icon(Icons.star_rounded, size: 18, color: Colors.amber), SizedBox(width: 10), Text('Rate the App', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87))])),
-                      PopupMenuItem(value: 'contact_support', child: Row(children: [Icon(Icons.support_agent_rounded, size: 18, color: Colors.orange), SizedBox(width: 10), Text('Contact Support', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87))])),
-                      PopupMenuItem(value: 'logout', child: Row(children: [Icon(Icons.logout, size: 18, color: Colors.redAccent), SizedBox(width: 10), Text('Logout', style: TextStyle(color: Colors.redAccent))])),
+                      PopupMenuItem(value: 'link_web', child: Row(children: [Icon(Icons.link_rounded, size: 18, color: Color(0xFF00E676)), SizedBox(width: 10), Text('Link with Web Version', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87))])),
+                      PopupMenuItem(value: 'settings', child: Row(children: [Icon(Icons.settings_outlined, size: 18, color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black87), SizedBox(width: 10), Text('Settings', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87))])),
                     ]
                   : [
                       PopupMenuItem(value: 'contact_support', child: Row(children: [Icon(Icons.support_agent_rounded, size: 18, color: Colors.orange), SizedBox(width: 10), Text('Contact Support', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87))])),
@@ -577,13 +575,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                   ));
                 } else if (val == 'notices') {
                   context.push('/student/notices');
-                } else if (val == 'rate_app') {
-                  _rateApp(context);
-                } else if (val == 'contact_support') {
-                  _handleFeedback(context);
-                } else if (val == 'logout') {
-                  await FirebaseService.signOut();
-                  if (context.mounted) context.go('/auth/login');
+                } else if (val == 'link_web') {
+                  context.push('/link-web');
                 }
               },
             );

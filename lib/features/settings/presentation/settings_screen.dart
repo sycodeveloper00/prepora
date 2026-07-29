@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../../../core/services/firebase_service.dart';
 import '../../../core/theme/theme_provider.dart';
@@ -154,6 +155,17 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
           const SizedBox(height: 16),
           Card(
             color: cardColor,
+            child: ListTile(
+              leading: const Icon(Icons.star_rounded, color: Colors.amber),
+              title: Text('Rate the App', style: TextStyle(color: textColor)),
+              subtitle: Text('Rate us on Play Store', style: TextStyle(color: hintColor, fontSize: 12)),
+              trailing: Icon(Icons.chevron_right, color: hintColor, size: 18),
+              onTap: () => _rateApp(context),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Card(
+            color: cardColor,
             child: Column(children: [
               ListTile(
                 leading: const Icon(Icons.info_outline_rounded, color: Colors.grey),
@@ -182,6 +194,16 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
     try {
       await _platformChannel.invokeMethod('openNotificationSettings');
     } catch (_) {}
+  }
+
+  Future<void> _rateApp(BuildContext context) async {
+    final uri = Uri.parse('market://details?id=com.prepora.academy.prepora');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      final webUri = Uri.parse('https://play.google.com/store/apps/details?id=com.prepora.academy.prepora');
+      await launchUrl(webUri, mode: LaunchMode.externalApplication);
+    }
   }
 
   void _showThemeDialog(BuildContext context, WidgetRef ref) {

@@ -28,6 +28,7 @@ import '../../features/settings/presentation/admin_settings_screen.dart';
 import '../../features/webview/presentation/webview_screen.dart';
 import '../../features/splash_onboarding/presentation/splash_screen.dart';
 import '../../features/student/presentation/student_progress_screen.dart';
+import '../../features/link_web/presentation/link_web_screen.dart';
 
 final rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -200,6 +201,7 @@ class AppRouter {
         },
       ),
       GoRoute(path: '/universities', builder: (c, s) => const UniversityDirectoryScreen()),
+      GoRoute(path: '/link-web', builder: (c, s) => const LinkWebScreen()),
       GoRoute(
         path: '/webview',
         builder: (c, s) {

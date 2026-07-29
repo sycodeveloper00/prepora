@@ -221,7 +221,7 @@ class AiService {
     // Step 3: Strip pre-existing $ delimiters AND single backticks from lines containing LaTeX
     // AI sends $...$ around math and `\frac{...}` in backticks which conflicts with rendering
     final preLines = result.split('\n');
-    final latexCmdRe2 = RegExp(r'\\[a-zA-Z]+');
+    final latexCmdRe2 = RegExp(r'\\[a-zA-Z]+|\^[\{\d]|\_[\{\d]');
     final strippedLines = <String>[];
     for (var line in preLines) {
       final t = line.trim();
@@ -268,8 +268,7 @@ class AiService {
     // Step 4: Process line-by-line
     final lines = result.split('\n');
     final processed = <String>[];
-    final latexCmdRe = RegExp(r'\\[a-zA-Z]+');
-    final textWordRe = RegExp(r'(?<!\\)[a-zA-Z]{3,}');
+    final latexCmdRe = RegExp(r'\\[a-zA-Z]+|\^[\{\d]|\_[\{\d]');    final textWordRe = RegExp(r'(?<!\\)[a-zA-Z]{3,}');
 
     for (var line in lines) {
       final trimmed = line.trim();
@@ -293,10 +292,16 @@ class AiService {
       final hasBoldMarkers = trimmed.contains('**');
       final hasTextWords = textWordRe.hasMatch(trimmed);
       final isJustNumber = RegExp(r'^[\d\s\.\+\-\*\/\=\(\)\√]+$', caseSensitive: false).hasMatch(trimmed);
+      // Check for non-Latin scripts (Arabic, Urdu, Chinese, etc.) — treat as text so they don't get wrapped in $$...$$
+      final hasNonLatin = RegExp(r'[\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF\u4E00-\u9FFF\u3040-\u309F\u30A0-\u30FF]').hasMatch(trimmed);
 
-      final isFullMath = !hasTextWords && !hasBoldMarkers && !isJustNumber;
+      final isFullMath = !hasTextWords && !hasBoldMarkers && !isJustNumber && !hasNonLatin;
+      final fracCount = RegExp(r'\\(?:d?frac|sqrt)').allMatches(trimmed).length;
+      final hasMultipleFracs = fracCount >= 2 && trimmed.length > 80;
 
       if (isFullMath) {
+        processed.add('\$$trimmed\$');
+      } else if (hasMultipleFracs) {
         processed.add('\n\n\$\$$trimmed\$\$\n');
       } else {
         processed.add(_wrapInlineMath(trimmed));
@@ -329,8 +334,9 @@ class AiService {
         i++;
         continue;
       }
-      if (text[i] == '{') depth++;
-      else if (text[i] == '}') {
+      if (text[i] == '{') {
+        depth++;
+      } else if (text[i] == '}') {
         depth--;
         if (depth == 0) return i;
       }
@@ -365,7 +371,9 @@ class AiService {
     }
 
     for (int i = 0; i < braceArgs; i++) {
-      while (end < text.length && text[end] == ' ') end++;
+      while (end < text.length && text[end] == ' ') {
+        end++;
+      }
       if (end < text.length && text[end] == '{') {
         final closeIdx = _readBraceGroup(text, end);
         if (closeIdx != -1) {
@@ -383,17 +391,27 @@ class AiService {
         end++;
         if (end < text.length && text[end] == '{') {
           final close = _readBraceGroup(text, end);
-          if (close != -1) end = close + 1;
-          else if (end < text.length) end++;
-        } else if (end < text.length) end++;
+          if (close != -1) {
+            end = close + 1;
+          } else if (end < text.length) {
+            end++;
+          }
+        } else if (end < text.length) {
+          end++;
+        }
       }
       if (end < text.length && text[end] == '^') {
         end++;
         if (end < text.length && text[end] == '{') {
           final close = _readBraceGroup(text, end);
-          if (close != -1) end = close + 1;
-          else if (end < text.length) end++;
-        } else if (end < text.length) end++;
+          if (close != -1) {
+            end = close + 1;
+          } else if (end < text.length) {
+            end++;
+          }
+        } else if (end < text.length) {
+          end++;
+        }
       }
     }
 
@@ -430,11 +448,123 @@ class AiService {
         }
       }
 
+      // Handle ^ and _ superscript/subscript
+      if ((line[i] == '^' || line[i] == '_') && i + 1 < line.length) {
+        String supSub;
+        int consumed;
+
+        if (line[i + 1] == '{') {
+          final endBrace = _readBraceGroup(line, i + 1);
+          if (endBrace > 0) {
+            supSub = line.substring(i, endBrace + 1);
+            consumed = endBrace + 1;
+          } else {
+            buf.write(line[i]);
+            i++;
+            continue;
+          }
+        } else if (RegExp(r'[\d]').hasMatch(line[i + 1])) {
+          supSub = line.substring(i, i + 2);
+          consumed = i + 2;
+        } else {
+          buf.write(line[i]);
+          i++;
+          continue;
+        }
+
+        final bufStr = buf.toString();
+        final preceding = _grabPrecedingTerm(bufStr);
+        if (preceding.isNotEmpty) {
+          buf.clear();
+          final prefix = bufStr.substring(0, bufStr.length - preceding.length);
+          // If prefix ends with $ (previous LaTeX was wrapped), merge into that block
+          // e.g. ...$\sqrt{x+5}$) + ^{2} → ...$(\sqrt{x+5})^{2}$
+          if (prefix.endsWith('\$') && (preceding == ')' || preceding == ']')) {
+            final closeDollar = prefix.length - 1;
+            int openDollar = -1;
+            for (int j = closeDollar - 1; j >= 0; j--) {
+              if (prefix[j] == '\$') {
+                openDollar = j;
+                break;
+              }
+            }
+            if (openDollar >= 0 && openDollar < closeDollar - 1) {
+              final beforeMath = prefix.substring(0, openDollar);
+              final mathContent = prefix.substring(openDollar + 1, closeDollar);
+              buf.write('\$$beforeMath$mathContent$preceding$supSub\$');
+            } else {
+              buf.write('$prefix\$$preceding$supSub\$');
+            }
+          } else if (prefix.endsWith('\$') && RegExp(r'[\da-zA-Z]').hasMatch(preceding)) {
+            final closeDollar = prefix.length - 1;
+            int openDollar = -1;
+            for (int j = closeDollar - 1; j >= 0; j--) {
+              if (prefix[j] == '\$') {
+                openDollar = j;
+                break;
+              }
+            }
+            if (openDollar >= 0 && openDollar < closeDollar - 1) {
+              final beforeMath = prefix.substring(0, openDollar);
+              final mathContent = prefix.substring(openDollar + 1, closeDollar);
+              buf.write('\$$beforeMath$mathContent$preceding$supSub\$');
+            } else {
+              buf.write('$prefix\$$preceding$supSub\$');
+            }
+          } else if (preceding.endsWith('\$') && preceding.length > 2) {
+            // Preceding is a full $...$ block (e.g. \sqrt{x}$) — merge supSub inside it
+            // e.g. $\sqrt{x}$ + ^{2} → $\sqrt{x}^{2}$
+            final inner = preceding.substring(0, preceding.length - 1);
+            buf.write('$prefix\$$inner$supSub\$');
+          } else {
+            buf.write('$prefix\$$preceding$supSub\$');
+          }
+        } else {
+          buf.write('\$$supSub\$');
+        }
+        i = consumed;
+        continue;
+      }
+
       buf.write(line[i]);
       i++;
     }
 
     return buf.toString();
+  }
+
+  static String _grabPrecedingTerm(String buf) {
+    if (buf.isEmpty) return '';
+    final last = buf[buf.length - 1];
+
+    if (last == ')' || last == ']') return last;
+
+    if (RegExp(r'[\da-zA-Z]').hasMatch(last)) {
+      int j = buf.length - 1;
+      while (j >= 0 && RegExp(r'[\da-zA-Z]').hasMatch(buf[j])) {
+        j--;
+      }
+      return buf.substring(j + 1);
+    }
+
+    if (last == '}') {
+      final dollarIdx = buf.lastIndexOf('\$');
+      if (dollarIdx >= 0 && dollarIdx < buf.length - 1) {
+        return buf.substring(dollarIdx);
+      }
+    }
+
+    if (last == '\$') {
+      final prev = buf.length >= 2 ? buf[buf.length - 2] : '';
+      if (prev == '}') {
+        final dollarIdx = buf.lastIndexOf('\$', buf.length - 2);
+        if (dollarIdx >= 0) {
+          return buf.substring(dollarIdx);
+        }
+      }
+    }
+
+    return '';
   }
 
   /// Streams a response chunk-by-chunk via SSE for a live typing effect.
