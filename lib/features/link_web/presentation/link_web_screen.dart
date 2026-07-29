@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:intl/intl.dart';
 import '../../../core/services/firebase_service.dart';
@@ -119,7 +120,7 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
         return;
       }
 
-      final sessionData = sessionDoc.data()!;
+      final sessionData = sessionSnap.data()!;
       if (sessionData['status'] == 'connected' && sessionData['uid'] != user.uid) {
         _showError('This QR code is already linked to another account.');
         setState(() { _isConnecting = false; _isScanning = true; });
