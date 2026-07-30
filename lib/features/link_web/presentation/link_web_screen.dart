@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:intl/intl.dart';
+import 'dart:io' show Platform;
 import '../../../core/services/firebase_service.dart';
 
 class LinkWebScreen extends StatefulWidget {
@@ -14,13 +15,14 @@ class LinkWebScreen extends StatefulWidget {
 
 class _LinkWebScreenState extends State<LinkWebScreen> {
   MobileScannerController? _scannerController;
-  bool _isScanning = true;
+  bool _showScanner = false;
   bool _isConnecting = false;
-  String? _connectedSessionId;
-  Map<String, dynamic>? _activeSession;
+  List<Map<String, dynamic>> _activeSessions = [];
   List<Map<String, dynamic>> _connectionHistory = [];
-  StreamSubscription? _sessionSub;
+  StreamSubscription? _activeSub;
   StreamSubscription? _historySub;
+
+  static const int _maxWebSessions = 3;
 
   @override
   void initState() {
@@ -29,40 +31,39 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
       detectionSpeed: DetectionSpeed.normal,
       facing: CameraFacing.back,
     );
-    _loadActiveSession();
+    _loadActiveSessions();
     _loadConnectionHistory();
   }
 
   @override
   void dispose() {
     _scannerController?.dispose();
-    _sessionSub?.cancel();
+    _activeSub?.cancel();
     _historySub?.cancel();
     super.dispose();
   }
 
-  void _loadActiveSession() {
+  void _loadActiveSessions() {
     final user = FirebaseService.currentUser;
     if (user == null) return;
-    _historySub?.cancel();
-    _historySub = FirebaseService.firestore
+    _activeSub?.cancel();
+    _activeSub = FirebaseService.firestore
         .collection('web_sessions')
         .where('uid', isEqualTo: user.uid)
         .where('status', isEqualTo: 'connected')
         .snapshots()
         .listen((snap) {
-      if (snap.docs.isNotEmpty) {
-        final doc = snap.docs.first;
+      final sessions = snap.docs.map((d) => {
+        ...d.data(),
+        'sessionId': d.id,
+      }).toList();
+      if (mounted) {
         setState(() {
-          _activeSession = doc.data();
-          _connectedSessionId = doc.id;
-          _isScanning = false;
-        });
-      } else {
-        setState(() {
-          _activeSession = null;
-          _connectedSessionId = null;
-          _isScanning = true;
+          _activeSessions = sessions;
+          if (sessions.length >= _maxWebSessions && _showScanner) {
+            _showScanner = false;
+            _scannerController?.stop();
+          }
         });
       }
     });
@@ -71,30 +72,86 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
   void _loadConnectionHistory() {
     final user = FirebaseService.currentUser;
     if (user == null) return;
-    _sessionSub?.cancel();
-    _sessionSub = FirebaseService.firestore
+    _historySub?.cancel();
+    _historySub = FirebaseService.firestore
         .collection('web_sessions')
         .where('uid', isEqualTo: user.uid)
         .orderBy('connectedAt', descending: true)
         .limit(20)
         .snapshots()
         .listen((snap) {
-      setState(() {
-        _connectionHistory = snap.docs.map((d) => {
-          ...d.data(),
-          'sessionId': d.id,
-        }).toList();
-      });
+      if (mounted) {
+        setState(() {
+          _connectionHistory = snap.docs.map((d) => {
+            ...d.data(),
+            'sessionId': d.id,
+          }).toList();
+        });
+      }
     });
   }
 
+  void _toggleScanner() {
+    if (_activeSessions.length >= _maxWebSessions) {
+      _showMaxLimitDialog();
+      return;
+    }
+    setState(() => _showScanner = !_showScanner);
+    if (_showScanner) {
+      _scannerController?.start();
+    } else {
+      _scannerController?.stop();
+    }
+  }
+
+  void _showMaxLimitDialog() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final baseColor = isDark ? Colors.white : const Color(0xFF1A0533);
+    final dimColor = isDark ? Colors.white38 : Colors.black54;
+    final bgColor = isDark ? const Color(0xFF1A0533) : Colors.white;
+
+    showDialog(
+      context: context,
+      builder: (d) => AlertDialog(
+        backgroundColor: bgColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.orange.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.devices_other_rounded, color: Colors.orange, size: 36),
+            ),
+            const SizedBox(height: 16),
+            Text('Maximum Limit Reached', style: TextStyle(color: baseColor, fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(height: 8),
+            Text(
+              'You can connect up to $_maxWebSessions web apps at a time.\nDisconnect an existing session first.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: dimColor, fontSize: 13),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(d),
+            child: Text('OK', style: TextStyle(color: Colors.orange)),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _onQRDetected(BarcodeCapture capture) {
-    if (!_isScanning || _isConnecting) return;
+    if (!_showScanner || _isConnecting) return;
     final barcode = capture.barcodes.firstOrNull;
     if (barcode == null || barcode.rawValue == null) return;
     final raw = barcode.rawValue!;
 
-    // QR format: prepora-web-link:{sessionId}
     if (!raw.startsWith('prepora-web-link:')) return;
     final sessionId = raw.replaceFirst('prepora-web-link:', '');
     if (sessionId.isEmpty) return;
@@ -115,7 +172,7 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
 
       if (!sessionSnap.exists) {
         _showError('Invalid QR code. Please try again.');
-        setState(() { _isConnecting = false; _isScanning = true; });
+        setState(() { _isConnecting = false; _showScanner = true; });
         _scannerController?.start();
         return;
       }
@@ -123,29 +180,23 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
       final sessionData = sessionSnap.data()!;
       if (sessionData['status'] == 'connected' && sessionData['uid'] != user.uid) {
         _showError('This QR code is already linked to another account.');
-        setState(() { _isConnecting = false; _isScanning = true; });
+        setState(() { _isConnecting = false; _showScanner = true; });
         _scannerController?.start();
         return;
       }
 
-      // Disconnect any existing sessions first (one connection at a time)
-      final existingSessions = await FirebaseService.firestore
-          .collection('web_sessions')
-          .where('uid', isEqualTo: user.uid)
-          .where('status', isEqualTo: 'connected')
-          .get();
-      for (final doc in existingSessions.docs) {
-        await doc.reference.update({
-          'status': 'disconnected',
-          'disconnectedAt': Timestamp.fromDate(DateTime.now()),
-        });
+      if (sessionData['status'] == 'connected' && sessionData['uid'] == user.uid) {
+        _showError('Already connected to this session.');
+        setState(() { _isConnecting = false; _showScanner = false; });
+        return;
       }
 
-      // Get user data
       final userDoc = await FirebaseService.firestore.collection('users').doc(user.uid).get();
       final userData = userDoc.data();
 
-      // Connect
+      final deviceModel = _getDeviceModel();
+      final deviceId = _getDeviceId();
+
       await sessionDoc.update({
         'uid': user.uid,
         'userName': userData?['name'] ?? user.displayName ?? 'Student',
@@ -155,14 +206,15 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
         'connectedAt': Timestamp.fromDate(DateTime.now()),
         'lastActive': Timestamp.fromDate(DateTime.now()),
         'deviceInfo': 'Mobile App',
+        'androidDeviceModel': deviceModel,
+        'androidDeviceId': deviceId,
       });
 
       setState(() {
         _isConnecting = false;
-        _connectedSessionId = sessionId;
-        _activeSession = sessionData;
-        _isScanning = false;
+        _showScanner = false;
       });
+      _scannerController?.stop();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -171,24 +223,17 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
       }
     } catch (e) {
       _showError('Connection failed. Please try again.');
-      setState(() { _isConnecting = false; _isScanning = true; });
+      setState(() { _isConnecting = false; _showScanner = true; });
       _scannerController?.start();
     }
   }
 
-  Future<void> _disconnect() async {
-    if (_connectedSessionId == null) return;
+  Future<void> _disconnectSession(String sessionId) async {
     try {
-      await FirebaseService.firestore.collection('web_sessions').doc(_connectedSessionId).update({
+      await FirebaseService.firestore.collection('web_sessions').doc(sessionId).update({
         'status': 'disconnected',
         'disconnectedAt': Timestamp.fromDate(DateTime.now()),
       });
-      setState(() {
-        _activeSession = null;
-        _connectedSessionId = null;
-        _isScanning = true;
-      });
-      _scannerController?.start();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Disconnected from Web version'), backgroundColor: Colors.orange),
@@ -197,6 +242,41 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
     } catch (e) {
       // ignore
     }
+  }
+
+  Future<void> _disconnectAll() async {
+    for (final session in _activeSessions) {
+      final sid = session['sessionId'] as String?;
+      if (sid != null) {
+        await FirebaseService.firestore.collection('web_sessions').doc(sid).update({
+          'status': 'disconnected',
+          'disconnectedAt': Timestamp.fromDate(DateTime.now()),
+        });
+      }
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('All sessions disconnected'), backgroundColor: Colors.orange),
+      );
+    }
+  }
+
+  String _getDeviceModel() {
+    try {
+      final model = Platform.environment['PRODUCT'] ?? 'Android';
+      final brand = Platform.environment['BRAND'] ?? '';
+      return brand.isNotEmpty ? '$brand $model' : model;
+    } catch (_) {
+      return 'Android Device';
+    }
+  }
+
+  String _getDeviceId() {
+    try {
+      final id = Platform.environment['ANDROID_SERIAL'] ?? '';
+      if (id.isNotEmpty) return id;
+    } catch (_) {}
+    return 'unknown';
   }
 
   void _showError(String msg) {
@@ -218,19 +298,61 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
       appBar: AppBar(
         backgroundColor: bgColor,
         elevation: 0,
-        leading: IconButton(icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor), onPressed: () => context.pop()),
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor),
+          onPressed: () {
+            if (_showScanner) {
+              setState(() => _showScanner = false);
+              _scannerController?.stop();
+            } else {
+              context.pop();
+            }
+          },
+        ),
         title: Text('Link with Web Version', style: TextStyle(color: textColor, fontWeight: FontWeight.bold)),
+        actions: [
+          if (_activeSessions.isNotEmpty && _activeSessions.length < _maxWebSessions)
+            IconButton(
+              onPressed: _toggleScanner,
+              icon: Icon(
+                _showScanner ? Icons.close_rounded : Icons.qr_code_scanner_rounded,
+                color: _showScanner ? Colors.orange : const Color(0xFF7C4DFF),
+              ),
+              tooltip: _showScanner ? 'Close Scanner' : 'Scan QR Code',
+            ),
+          if (_activeSessions.isNotEmpty && _activeSessions.length >= _maxWebSessions)
+            IconButton(
+              onPressed: _showMaxLimitDialog,
+              icon: const Icon(Icons.qr_code_scanner_rounded, color: Colors.white24),
+              tooltip: 'Max 3 web apps connected',
+            ),
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // Active Connection Card
-          if (_activeSession != null) _buildActiveConnection(cardColor, textColor, isDark),
-          if (_activeSession != null) const SizedBox(height: 16),
+          // Scanner overlay
+          if (_showScanner) ...[
+            _buildScannerSection(cardColor, textColor, isDark),
+            const SizedBox(height: 16),
+          ],
 
-          // QR Scanner Section
-          if (_isScanning) _buildScannerSection(cardColor, textColor, isDark),
-          if (_isScanning) const SizedBox(height: 16),
+          // Active connection cards
+          if (_activeSessions.isNotEmpty) ...[
+            _buildActiveSessionsHeader(textColor),
+            const SizedBox(height: 12),
+            ..._activeSessions.map((session) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _buildActiveConnectionCard(session, cardColor, textColor, isDark),
+            )),
+            const SizedBox(height: 8),
+          ],
+
+          // Empty state + scanner prompt
+          if (_activeSessions.isEmpty && !_showScanner) ...[
+            _buildEmptyState(cardColor, textColor, isDark),
+            const SizedBox(height: 16),
+          ],
 
           // Connection History
           _buildHistorySection(cardColor, textColor, isDark),
@@ -239,13 +361,59 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
     );
   }
 
-  Widget _buildActiveConnection(Color cardColor, Color textColor, bool isDark) {
-    final session = _activeSession!;
+  Widget _buildActiveSessionsHeader(Color textColor) {
+    return Row(
+      children: [
+        Container(
+          width: 10, height: 10,
+          decoration: const BoxDecoration(color: Color(0xFF00E676), shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          'Connected (${_activeSessions.length}/$_maxWebSessions)',
+          style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+        const Spacer(),
+        if (_activeSessions.length > 1)
+          TextButton.icon(
+            onPressed: () async {
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (d) => AlertDialog(
+                  backgroundColor: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1A0533) : Colors.white,
+                  title: const Text('Disconnect All?'),
+                  content: Text('Disconnect ${_activeSessions.length} web sessions?', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black54)),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Cancel')),
+                    ElevatedButton(
+                      onPressed: () => Navigator.pop(d, true),
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+                      child: const Text('Disconnect All', style: TextStyle(color: Colors.white)),
+                    ),
+                  ],
+                ),
+              );
+              if (confirm == true) _disconnectAll();
+            },
+            icon: const Icon(Icons.link_off_rounded, size: 16, color: Colors.redAccent),
+            label: const Text('Disconnect All', style: TextStyle(color: Colors.redAccent, fontSize: 12)),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildActiveConnectionCard(Map<String, dynamic> session, Color cardColor, Color textColor, bool isDark) {
     final connectedAt = (session['connectedAt'] as Timestamp?)?.toDate();
     final lastActive = (session['lastActive'] as Timestamp?)?.toDate();
+    final sessionId = session['sessionId'] as String? ?? '';
+    final webBrowser = session['webBrowser'] as String? ?? 'Chrome';
 
     return Card(
       color: cardColor,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: const Color(0xFF00E676).withValues(alpha: 0.3)),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -259,19 +427,21 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
                 ),
                 const SizedBox(width: 8),
                 Text('Connected to Web', style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 16)),
+                const Spacer(),
+                Icon(Icons.language_rounded, color: textColor.withValues(alpha: 0.3), size: 20),
               ],
             ),
             const SizedBox(height: 12),
-            _buildInfoRow(Icons.computer_rounded, 'Device', session['deviceInfo'] ?? 'Web Browser', textColor),
+            _buildInfoRow(Icons.computer_rounded, 'Device', webBrowser, textColor),
+            _buildInfoRow(Icons.access_time_rounded, 'Last Active',
+                lastActive != null ? DateFormat('h:mm a').format(lastActive) : 'N/A', textColor),
             if (connectedAt != null)
-              _buildInfoRow(Icons.access_time_rounded, 'Connected', DateFormat('MMM d, yyyy • h:mm a').format(connectedAt), textColor),
-            if (lastActive != null)
-              _buildInfoRow(Icons.update_rounded, 'Last Active', DateFormat('h:mm a').format(lastActive), textColor),
+              _buildInfoRow(Icons.link_rounded, 'Connected', DateFormat('MMM d, yyyy • h:mm a').format(connectedAt), textColor),
             const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: _disconnect,
+                onPressed: () => _disconnectSession(sessionId),
                 icon: const Icon(Icons.link_off_rounded, size: 18),
                 label: const Text('Disconnect'),
                 style: ElevatedButton.styleFrom(
@@ -288,30 +458,102 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
     );
   }
 
+  Widget _buildEmptyState(Color cardColor, Color textColor, bool isDark) {
+    return Card(
+      color: cardColor,
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          children: [
+            Icon(Icons.qr_code_scanner_rounded, size: 56, color: const Color(0xFF7C4DFF).withValues(alpha: 0.6)),
+            const SizedBox(height: 16),
+            Text('No Web Connections', style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 18)),
+            const SizedBox(height: 8),
+            Text(
+              'Connect to PrePora Web by scanning a QR code.\nTap the scan button above to get started.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: textColor.withValues(alpha: 0.5), fontSize: 13),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              onPressed: _toggleScanner,
+              icon: const Icon(Icons.qr_code_scanner_rounded, size: 20),
+              label: const Text('Scan QR Code'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF7C4DFF),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildScannerSection(Color cardColor, Color textColor, bool isDark) {
     return Card(
       color: cardColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            Icon(Icons.qr_code_scanner_rounded, size: 48, color: const Color(0xFF7C4DFF)),
-            const SizedBox(height: 12),
-            Text('Scan QR Code', style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 4),
-            Text(
-              'Open prepora-web.vercel.app on your computer\nand scan the QR code shown there',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: textColor.withValues(alpha: 0.6), fontSize: 13),
+            Row(
+              children: [
+                const Icon(Icons.qr_code_scanner_rounded, color: Color(0xFF7C4DFF), size: 20),
+                const SizedBox(width: 8),
+                Text('Scan QR Code', style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 16)),
+                const Spacer(),
+                Text(
+                  '${_activeSessions.length}/$_maxWebSessions',
+                  style: TextStyle(color: textColor.withValues(alpha: 0.5), fontSize: 13),
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: SizedBox(
                 height: 250,
-                child: MobileScanner(
-                  controller: _scannerController,
-                  onDetect: _onQRDetected,
+                child: Stack(
+                  children: [
+                    MobileScanner(
+                      controller: _scannerController,
+                      onDetect: _onQRDetected,
+                    ),
+                    // Scanner overlay frame
+                    Center(
+                      child: Container(
+                        width: 200,
+                        height: 200,
+                        decoration: BoxDecoration(
+                          border: Border.all(color: const Color(0xFF7C4DFF).withValues(alpha: 0.6), width: 2),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                    ),
+                    // Bottom text
+                    Positioned(
+                      bottom: 12,
+                      left: 0,
+                      right: 0,
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 40),
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.6),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          'Point camera at QR code on PrePora Web',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 12),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -344,6 +586,7 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
   Widget _buildHistorySection(Color cardColor, Color textColor, bool isDark) {
     return Card(
       color: cardColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -370,9 +613,8 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
             else
               ..._connectionHistory.map((session) {
                 final connectedAt = (session['connectedAt'] as Timestamp?)?.toDate();
-                final disconnectedAt = (session['disconnectedAt'] as Timestamp?)?.toDate();
                 final status = session['status'] ?? 'disconnected';
-                final device = session['deviceInfo'] ?? 'Web Browser';
+                final webBrowser = session['webBrowser'] as String? ?? 'Web Browser';
                 final isActive = status == 'connected';
 
                 return Container(
@@ -399,7 +641,7 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(device, style: TextStyle(color: textColor, fontWeight: FontWeight.w500, fontSize: 14)),
+                            Text(webBrowser, style: TextStyle(color: textColor, fontWeight: FontWeight.w500, fontSize: 14)),
                             if (connectedAt != null)
                               Text(
                                 DateFormat('MMM d, yyyy • h:mm a').format(connectedAt),

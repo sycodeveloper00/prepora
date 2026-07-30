@@ -955,7 +955,7 @@ class _StudentDevicePageState extends State<_StudentDevicePage> with SingleTicke
               .where('status', isEqualTo: 'connected')
               .snapshots(),
           builder: (ctx, webSnap) {
-            final hasActiveWeb = webSnap.hasData && webSnap.data!.docs.isNotEmpty;
+            final activeWebSessions = webSnap.hasData ? webSnap.data!.docs : [];
             return ListView.separated(
               padding: const EdgeInsets.all(16),
               itemCount: loginLogs.length,
@@ -967,6 +967,11 @@ class _StudentDevicePageState extends State<_StudentDevicePage> with SingleTicke
                 final ts = d['timestamp'] as String? ?? '';
                 final timeDisplay = ts.isNotEmpty ? ts.replaceFirst('T', ' ').substring(0, 19) : 'N/A';
                 final isLatestActive = latestDeviceId != null && deviceId == latestDeviceId;
+                final deviceWebSessions = activeWebSessions.where((w) {
+                  final wDeviceId = (w.data() as Map<String, dynamic>)['androidDeviceId'] as String? ?? '';
+                  return wDeviceId == deviceId;
+                }).toList();
+                final totalDeviceWebSessions = deviceWebSessions.length;
                 return ListTile(
                   contentPadding: const EdgeInsets.symmetric(vertical: 4),
                   leading: Stack(
@@ -990,22 +995,43 @@ class _StudentDevicePageState extends State<_StudentDevicePage> with SingleTicke
                         child: const Text('Active', style: TextStyle(color: Colors.green, fontSize: 11, fontWeight: FontWeight.bold)),
                       ),
                     ],
+                    if (totalDeviceWebSessions > 0) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(color: const Color(0xFF00E5FF).withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          const Icon(Icons.language_rounded, size: 10, color: Color(0xFF00E5FF)),
+                          const SizedBox(width: 3),
+                          Text('$totalDeviceWebSessions', style: const TextStyle(color: Color(0xFF00E5FF), fontSize: 10, fontWeight: FontWeight.bold)),
+                        ]),
+                      ),
+                    ],
                   ]),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const SizedBox(height: 4),
                       Text(timeDisplay, style: TextStyle(color: widget.dimColor, fontSize: 12)),
-                      if (isLatestActive && hasActiveWeb) ...[
+                      if (deviceWebSessions.isNotEmpty) ...[
                         const SizedBox(height: 4),
-                        Row(children: [
-                          Container(width: 6, height: 6, decoration: const BoxDecoration(color: Color(0xFF00E5FF), shape: BoxShape.circle)),
-                          const SizedBox(width: 6),
-                          Text('Connected to Web', style: TextStyle(color: const Color(0xFF00E5FF), fontSize: 11, fontWeight: FontWeight.w600)),
-                        ]),
+                        ...deviceWebSessions.map((w) {
+                          final wd = w.data() as Map<String, dynamic>;
+                          final webBrowser = wd['webBrowser'] as String? ?? 'Web Browser';
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 2),
+                            child: Row(children: [
+                              Container(width: 6, height: 6, decoration: const BoxDecoration(color: Color(0xFF00E5FF), shape: BoxShape.circle)),
+                              const SizedBox(width: 6),
+                              Text(webBrowser, style: const TextStyle(color: Color(0xFF00E5FF), fontSize: 11, fontWeight: FontWeight.w600)),
+                            ]),
+                          );
+                        }),
                       ],
                     ],
                   ),
+                  trailing: const Icon(Icons.chevron_right, size: 20),
+                  onTap: () => _showDeviceDetail(deviceModel, deviceId),
                 );
               },
             );
@@ -1013,6 +1039,18 @@ class _StudentDevicePageState extends State<_StudentDevicePage> with SingleTicke
         );
       },
     );
+  }
+
+  void _showDeviceDetail(String deviceModel, String deviceId) {
+    Navigator.push(context, MaterialPageRoute(
+      fullscreenDialog: true,
+      builder: (_) => _AdminDeviceHistoryPage(
+        uid: widget.uid, studentName: widget.name,
+        deviceName: deviceModel, deviceId: deviceId,
+        isDark: widget.isDark, baseColor: widget.baseColor,
+        dimColor: widget.dimColor, bgColor: widget.bgColor, cardBg: widget.cardBg,
+      ),
+    ));
   }
 
   Widget _buildProgressTab() {
@@ -1118,5 +1156,212 @@ class _StudentDevicePageState extends State<_StudentDevicePage> with SingleTicke
         ],
       ),
     );
+  }
+}
+
+class _AdminDeviceHistoryPage extends StatelessWidget {
+  final String uid, studentName, deviceName, deviceId;
+  final bool isDark;
+  final Color baseColor, dimColor, bgColor, cardBg;
+  const _AdminDeviceHistoryPage({
+    required this.uid, required this.studentName, required this.deviceName,
+    required this.deviceId, required this.isDark,
+    required this.baseColor, required this.dimColor, required this.bgColor, required this.cardBg,
+  });
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: bgColor,
+      appBar: AppBar(
+        backgroundColor: bgColor,
+        foregroundColor: baseColor,
+        elevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: baseColor),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Row(children: [
+          Icon(Icons.phone_android_rounded, color: Colors.lime, size: 20),
+          const SizedBox(width: 8),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(deviceName, style: TextStyle(color: baseColor, fontWeight: FontWeight.bold, fontSize: 14)),
+            Text('Web Sessions', style: TextStyle(color: dimColor, fontSize: 11)),
+          ])),
+        ]),
+      ),
+      body: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+            decoration: BoxDecoration(
+              color: isDark ? Colors.white.withValues(alpha: 0.03) : Colors.black.withValues(alpha: 0.02),
+              border: Border(bottom: BorderSide(color: isDark ? Colors.white10 : Colors.black12)),
+            ),
+            child: Row(children: [
+              const Icon(Icons.language_rounded, color: Color(0xFF00E5FF), size: 18),
+              const SizedBox(width: 8),
+              Text(deviceName, style: TextStyle(color: baseColor, fontSize: 14, fontWeight: FontWeight.w600)),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text('Admin View', style: TextStyle(color: Colors.orange, fontSize: 10, fontWeight: FontWeight.bold)),
+              ),
+            ]),
+          ),
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseService.firestore.collection('web_sessions')
+                  .where('uid', isEqualTo: uid)
+                  .snapshots(),
+              builder: (ctx, snap) {
+                if (snap.hasError) {
+                  return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 32),
+                    const SizedBox(height: 8),
+                    Text('Could not load history', style: TextStyle(color: Colors.redAccent, fontSize: 13)),
+                  ]));
+                }
+                if (!snap.hasData) {
+                  return const Center(child: ProfessionalLoader());
+                }
+                var sessions = snap.data!.docs.toList();
+                sessions = sessions.where((doc) {
+                  final d = doc.data() as Map<String, dynamic>;
+                  final sDeviceId = d['androidDeviceId'] as String? ?? '';
+                  return sDeviceId == deviceId;
+                }).toList();
+                sessions.sort((a, b) {
+                  final aT = (a.data() as Map<String, dynamic>)['connectedAt'] as Timestamp?;
+                  final bT = (b.data() as Map<String, dynamic>)['connectedAt'] as Timestamp?;
+                  if (aT == null && bT == null) return 0;
+                  if (aT == null) return 1;
+                  if (bT == null) return -1;
+                  return bT.compareTo(aT);
+                });
+                if (sessions.isEmpty) {
+                  return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    Icon(Icons.language_rounded, size: 48, color: dimColor.withValues(alpha: 0.3)),
+                    const SizedBox(height: 12),
+                    Text('No web sessions for this device', style: TextStyle(color: dimColor, fontSize: 14)),
+                    const SizedBox(height: 4),
+                    Text('Web sessions linked from this device will appear here', style: TextStyle(color: dimColor.withValues(alpha: 0.5), fontSize: 12)),
+                  ]));
+                }
+                return ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: sessions.length,
+                  itemBuilder: (_, i) {
+                    final d = sessions[i].data() as Map<String, dynamic>;
+                    final connectedAt = (d['connectedAt'] as Timestamp?)?.toDate();
+                    final disconnectedAt = (d['disconnectedAt'] as Timestamp?)?.toDate();
+                    final status = d['status'] ?? 'disconnected';
+                    final isActive = status == 'connected';
+                    final webBrowser = d['webBrowser'] as String? ?? 'Web Browser';
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      decoration: BoxDecoration(
+                        color: cardBg,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isActive ? Colors.green.withValues(alpha: 0.3) : isDark ? Colors.white.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.06),
+                        ),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(children: [
+                              Stack(
+                                children: [
+                                  Icon(Icons.language_rounded, color: isActive ? Colors.green : dimColor, size: 22),
+                                  if (isActive)
+                                    Positioned(right: -2, top: -2, child: Container(
+                                      width: 10, height: 10,
+                                      decoration: BoxDecoration(color: Colors.green, shape: BoxShape.circle,
+                                        border: Border.all(color: cardBg, width: 2)),
+                                    )),
+                                ],
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(webBrowser, style: TextStyle(color: baseColor, fontWeight: FontWeight.bold, fontSize: 14)),
+                                  const SizedBox(height: 2),
+                                  Text(d['sessionId']?.toString().substring(0, (d['sessionId']?.toString().length ?? 0).clamp(0, 20)) ?? '', style: TextStyle(color: dimColor, fontSize: 10, fontFamily: 'monospace')),
+                                ],
+                              )),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: isActive ? Colors.green.withValues(alpha: 0.12) : Colors.grey.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(isActive ? 'Active' : 'Ended',
+                                  style: TextStyle(color: isActive ? Colors.green : Colors.grey, fontSize: 11, fontWeight: FontWeight.bold)),
+                              ),
+                            ]),
+                            const SizedBox(height: 12),
+                            _buildInfoRow(Icons.access_time_rounded, 'Connected',
+                              connectedAt != null ? '${connectedAt.year}-${connectedAt.month.toString().padLeft(2, '0')}-${connectedAt.day.toString().padLeft(2, '0')} ${connectedAt.hour.toString().padLeft(2, '0')}:${connectedAt.minute.toString().padLeft(2, '0')}' : 'N/A',
+                              dimColor),
+                            if (disconnectedAt != null)
+                              _buildInfoRow(Icons.link_off_rounded, 'Disconnected',
+                                '${disconnectedAt.year}-${disconnectedAt.month.toString().padLeft(2, '0')}-${disconnectedAt.day.toString().padLeft(2, '0')} ${disconnectedAt.hour.toString().padLeft(2, '0')}:${disconnectedAt.minute.toString().padLeft(2, '0')}',
+                                dimColor),
+                            if (!isActive && connectedAt != null) ...[
+                              const SizedBox(height: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.withValues(alpha: 0.08),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Row(children: [
+                                  Icon(Icons.timer_off_rounded, size: 14, color: dimColor.withValues(alpha: 0.6)),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'Duration: ${_formatDuration(connectedAt, disconnectedAt)}',
+                                    style: TextStyle(color: dimColor.withValues(alpha: 0.7), fontSize: 11),
+                                  ),
+                                ]),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(IconData icon, String label, String value, Color dimColor) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(children: [
+        Icon(icon, size: 14, color: dimColor.withValues(alpha: 0.5)),
+        const SizedBox(width: 6),
+        Text('$label: ', style: TextStyle(color: dimColor.withValues(alpha: 0.5), fontSize: 12)),
+        Expanded(child: Text(value, style: TextStyle(color: dimColor, fontSize: 12))),
+      ]),
+    );
+  }
+
+  String _formatDuration(DateTime start, DateTime? end) {
+    final diff = (end ?? DateTime.now()).difference(start);
+    if (diff.inDays > 0) return '${diff.inDays}d ${diff.inHours % 24}h';
+    if (diff.inHours > 0) return '${diff.inHours}h ${diff.inMinutes % 60}m';
+    return '${diff.inMinutes}m';
   }
 }
