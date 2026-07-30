@@ -10,7 +10,7 @@ class AutoDownloadsScreen extends StatefulWidget {
 }
 
 class _AutoDownloadsScreenState extends State<AutoDownloadsScreen> {
-  List<FileSystemEntity> _files = [];
+  List<File> _files = [];
   bool _isLoading = true;
   String _totalSize = '';
 
