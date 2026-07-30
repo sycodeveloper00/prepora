@@ -7,7 +7,8 @@ import '../../../core/widgets/professional_loader.dart';
 
 class StudentProgressScreen extends StatefulWidget {
   final String? targetUid;
-  const StudentProgressScreen({super.key, this.targetUid});
+  final bool embedded;
+  const StudentProgressScreen({super.key, this.targetUid, this.embedded = false});
 
   @override
   State<StudentProgressScreen> createState() => _StudentProgressScreenState();
@@ -98,7 +99,7 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
                   child: CustomScrollView(
                     physics: const BouncingScrollPhysics(),
                     slivers: [
-                      _buildAppBar(isDark, textColor, isTargetUser),
+                      if (!widget.embedded) _buildAppBar(isDark, textColor, isTargetUser),
                       SliverToBoxAdapter(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,

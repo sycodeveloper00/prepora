@@ -47,6 +47,7 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   late AnimationController _floatController;
   late Animation<double> _floatAnim;
+  late AnimationController _colorFlowController;
 
   // Stable key to prevent unnecessary rebuilds
   final GlobalKey<_DashboardGridState> _gridKey = GlobalKey<_DashboardGridState>();
@@ -55,6 +56,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   bool _isBlocked = false;
   bool _isVerified = true;
   bool _isPaidAccess = false;
+  bool _isProcessing = false;
   double _price = 0;
   String _accountTitle = '';
   String _accountNo = '';
@@ -82,6 +84,11 @@ class _DashboardScreenState extends State<DashboardScreen>
 
     _floatAnim = Tween<double>(begin: -10, end: 10)
         .animate(CurvedAnimation(parent: _floatController, curve: Curves.easeInOut));
+
+    _colorFlowController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
+    )..repeat();
   }
 
   DateTime _userCreatedAt = DateTime(2020);
@@ -186,6 +193,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     _typingTimer?.cancel();
     _userStatusSub?.cancel();
     _floatController.dispose();
+    _colorFlowController.dispose();
     _searchController.dispose();
     _searchDebounce?.cancel();
     _notifOverlay?.remove();
@@ -287,15 +295,28 @@ class _DashboardScreenState extends State<DashboardScreen>
                 padding: const EdgeInsets.symmetric(horizontal: 28),
                 child: Column(
                   children: [
-                    const Text(
-                      'PREPORA',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 28,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 1.0,
-                        decoration: TextDecoration.none,
-                      ),
+                    AnimatedBuilder(
+                      animation: _colorFlowController,
+                      builder: (context, child) {
+                        return ShaderMask(
+                          shaderCallback: (bounds) => LinearGradient(
+                            colors: const [Color(0xFFFF4081), Color(0xFFE040FB), Color(0xFF7C4DFF), Color(0xFF00E5FF), Color(0xFFFF4081)],
+                            stops: [0.0, 0.25, 0.5, 0.75, 1.0],
+                            begin: Alignment(-1.0 + 2.0 * _colorFlowController.value, 0),
+                            end: Alignment(1.0 - 2.0 * _colorFlowController.value, 0),
+                          ).createShader(bounds),
+                          child: const Text(
+                            'PrePora',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 32,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 2.0,
+                              decoration: TextDecoration.none,
+                            ),
+                          ),
+                        );
+                      },
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -519,6 +540,35 @@ class _DashboardScreenState extends State<DashboardScreen>
             },
           ),
         StreamBuilder<QuerySnapshot>(
+          stream: FirebaseService.currentUser != null
+              ? FirebaseService.firestore
+                  .collection('web_sessions')
+                  .where('uid', isEqualTo: FirebaseService.currentUser!.uid)
+                  .where('status', isEqualTo: 'connected')
+                  .snapshots()
+              : const Stream.empty(),
+          builder: (context, sessionSnap) {
+            final isConnected = sessionSnap.hasData && sessionSnap.data!.docs.isNotEmpty;
+            if (!isConnected) return const SizedBox.shrink();
+            return IconButton(
+              icon: Stack(
+                children: [
+                  const Icon(Icons.qr_code_scanner_rounded, color: Color(0xFF00E676)),
+                  Positioned(
+                    right: -2, top: -2,
+                    child: Container(
+                      width: 10, height: 10,
+                      decoration: const BoxDecoration(color: Color(0xFF00E676), shape: BoxShape.circle),
+                    ),
+                  ),
+                ],
+              ),
+              onPressed: () => context.push('/link-web'),
+              tooltip: 'Web Connected',
+            );
+          },
+        ),
+        StreamBuilder<QuerySnapshot>(
           stream: FirebaseService.getNotices(),
           builder: (context, noticeSnap) {
             final noticeCount = noticeSnap.hasData ? noticeSnap.data!.docs.length : 0;
@@ -540,6 +590,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               ),
               color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2D2D2D) : Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              constraints: const BoxConstraints(maxWidth: 220),
               itemBuilder: (_) => showFullMenu
                   ? [
                       PopupMenuItem(value: 'notes', child: Row(children: [Icon(Icons.note_rounded, size: 18, color: Color(0xFF00B8D4)), SizedBox(width: 10), Text('Notes', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87))])),
@@ -557,7 +608,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                           ),
                         ],
                       ])),
-                      PopupMenuItem(value: 'link_web', child: Row(children: [Icon(Icons.link_rounded, size: 18, color: Color(0xFF00E676)), SizedBox(width: 10), Text('Link with Web Version', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87))])),
+                      PopupMenuItem(value: 'link_web', child: Row(children: [Icon(Icons.qr_code_scanner_rounded, size: 18, color: Color(0xFF00E676)), SizedBox(width: 10), Text('Link with Web Version', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87))])),
                       PopupMenuItem(value: 'settings', child: Row(children: [Icon(Icons.settings_outlined, size: 18, color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black87), SizedBox(width: 10), Text('Settings', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87))])),
                     ]
                   : [
@@ -1153,39 +1204,55 @@ class _DashboardScreenState extends State<DashboardScreen>
             const SizedBox(height: 24),
             // Submit feedback button
             GestureDetector(
-              onTap: () => _handleFeedback(context),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [Color(0xFF4A148C), Color(0xFF00B8D4)]),
-                  borderRadius: BorderRadius.circular(30),
-                  boxShadow: [BoxShadow(color: const Color(0xFF00B8D4).withValues(alpha: 0.3), blurRadius: 12, spreadRadius: 1)],
+              onTap: _isProcessing ? null : () async {
+                if (_isProcessing) return;
+                setState(() => _isProcessing = true);
+                try {
+                  await _handleFeedback(context);
+                } finally {
+                  if (mounted) setState(() => _isProcessing = false);
+                }
+              },
+              child: Opacity(
+                opacity: _isProcessing ? 0.5 : 1.0,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(colors: [Color(0xFF4A148C), Color(0xFF00B8D4)]),
+                    borderRadius: BorderRadius.circular(30),
+                    boxShadow: [BoxShadow(color: const Color(0xFF00B8D4).withValues(alpha: 0.3), blurRadius: 12, spreadRadius: 1)],
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.feedback_rounded, color: Colors.white, size: 20),
+                    const SizedBox(width: 10),
+                    Text(_isProcessing ? 'Please wait...' : 'Submit Feedback', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                  ]),
                 ),
-                child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.feedback_rounded, color: Colors.white, size: 20),
-                  SizedBox(width: 10),
-                  Text('Submit Feedback', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                ]),
               ),
             ),
             const SizedBox(height: 20),
             // Logout at bottom
             GestureDetector(
-              onTap: () async {
+              onTap: _isProcessing ? null : () async {
+                if (_isProcessing) return;
+                setState(() => _isProcessing = true);
                 await FirebaseService.signOut();
                 if (context.mounted) context.go('/auth/login');
               },
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.redAccent.withValues(alpha: 0.5)),
-                  borderRadius: BorderRadius.circular(20),
+              child: Opacity(
+                opacity: _isProcessing ? 0.5 : 1.0,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.redAccent.withValues(alpha: 0.5)),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.logout_rounded, color: Colors.redAccent.shade200, size: 18),
+                    const SizedBox(width: 8),
+                    Text(_isProcessing ? 'Please wait...' : 'Logout', style: TextStyle(color: Colors.redAccent.shade200, fontSize: 14)),
+                  ]),
                 ),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.logout_rounded, color: Colors.redAccent.shade200, size: 18),
-                  const SizedBox(width: 8),
-                  Text('Logout', style: TextStyle(color: Colors.redAccent.shade200, fontSize: 14)),
-                ]),
               ),
             ),
             const SizedBox(height: 20),
@@ -1195,7 +1262,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  void _handleFeedback(BuildContext ctx) async {
+  Future<void> _handleFeedback(BuildContext ctx) async {
     final uid = FirebaseService.currentUser?.uid;
     if (uid == null) return;
     showDialog(context: context, builder: (_) => const Center(child: ProfessionalLoader()), barrierDismissible: false);
@@ -1810,9 +1877,7 @@ class _DashboardGridState extends State<_DashboardGrid> {
                               SizedBox(width: 4),
                               Text('Locked', style: TextStyle(color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.bold)),
                             ]),
-                          ))
-                        else
-                          Text('${data['itemCount'] ?? 0} items', style: TextStyle(color: dimColor, fontSize: 12), textAlign: TextAlign.center),
+                          )),
                       ],
                     ),
                   ),

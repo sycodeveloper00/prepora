@@ -254,22 +254,16 @@ class _AdminControlPanelScreenState extends State<AdminControlPanelScreen> {
 
   void _showStudentActivity(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final baseColor = isDark ? Colors.white : Colors.black87;
+    final baseColor = isDark ? Colors.white : const Color(0xFF1A0533);
     final dimColor = isDark ? Colors.white38 : Colors.black54;
     final bgColor = isDark ? const Color(0xFF1A0533) : Colors.white;
     final cardBg = isDark ? const Color(0xFF0D0D2E) : Colors.grey.shade50;
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: bgColor,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (ctx) => SizedBox(
-        height: MediaQuery.of(ctx).size.height * 0.9,
-        child: StudentActivityPage(
-          isDark: isDark, baseColor: baseColor, dimColor: dimColor, bgColor: bgColor, cardBg: cardBg,
-        ),
+    Navigator.push(context, MaterialPageRoute(
+      fullscreenDialog: true,
+      builder: (_) => StudentActivityPage(
+        isDark: isDark, baseColor: baseColor, dimColor: dimColor, bgColor: bgColor, cardBg: cardBg,
       ),
-    );
+    ));
   }
 
   // ─── All Students ─────────────────────────────────────────────────────
@@ -739,18 +733,24 @@ class _StudentActivityPageState extends State<StudentActivityPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-          child: Row(children: [
-            const Icon(Icons.history_rounded, color: Colors.lime, size: 22),
-            const SizedBox(width: 8),
-            Text('Student Activity', style: TextStyle(color: widget.baseColor, fontWeight: FontWeight.bold, fontSize: 16)),
-            const Spacer(),
-            IconButton(icon: Icon(Icons.close, color: widget.dimColor), onPressed: () => Navigator.pop(context)),
-          ]),
+    return Scaffold(
+      backgroundColor: widget.bgColor,
+      appBar: AppBar(
+        backgroundColor: widget.bgColor,
+        foregroundColor: widget.baseColor,
+        elevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: widget.baseColor),
+          onPressed: () => Navigator.pop(context),
         ),
+        title: Row(children: [
+          const Icon(Icons.history_rounded, color: Colors.lime, size: 22),
+          const SizedBox(width: 8),
+          Text('Student Activity', style: TextStyle(color: widget.baseColor, fontWeight: FontWeight.bold, fontSize: 16)),
+        ]),
+      ),
+      body: Column(
+      children: [
         Divider(color: widget.isDark ? Colors.white12 : Colors.black12),
         Expanded(
           child: _error != null
@@ -812,6 +812,7 @@ class _StudentActivityPageState extends State<StudentActivityPage> {
                     ),
         ),
       ],
+    ),
     );
   }
 
@@ -819,128 +820,297 @@ class _StudentActivityPageState extends State<StudentActivityPage> {
     final isDark = widget.isDark;
     final baseColor = widget.baseColor;
     final dimColor = widget.dimColor;
-    showModalBottomSheet(
-      context: context, isScrollControlled: true, backgroundColor: widget.bgColor,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (ctx) => Container(
-        padding: const EdgeInsets.all(24),
-        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            CircleAvatar(backgroundColor: Colors.lime.shade800, child: Text(name[0].toUpperCase(), style: const TextStyle(color: Colors.white))),
-            const SizedBox(width: 10),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(name, style: TextStyle(color: baseColor, fontWeight: FontWeight.bold, fontSize: 16)),
-              Text('Login Activity', style: TextStyle(color: dimColor, fontSize: 12)),
-            ])),
-            IconButton(icon: Icon(Icons.close, color: dimColor), onPressed: () => Navigator.pop(ctx)),
-          ]),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 300,
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseService.firestore.collection('login_attempts')
-                  .where('uid', isEqualTo: uid)
-                  .snapshots(),
-              builder: (ctx, snap) {
-                if (snap.hasError) {
-                  return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 32),
-                    const SizedBox(height: 8),
-                    Text('Could not load history', style: TextStyle(color: Colors.redAccent, fontSize: 13)),
-                    Padding(padding: const EdgeInsets.only(top: 4), child: Text('${snap.error}', style: TextStyle(color: dimColor, fontSize: 10), textAlign: TextAlign.center)),
-                  ]));
-                }
-                if (!snap.hasData) {
-                  return Center(child: ProfessionalLoader(size: 20));
-                }
-                final logs = snap.data!.docs.toList();
-                logs.sort((a, b) {
-                  final aTime = (a.data() as Map<String, dynamic>)['timestamp'] as String? ?? '';
-                  final bTime = (b.data() as Map<String, dynamic>)['timestamp'] as String? ?? '';
-                  return bTime.compareTo(aTime);
-                });
-                if (logs.isEmpty) {
-                  return Center(child: Text('No login history yet', style: TextStyle(color: dimColor)));
-                }
-                return ListView.separated(
-                  shrinkWrap: true,
-                  itemCount: logs.length,
-                  separatorBuilder: (_, __) => Divider(color: isDark ? Colors.white12 : Colors.black12),
-                  itemBuilder: (_, i) {
-                    final d = logs[i].data() as Map<String, dynamic>;
-                    final timeStr = d['timestamp'] as String? ?? '';
-                    final deviceModel = d['deviceModel'] as String? ?? 'Unknown device';
-                    final deviceId = d['deviceId'] as String? ?? '';
-                    final timeDisplay = timeStr.isNotEmpty ? timeStr.replaceFirst('T', ' ').substring(0, 19) : 'N/A';
-                    return ListTile(
-                      leading: const Icon(Icons.login_rounded, color: Colors.green, size: 20),
-                      title: Text(deviceModel, style: TextStyle(color: baseColor, fontSize: 13, fontWeight: FontWeight.bold)),
-                      subtitle: Text('$timeDisplay • ${deviceId.isNotEmpty ? deviceId.substring(0, 8) : "?"}', style: TextStyle(color: dimColor, fontSize: 11)),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () {
-                Navigator.pop(ctx);
-                Navigator.push(context, MaterialPageRoute(
-                  builder: (_) => StudentProgressScreen(targetUid: uid),
-                ));
-              },
-              icon: const Icon(Icons.insights_rounded, size: 18),
-              label: const Text('View Progress'),
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00B8D4), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 12)),
-            ),
-          ),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () { Navigator.pop(ctx); _showSendNotificationDialog(uid, name); },
-              icon: const Icon(Icons.notifications_active_rounded, size: 18),
-              label: const Text('Send Notification'),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 12)),
-            ),
-          ),
-        ]),
+    final bgColor = widget.bgColor;
+    final cardBg = widget.cardBg;
+    Navigator.push(context, MaterialPageRoute(
+      fullscreenDialog: true,
+      builder: (_) => _StudentDevicePage(
+        uid: uid, name: name,
+        isDark: isDark, baseColor: baseColor, dimColor: dimColor,
+        bgColor: bgColor, cardBg: cardBg,
       ),
+    ));
+  }
+}
+
+class _StudentDevicePage extends StatefulWidget {
+  final String uid, name;
+  final bool isDark;
+  final Color baseColor, dimColor, bgColor, cardBg;
+  const _StudentDevicePage({required this.uid, required this.name, required this.isDark, required this.baseColor, required this.dimColor, required this.bgColor, required this.cardBg});
+  @override
+  State<_StudentDevicePage> createState() => _StudentDevicePageState();
+}
+
+class _StudentDevicePageState extends State<_StudentDevicePage> with SingleTickerProviderStateMixin {
+  late TabController _tabCtrl;
+  int _currentTabIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabCtrl = TabController(length: 3, vsync: this);
+    _tabCtrl.addListener(() {
+      if (_tabCtrl.indexIsChanging) {
+        setState(() => _currentTabIndex = _tabCtrl.index);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _tabCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: widget.bgColor,
+      appBar: AppBar(
+        backgroundColor: widget.bgColor,
+        foregroundColor: widget.baseColor,
+        elevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: widget.baseColor),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Row(children: [
+          CircleAvatar(backgroundColor: Colors.lime.shade800, radius: 16, child: Text(widget.name[0].toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 14))),
+          const SizedBox(width: 10),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(widget.name, style: TextStyle(color: widget.baseColor, fontWeight: FontWeight.bold, fontSize: 16)),
+            Text('Student Overview', style: TextStyle(color: widget.dimColor, fontSize: 11)),
+          ])),
+        ]),
+        bottom: TabBar(
+          controller: _tabCtrl,
+          indicatorColor: Colors.cyan,
+          labelColor: widget.baseColor,
+          unselectedLabelColor: widget.dimColor,
+          tabs: const [
+            Tab(text: 'Devices', icon: Icon(Icons.phone_android_rounded, size: 18)),
+            Tab(text: 'Progress', icon: Icon(Icons.insights_rounded, size: 18)),
+            Tab(text: 'Notifications', icon: Icon(Icons.notifications_rounded, size: 18)),
+          ],
+        ),
+      ),
+      body: TabBarView(
+        controller: _tabCtrl,
+        children: [
+          _buildDevicesTab(),
+          _buildProgressTab(),
+          _buildNotificationsTab(),
+        ],
+      ),
+      floatingActionButton: _currentTabIndex == 2
+          ? FloatingActionButton(
+              onPressed: () => _showSendNotificationDialog(),
+              backgroundColor: Colors.orange,
+              child: const Icon(Icons.send_rounded, color: Colors.white),
+            )
+          : null,
     );
   }
 
-  void _showSendNotificationDialog(String uid, String name) {
+  Widget _buildDevicesTab() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseService.firestore.collection('login_attempts')
+          .where('uid', isEqualTo: widget.uid)
+          .snapshots(),
+      builder: (ctx, loginSnap) {
+        if (loginSnap.hasError) {
+          return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 32),
+            const SizedBox(height: 8),
+            Text('Could not load devices', style: TextStyle(color: Colors.redAccent, fontSize: 13)),
+          ]));
+        }
+        if (!loginSnap.hasData) return const Center(child: ProfessionalLoader());
+        final loginLogs = loginSnap.data!.docs.toList();
+        loginLogs.sort((a, b) {
+          final aT = (a.data() as Map<String, dynamic>)['timestamp'] as String? ?? '';
+          final bT = (b.data() as Map<String, dynamic>)['timestamp'] as String? ?? '';
+          return bT.compareTo(aT);
+        });
+        if (loginLogs.isEmpty) {
+          return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(Icons.phone_android_rounded, size: 48, color: widget.dimColor.withValues(alpha: 0.3)),
+            const SizedBox(height: 12),
+            Text('No devices yet', style: TextStyle(color: widget.dimColor, fontSize: 14)),
+          ]));
+        }
+        final now = DateTime.now();
+        final latestTime = loginLogs.isNotEmpty ? (() {
+          final ts = (loginLogs.first.data() as Map<String, dynamic>)['timestamp'] as String? ?? '';
+          if (ts.isNotEmpty) { try { return DateTime.parse(ts); } catch (_) {} }
+          return null;
+        })() : null;
+        final latestDeviceId = latestTime != null && now.difference(latestTime).inMinutes < 5
+            ? (loginLogs.first.data() as Map<String, dynamic>)['deviceId'] as String?
+            : null;
+        return StreamBuilder<QuerySnapshot>(
+          stream: FirebaseService.firestore.collection('web_sessions')
+              .where('uid', isEqualTo: widget.uid)
+              .where('status', isEqualTo: 'connected')
+              .snapshots(),
+          builder: (ctx, webSnap) {
+            final hasActiveWeb = webSnap.hasData && webSnap.data!.docs.isNotEmpty;
+            return ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemCount: loginLogs.length,
+              separatorBuilder: (_, __) => Divider(height: 1, color: widget.isDark ? Colors.white10 : Colors.black12),
+              itemBuilder: (_, i) {
+                final d = loginLogs[i].data() as Map<String, dynamic>;
+                final deviceModel = d['deviceModel'] as String? ?? 'Unknown device';
+                final deviceId = d['deviceId'] as String? ?? '';
+                final ts = d['timestamp'] as String? ?? '';
+                final timeDisplay = ts.isNotEmpty ? ts.replaceFirst('T', ' ').substring(0, 19) : 'N/A';
+                final isLatestActive = latestDeviceId != null && deviceId == latestDeviceId;
+                return ListTile(
+                  contentPadding: const EdgeInsets.symmetric(vertical: 4),
+                  leading: Stack(
+                    children: [
+                      Icon(Icons.phone_android_rounded, color: isLatestActive ? Colors.green : Colors.lime.shade700, size: 24),
+                      if (isLatestActive)
+                        Positioned(right: -2, top: -2, child: Container(
+                          width: 10, height: 10,
+                          decoration: BoxDecoration(color: Colors.green, shape: BoxShape.circle,
+                            border: Border.all(color: widget.bgColor, width: 2)),
+                        )),
+                    ],
+                  ),
+                  title: Row(children: [
+                    Flexible(child: Text(deviceModel, style: TextStyle(color: widget.baseColor, fontSize: 14, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
+                    if (isLatestActive) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(color: Colors.green.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8)),
+                        child: const Text('Active', style: TextStyle(color: Colors.green, fontSize: 11, fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ]),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 4),
+                      Text(timeDisplay, style: TextStyle(color: widget.dimColor, fontSize: 12)),
+                      if (isLatestActive && hasActiveWeb) ...[
+                        const SizedBox(height: 4),
+                        Row(children: [
+                          Container(width: 6, height: 6, decoration: const BoxDecoration(color: Color(0xFF00E5FF), shape: BoxShape.circle)),
+                          const SizedBox(width: 6),
+                          Text('Connected to Web', style: TextStyle(color: const Color(0xFF00E5FF), fontSize: 11, fontWeight: FontWeight.w600)),
+                        ]),
+                      ],
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildProgressTab() {
+    return StudentProgressScreen(targetUid: widget.uid, embedded: true);
+  }
+
+  Widget _buildNotificationsTab() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseService.firestore.collection('notifications')
+          .where('uid', isEqualTo: widget.uid)
+          .where('type', isEqualTo: 'targeted')
+          .snapshots(),
+      builder: (ctx, snap) {
+        if (snap.hasError) {
+          return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 32),
+            const SizedBox(height: 8),
+            Text('Could not load notifications', style: TextStyle(color: Colors.redAccent, fontSize: 13)),
+          ]));
+        }
+        if (!snap.hasData) return const Center(child: ProfessionalLoader());
+        final notifications = snap.data!.docs.toList();
+        notifications.sort((a, b) {
+          final aT = (a.data() as Map<String, dynamic>)['createdAt'] as Timestamp?;
+          final bT = (b.data() as Map<String, dynamic>)['createdAt'] as Timestamp?;
+          if (aT == null && bT == null) return 0;
+          if (aT == null) return 1;
+          if (bT == null) return -1;
+          return bT.compareTo(aT);
+        });
+        if (notifications.isEmpty) {
+          return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(Icons.notifications_none_rounded, size: 48, color: widget.dimColor.withValues(alpha: 0.3)),
+            const SizedBox(height: 12),
+            Text('No notifications yet', style: TextStyle(color: widget.dimColor, fontSize: 14)),
+            const SizedBox(height: 4),
+            Text('Tap the send button to notify this student', style: TextStyle(color: widget.dimColor.withValues(alpha: 0.5), fontSize: 12)),
+          ]));
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: notifications.length,
+          itemBuilder: (_, i) {
+            final d = notifications[i].data() as Map<String, dynamic>;
+            final message = d['message'] as String? ?? '';
+            final createdAt = (d['createdAt'] as Timestamp?)?.toDate();
+            final timeStr = createdAt != null
+                ? '${createdAt.day}/${createdAt.month}/${createdAt.year} ${createdAt.hour}:${createdAt.minute.toString().padLeft(2, '0')}'
+                : 'N/A';
+            return Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: widget.cardBg,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: widget.isDark ? Colors.white.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.06)),
+              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Icon(Icons.notifications_rounded, color: Colors.orange, size: 16),
+                  const SizedBox(width: 6),
+                  Expanded(child: Text(message, style: TextStyle(color: widget.baseColor, fontSize: 13))),
+                ]),
+                const SizedBox(height: 6),
+                Text(timeStr, style: TextStyle(color: widget.dimColor.withValues(alpha: 0.6), fontSize: 11)),
+              ]),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showSendNotificationDialog() {
     final msgCtrl = TextEditingController();
-    final isDark = widget.isDark;
-    final baseColor = widget.baseColor;
-    final dimColor = widget.dimColor;
-    final fillColor = isDark ? Colors.white10 : Colors.black12;
     showDialog(
       context: context,
       builder: (d) => AlertDialog(
         backgroundColor: widget.bgColor,
-        title: Text('Notify $name', style: TextStyle(color: baseColor, fontSize: 16)),
+        title: Text('Notify ${widget.name}', style: TextStyle(color: widget.baseColor, fontSize: 16)),
         content: TextField(
           controller: msgCtrl, maxLines: 3,
-          style: TextStyle(color: baseColor),
+          style: TextStyle(color: widget.baseColor),
           decoration: InputDecoration(
-            hintText: 'Type your notification message...', hintStyle: TextStyle(color: dimColor),
-            filled: true, fillColor: fillColor, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+            hintText: 'Type your notification message...', hintStyle: TextStyle(color: widget.dimColor),
+            filled: true, fillColor: widget.isDark ? Colors.white10 : Colors.black12,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(d), child: Text('Cancel', style: TextStyle(color: dimColor))),
+          TextButton(onPressed: () => Navigator.pop(d), child: Text('Cancel', style: TextStyle(color: widget.dimColor))),
           ElevatedButton(
             onPressed: () async {
-              if (!debounce('ctrl_notif_send')) return;
               final msg = msgCtrl.text.trim();
               if (msg.isEmpty) return;
-              await FirebaseService.addTargetedNotification(uid, msg);
+              await FirebaseService.addTargetedNotification(widget.uid, msg);
               if (d.mounted) Navigator.pop(d);
-              if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Notification sent to $name')));
+              if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Notification sent to ${widget.name}')));
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
             child: const Text('Send', style: TextStyle(color: Colors.white)),

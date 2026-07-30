@@ -87,17 +87,27 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
           const SizedBox(height: 16),
           Card(
             color: cardColor,
-            child: SwitchListTile(
-              secondary: const Icon(Icons.download_rounded, color: Color(0xFF00B8D4)),
-              title: Text('Auto Download Files', style: TextStyle(color: textColor)),
-              subtitle: Text('Files open offline after first download', style: TextStyle(color: hintColor, fontSize: 12)),
-              value: _autoDownload,
-              activeColor: const Color(0xFF4A148C),
-              onChanged: (val) async {
-                setState(() => _autoDownload = val);
-                await FirebaseService.updateUserAutoDownload(val);
-              },
-            ),
+            child: Column(children: [
+              SwitchListTile(
+                secondary: const Icon(Icons.download_rounded, color: Color(0xFF00B8D4)),
+                title: Text('Auto Download Files', style: TextStyle(color: textColor)),
+                subtitle: Text('Files open offline after first download', style: TextStyle(color: hintColor, fontSize: 12)),
+                value: _autoDownload,
+                activeColor: const Color(0xFF4A148C),
+                onChanged: (val) async {
+                  setState(() => _autoDownload = val);
+                  await FirebaseService.updateUserAutoDownload(val);
+                },
+              ),
+              Divider(height: 1, color: isDark ? Colors.white12 : Colors.black12),
+              ListTile(
+                leading: const Icon(Icons.folder_open_rounded, color: Colors.amber),
+                title: Text('Downloaded Files', style: TextStyle(color: textColor)),
+                subtitle: Text('View & manage offline files', style: TextStyle(color: hintColor, fontSize: 12)),
+                trailing: Icon(Icons.chevron_right, color: hintColor, size: 18),
+                onTap: () => context.push('/auto-downloads'),
+              ),
+            ]),
           ),
           const SizedBox(height: 16),
           Card(

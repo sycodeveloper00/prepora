@@ -268,7 +268,8 @@ class AiService {
     // Step 4: Process line-by-line
     final lines = result.split('\n');
     final processed = <String>[];
-    final latexCmdRe = RegExp(r'\\[a-zA-Z]+|\^[\{\d]|\_[\{\d]');    final textWordRe = RegExp(r'(?<!\\)[a-zA-Z]{3,}');
+    final latexCmdRe = RegExp(r'\\[a-zA-Z]+|\^[\{\d]|\_[\{\d]');
+    final textWordRe = RegExp(r'[a-zA-Z]{3,}');
 
     for (var line in lines) {
       final trimmed = line.trim();
@@ -290,7 +291,8 @@ class AiService {
       }
 
       final hasBoldMarkers = trimmed.contains('**');
-      final hasTextWords = textWordRe.hasMatch(trimmed);
+      final strippedForWords = trimmed.replaceAll(RegExp(r'\\[a-zA-Z]+'), '');
+      final hasTextWords = textWordRe.hasMatch(strippedForWords);
       final isJustNumber = RegExp(r'^[\d\s\.\+\-\*\/\=\(\)\√]+$', caseSensitive: false).hasMatch(trimmed);
       // Check for non-Latin scripts (Arabic, Urdu, Chinese, etc.) — treat as text so they don't get wrapped in $$...$$
       final hasNonLatin = RegExp(r'[\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF\u4E00-\u9FFF\u3040-\u309F\u30A0-\u30FF]').hasMatch(trimmed);
