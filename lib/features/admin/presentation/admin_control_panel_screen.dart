@@ -967,11 +967,7 @@ class _StudentDevicePageState extends State<_StudentDevicePage> with SingleTicke
                 final ts = d['timestamp'] as String? ?? '';
                 final timeDisplay = ts.isNotEmpty ? ts.replaceFirst('T', ' ').substring(0, 19) : 'N/A';
                 final isLatestActive = latestDeviceId != null && deviceId == latestDeviceId;
-                final deviceWebSessions = activeWebSessions.where((w) {
-                  final wDeviceId = (w.data() as Map<String, dynamic>)['androidDeviceId'] as String? ?? '';
-                  return wDeviceId == deviceId;
-                }).toList();
-                final totalDeviceWebSessions = deviceWebSessions.length;
+                final totalDeviceWebSessions = activeWebSessions.length;
                 return ListTile(
                   contentPadding: const EdgeInsets.symmetric(vertical: 4),
                   leading: Stack(
@@ -1013,9 +1009,9 @@ class _StudentDevicePageState extends State<_StudentDevicePage> with SingleTicke
                     children: [
                       const SizedBox(height: 4),
                       Text(timeDisplay, style: TextStyle(color: widget.dimColor, fontSize: 12)),
-                      if (deviceWebSessions.isNotEmpty) ...[
+                      if (isLatestActive && activeWebSessions.isNotEmpty) ...[
                         const SizedBox(height: 4),
-                        ...deviceWebSessions.map((w) {
+                        ...activeWebSessions.map((w) {
                           final wd = w.data() as Map<String, dynamic>;
                           final webBrowser = wd['webBrowser'] as String? ?? 'Web Browser';
                           return Padding(
@@ -1229,11 +1225,6 @@ class _AdminDeviceHistoryPage extends StatelessWidget {
                   return const Center(child: ProfessionalLoader());
                 }
                 var sessions = snap.data!.docs.toList();
-                sessions = sessions.where((doc) {
-                  final d = doc.data() as Map<String, dynamic>;
-                  final sDeviceId = d['androidDeviceId'] as String? ?? '';
-                  return sDeviceId == deviceId;
-                }).toList();
                 sessions.sort((a, b) {
                   final aT = (a.data() as Map<String, dynamic>)['connectedAt'] as Timestamp?;
                   final bT = (b.data() as Map<String, dynamic>)['connectedAt'] as Timestamp?;

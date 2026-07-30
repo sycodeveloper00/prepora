@@ -593,8 +593,6 @@ class _DashboardScreenState extends State<DashboardScreen>
               constraints: const BoxConstraints(maxWidth: 220),
               itemBuilder: (_) => showFullMenu
                   ? [
-                      PopupMenuItem(value: 'notes', child: Row(children: [Icon(Icons.note_rounded, size: 18, color: Color(0xFF00B8D4)), SizedBox(width: 10), Text('Notes', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87))])),
-                      PopupMenuItem(value: 'progress', child: Row(children: [Icon(Icons.insights_rounded, size: 18, color: Color(0xFF4A148C)), SizedBox(width: 10), Text('Progress', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87))])),
                       PopupMenuItem(value: 'notices', child: Row(children: [
                         const Icon(Icons.campaign_rounded, size: 18, color: Colors.amber),
                         const SizedBox(width: 10),
@@ -608,6 +606,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                           ),
                         ],
                       ])),
+                      PopupMenuItem(value: 'notes', child: Row(children: [Icon(Icons.note_rounded, size: 18, color: Color(0xFF00B8D4)), SizedBox(width: 10), Text('Notes', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87))])), PopupMenuItem(value: 'progress', child: Row(children: [Icon(Icons.insights_rounded, size: 18, color: Color(0xFF4A148C)), SizedBox(width: 10), Text('Progress', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87))])),
                       PopupMenuItem(value: 'link_web', child: Row(children: [Icon(Icons.qr_code_scanner_rounded, size: 18, color: Color(0xFF00E676)), SizedBox(width: 10), Text('Link with Web Version', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87))])),
                       PopupMenuItem(value: 'settings', child: Row(children: [Icon(Icons.settings_outlined, size: 18, color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black87), SizedBox(width: 10), Text('Settings', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87))])),
                     ]

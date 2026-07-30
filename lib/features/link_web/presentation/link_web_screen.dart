@@ -522,6 +522,7 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
                     MobileScanner(
                       controller: _scannerController,
                       onDetect: _onQRDetected,
+                      fit: BoxFit.cover,
                     ),
                     // Scanner overlay frame
                     Center(
