@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
@@ -47,9 +46,19 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
   String? _textOverlay;
   Offset? _textPosition;
 
+  // Page tracking
+  int _currentPage = 1;
+  int _totalPages = 0;
+  bool _isFitWidth = true;
+
   @override
   void initState() {
     super.initState();
+    _pdfController.addListener(() {
+      if (_pdfController.pageNumber != _currentPage) {
+        setState(() => _currentPage = _pdfController.pageNumber);
+      }
+    });
     final isLocal = widget.documentId.startsWith('content://') ||
         widget.documentId.startsWith('file://') ||
         (!widget.documentId.startsWith('http://') && !widget.documentId.startsWith('https://'));
@@ -265,158 +274,330 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_isLoading ? 'Loading...' : (_fileName ?? 'PDF Viewer')),
-        actions: [
-          if (_isAnnotating) ...[
-            IconButton(
-              icon: Icon(_isTextMode ? Icons.draw_rounded : Icons.text_fields_rounded, color: Colors.cyan),
-              onPressed: () => setState(() => _isTextMode = !_isTextMode),
-              tooltip: _isTextMode ? 'Switch to Draw' : 'Switch to Text',
-            ),
-            PopupMenuButton<Color>(
-              icon: const Icon(Icons.color_lens_rounded),
-              onSelected: (c) => setState(() => _penColor = c),
-              itemBuilder: (_) => [
-                PopupMenuItem(value: Colors.red, child: Row(children: [Container(width:20,height:20,color:Colors.red,),const SizedBox(width:8),const Text('Red')])),
-                PopupMenuItem(value: Colors.blue, child: Row(children: [Container(width:20,height:20,color:Colors.blue),const SizedBox(width:8),const Text('Blue')])),
-                PopupMenuItem(value: Colors.green, child: Row(children: [Container(width:20,height:20,color:Colors.green),const SizedBox(width:8),const Text('Green')])),
-                PopupMenuItem(value: Colors.orange, child: Row(children: [Container(width:20,height:20,color:Colors.orange),const SizedBox(width:8),const Text('Orange')])),
-                PopupMenuItem(value: Colors.black, child: Row(children: [Container(width:20,height:20,color:Colors.black),const SizedBox(width:8),const Text('Black')])),
-              ],
-            ),
-            PopupMenuButton<double>(
-              icon: const Icon(Icons.line_weight_rounded),
-              onSelected: (w) => setState(() => _strokeWidth = w),
-              itemBuilder: (_) => [
-                PopupMenuItem(value: 2.0, child: const Text('Thin')),
-                PopupMenuItem(value: 5.0, child: const Text('Medium')),
-                PopupMenuItem(value: 10.0, child: const Text('Thick')),
-              ],
-            ),
-            IconButton(
-              icon: const Icon(Icons.clear_all_rounded, color: Colors.redAccent),
-              onPressed: _clearAnnotations,
-              tooltip: 'Clear All',
-            ),
-            IconButton(
-              icon: const Icon(Icons.save_alt_rounded, color: Colors.green),
-              onPressed: _saveAnnotation,
-              tooltip: 'Save to Notes',
-            ),
-            IconButton(
-              icon: const Icon(Icons.close_rounded, color: Colors.redAccent),
-              onPressed: () => setState(() { _isAnnotating = false; _isTextMode = false; _clearAnnotations(); }),
-              tooltip: 'Exit Annotation',
-            ),
-          ] else ...[
-            IconButton(
-              icon: const Icon(Icons.edit_rounded, color: Colors.cyan),
-              onPressed: () => setState(() => _isAnnotating = true),
-              tooltip: 'Annotate PDF',
-            ),
-          ],
-        ],
-      ),
-      body: _isLoading
-          ? Center(child: ProfessionalLoader())
-          : _error != null
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(32),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
+      backgroundColor: isDark ? const Color(0xFF0D0D2E) : Colors.white,
+      body: Column(
+        children: [
+          Container(
+            color: isDark ? const Color(0xFF1A0533) : Colors.white,
+            child: SafeArea(
+              bottom: false,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Top row: Back + Title + Annotate/Save
+                  SizedBox(
+                    height: 44,
+                    child: Row(
                       children: [
-                        const Icon(Icons.error_outline_rounded, size: 64, color: Colors.redAccent),
-                        const SizedBox(height: 16),
-                        Text(_error!, textAlign: TextAlign.center,
-                            style: const TextStyle(color: Colors.redAccent, fontSize: 16)),
-                        const SizedBox(height: 24),
-                        ElevatedButton.icon(
-                          onPressed: () { setState(() { _isLoading = true; _error = null; }); _loadPdf(); },
-                          icon: const Icon(Icons.refresh_rounded),
-                          label: const Text('Retry'),
+                        IconButton(
+                          icon: Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: isDark ? Colors.white : Colors.black87),
+                          onPressed: () => Navigator.pop(context),
                         ),
+                        Expanded(
+                          child: Text(
+                            _isLoading ? 'Loading...' : (_fileName ?? 'PDF Viewer'),
+                            style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontWeight: FontWeight.bold, fontSize: 14),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (_isAnnotating) ...[
+                          IconButton(
+                            icon: Icon(_isTextMode ? Icons.draw_rounded : Icons.text_fields_rounded, size: 18, color: Colors.cyan),
+                            onPressed: () => setState(() => _isTextMode = !_isTextMode),
+                            tooltip: _isTextMode ? 'Draw' : 'Text',
+                          ),
+                          PopupMenuButton<Color>(
+                            icon: Icon(Icons.color_lens_rounded, size: 18, color: _penColor),
+                            onSelected: (c) => setState(() => _penColor = c),
+                            itemBuilder: (_) => [
+                              PopupMenuItem(value: Colors.red, child: Row(children: [Container(width:18,height:18,color:Colors.red),const SizedBox(width:8),const Text('Red')])),
+                              PopupMenuItem(value: Colors.blue, child: Row(children: [Container(width:18,height:18,color:Colors.blue),const SizedBox(width:8),const Text('Blue')])),
+                              PopupMenuItem(value: Colors.green, child: Row(children: [Container(width:18,height:18,color:Colors.green),const SizedBox(width:8),const Text('Green')])),
+                              PopupMenuItem(value: Colors.orange, child: Row(children: [Container(width:18,height:18,color:Colors.orange),const SizedBox(width:8),const Text('Orange')])),
+                              PopupMenuItem(value: Colors.black, child: Row(children: [Container(width:18,height:18,color:Colors.black),const SizedBox(width:8),const Text('Black')])),
+                            ],
+                          ),
+                          PopupMenuButton<double>(
+                            icon: Icon(Icons.line_weight_rounded, size: 18, color: isDark ? Colors.white70 : Colors.black54),
+                            onSelected: (w) => setState(() => _strokeWidth = w),
+                            itemBuilder: (_) => [
+                              PopupMenuItem(value: 2.0, child: const Text('Thin')),
+                              PopupMenuItem(value: 5.0, child: const Text('Medium')),
+                              PopupMenuItem(value: 10.0, child: const Text('Thick')),
+                            ],
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.clear_all_rounded, size: 18, color: Colors.redAccent),
+                            onPressed: _clearAnnotations,
+                            tooltip: 'Clear',
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.note_add_rounded, size: 18, color: Colors.green),
+                            onPressed: _saveAnnotation,
+                            tooltip: 'Save to Notes',
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close_rounded, size: 18, color: Colors.redAccent),
+                            onPressed: () => setState(() { _isAnnotating = false; _isTextMode = false; _clearAnnotations(); }),
+                            tooltip: 'Exit',
+                          ),
+                        ] else ...[
+                          IconButton(
+                            icon: const Icon(Icons.edit_rounded, size: 18, color: Colors.cyan),
+                            onPressed: () => setState(() => _isAnnotating = true),
+                            tooltip: 'Annotate',
+                          ),
+                        ],
                       ],
                     ),
                   ),
-                )
-              : Stack(
-                  key: _pdfAreaKey,
-                  children: [
-                    SfPdfViewer.file(
-                      File(_localPath!),
-                      controller: _pdfController,
-                      enableTextSelection: true,
-                      canShowScrollStatus: true,
-                      canShowPaginationDialog: true,
+                  // Controls row: Page nav | Zoom | Fit Width
+                  if (_totalPages > 0 && !_isAnnotating)
+                    Container(
+                      height: 40,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF12082A) : const Color(0xFFF5F5F5),
+                        border: Border(top: BorderSide(color: isDark ? Colors.white10 : Colors.black12, width: 0.5)),
+                      ),
+                      child: Row(
+                        children: [
+                          // Page navigation
+                          _buildCircleBtn(Icons.remove, _currentPage > 1 ? () => _pdfController.jumpToPage(_currentPage - 1) : null, isDark),
+                          const SizedBox(width: 4),
+                          GestureDetector(
+                            onTap: () async {
+                              final ctrl = TextEditingController(text: '$_currentPage');
+                              final page = await showDialog<int>(
+                                context: context,
+                                builder: (ctx) => AlertDialog(
+                                  title: const Text('Go to Page', style: TextStyle(fontSize: 15)),
+                                  content: TextField(
+                                    controller: ctrl,
+                                    keyboardType: TextInputType.number,
+                                    autofocus: true,
+                                    decoration: InputDecoration(
+                                      hintText: '1-$_totalPages',
+                                      border: const OutlineInputBorder(),
+                                      suffixText: '/ $_totalPages',
+                                    ),
+                                  ),
+                                  actions: [
+                                    TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+                                    ElevatedButton(
+                                      onPressed: () {
+                                        final p = int.tryParse(ctrl.text);
+                                        if (p != null && p >= 1 && p <= _totalPages) Navigator.pop(ctx, p);
+                                      },
+                                      child: const Text('Go'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (page != null) _pdfController.jumpToPage(page);
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.06),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text('$_currentPage', style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontWeight: FontWeight.w700, fontSize: 13)),
+                                  const SizedBox(width: 4),
+                                  Text('of', style: TextStyle(color: isDark ? Colors.white54 : Colors.black38, fontSize: 11)),
+                                  Text('$_totalPages', style: TextStyle(color: isDark ? Colors.white54 : Colors.black38, fontSize: 12)),
+                                ],
+                              ),
+                            ),
+                          ),
+                          _buildCircleBtn(Icons.add, _currentPage < _totalPages ? () => _pdfController.jumpToPage(_currentPage + 1) : null, isDark),
+                          const SizedBox(width: 8),
+                          // Divider
+                          Container(width: 1, height: 20, color: isDark ? Colors.white12 : Colors.black12),
+                          const SizedBox(width: 8),
+                          // Zoom controls
+                          _buildCircleBtn(Icons.remove, () {
+                            final z = _pdfController.zoomLevel;
+                            if (z > 0.5) _pdfController.zoomLevel = z - 0.25;
+                          }, isDark),
+                          const SizedBox(width: 2),
+                          GestureDetector(
+                            onTap: () => _pdfController.zoomLevel = 1.0,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.06),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                '${(_pdfController.zoomLevel * 100).round()}%',
+                                style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontWeight: FontWeight.w600, fontSize: 12),
+                              ),
+                            ),
+                          ),
+                          _buildCircleBtn(Icons.add, () {
+                            final z = _pdfController.zoomLevel;
+                            if (z < 5.0) _pdfController.zoomLevel = z + 0.25;
+                          }, isDark),
+                          const SizedBox(width: 8),
+                          // Divider
+                          Container(width: 1, height: 20, color: isDark ? Colors.white12 : Colors.black12),
+                          const SizedBox(width: 8),
+                          // Fit Width button
+                          GestureDetector(
+                            onTap: () {
+                              setState(() => _isFitWidth = !_isFitWidth);
+                              _pdfController.zoomLevel = _isFitWidth ? 1.5 : 1.0;
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: _isFitWidth
+                                    ? const Color(0xFF00B8D4).withValues(alpha: 0.15)
+                                    : (isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.06)),
+                                borderRadius: BorderRadius.circular(6),
+                                border: _isFitWidth ? Border.all(color: const Color(0xFF00B8D4).withValues(alpha: 0.3)) : null,
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    _isFitWidth ? Icons.fit_screen_rounded : Icons.aspect_ratio_rounded,
+                                    size: 14,
+                                    color: _isFitWidth ? const Color(0xFF00B8D4) : (isDark ? Colors.white54 : Colors.black38),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Fit Width',
+                                    style: TextStyle(
+                                      color: _isFitWidth ? const Color(0xFF00B8D4) : (isDark ? Colors.white54 : Colors.black38),
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    if (_isAnnotating)
-                      GestureDetector(
-                        onPanStart: _isTextMode ? null : (d) {
-                          setState(() {
-                            _currentStroke = [DrawPoint(d.localPosition, _penColor, _strokeWidth)];
-                          });
-                        },
-                        onPanUpdate: _isTextMode ? null : (d) {
-                          setState(() {
-                            _currentStroke.add(DrawPoint(d.localPosition, _penColor, _strokeWidth));
-                          });
-                        },
-                        onPanEnd: _isTextMode ? null : (_) {
-                          setState(() {
-                            _strokes.add(List.from(_currentStroke));
-                            _currentStroke = [];
-                          });
-                        },
-                        onTapUp: _isTextMode ? (d) {
-                          _showTextInput(d.localPosition);
-                        } : null,
-                        child: RepaintBoundary(
-                          child: CustomPaint(
-                            painter: _PdfAnnotPainter(
-                              strokes: _strokes,
-                              currentStroke: _currentStroke,
-                            ),
-                            size: Size.infinite,
+                ],
+              ),
+            ),
+          ),
+          // PDF Viewer
+          Expanded(
+            child: _isLoading
+                ? Center(child: ProfessionalLoader())
+                : _error != null
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(32),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.error_outline_rounded, size: 64, color: Colors.redAccent),
+                              const SizedBox(height: 16),
+                              Text(_error!, textAlign: TextAlign.center,
+                                  style: const TextStyle(color: Colors.redAccent, fontSize: 16)),
+                              const SizedBox(height: 24),
+                              ElevatedButton.icon(
+                                onPressed: () { setState(() { _isLoading = true; _error = null; }); _loadPdf(); },
+                                icon: const Icon(Icons.refresh_rounded),
+                                label: const Text('Retry'),
+                              ),
+                            ],
                           ),
                         ),
-                      ),
-                    if (_textOverlay != null && _textPosition != null)
-                      Positioned(
-                        left: _textPosition!.dx,
-                        top: _textPosition!.dy,
-                        child: GestureDetector(
-                          onLongPress: () => setState(() { _textOverlay = null; _textPosition = null; }),
-                          child: Container(
-                            padding: const EdgeInsets.all(4),
-                            color: Colors.yellow.withValues(alpha: 0.3),
-                            child: Text(_textOverlay!, style: TextStyle(color: _penColor, fontSize: 16, fontWeight: FontWeight.bold)),
+                      )
+                    : Stack(
+                        key: _pdfAreaKey,
+                        children: [
+                          SfPdfViewer.file(
+                            File(_localPath!),
+                            controller: _pdfController,
+                            enableTextSelection: true,
+                            canShowScrollStatus: true,
+                            canShowPaginationDialog: false,
+                            initialZoomLevel: _isFitWidth ? 1.5 : 1.0,
+                            onDocumentLoaded: (details) {
+                              setState(() => _totalPages = details.document.pages.count);
+                            },
                           ),
-                        ),
-                      ),
-                    if (_isAnnotating)
-                      Positioned(
-                        bottom: 16,
-                        left: 0,
-                        right: 0,
-                        child: Center(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: (isDark ? Colors.black87 : Colors.white).withValues(alpha: 0.85),
-                              borderRadius: BorderRadius.circular(20),
+                          if (_isAnnotating)
+                            GestureDetector(
+                              onPanStart: _isTextMode ? null : (d) {
+                                setState(() {
+                                  _currentStroke = [DrawPoint(d.localPosition, _penColor, _strokeWidth)];
+                                });
+                              },
+                              onPanUpdate: _isTextMode ? null : (d) {
+                                setState(() {
+                                  _currentStroke.add(DrawPoint(d.localPosition, _penColor, _strokeWidth));
+                                });
+                              },
+                              onPanEnd: _isTextMode ? null : (_) {
+                                setState(() {
+                                  _strokes.add(List.from(_currentStroke));
+                                  _currentStroke = [];
+                                });
+                              },
+                              onTapUp: _isTextMode ? (d) {
+                                _showTextInput(d.localPosition);
+                              } : null,
+                              child: RepaintBoundary(
+                                child: CustomPaint(
+                                  painter: _PdfAnnotPainter(
+                                    strokes: _strokes,
+                                    currentStroke: _currentStroke,
+                                  ),
+                                  size: Size.infinite,
+                                ),
+                              ),
                             ),
-                            child: Text(
-                              _isTextMode ? 'Tap to add text · Long-press text to delete' : 'Draw with finger',
-                              style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontSize: 12),
+                          if (_textOverlay != null && _textPosition != null)
+                            Positioned(
+                              left: _textPosition!.dx,
+                              top: _textPosition!.dy,
+                              child: GestureDetector(
+                                onLongPress: () => setState(() { _textOverlay = null; _textPosition = null; }),
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  color: Colors.yellow.withValues(alpha: 0.3),
+                                  child: Text(_textOverlay!, style: TextStyle(color: _penColor, fontSize: 16, fontWeight: FontWeight.bold)),
+                                ),
+                              ),
                             ),
-                          ),
-                        ),
+                          if (_isAnnotating)
+                            Positioned(
+                              bottom: 16,
+                              left: 0,
+                              right: 0,
+                              child: Center(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: (isDark ? Colors.black87 : Colors.white).withValues(alpha: 0.85),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Text(
+                                    _isTextMode ? 'Tap to add text · Long-press to delete' : 'Draw with finger',
+                                    style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontSize: 12),
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
-                  ],
-                ),
-      floatingActionButton: widget.folderId != null
+          ),
+        ],
+      ),
+      floatingActionButton: widget.folderId != null && !_isAnnotating
           ? FutureBuilder<String?>(
               future: FirebaseService.getGroupLinkForLevel(widget.folderId!, parentContentId: widget.parentContentId),
               builder: (context, snap) {
@@ -462,6 +643,29 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
         _textPosition = pos;
       });
     }
+  }
+
+  Widget _buildCircleBtn(IconData icon, VoidCallback? onPressed, bool isDark) {
+    return GestureDetector(
+      onTap: onPressed,
+      child: Container(
+        width: 28,
+        height: 28,
+        decoration: BoxDecoration(
+          color: onPressed != null
+              ? (isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.06))
+              : Colors.transparent,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(
+          icon,
+          size: 16,
+          color: onPressed != null
+              ? (isDark ? Colors.white70 : Colors.black54)
+              : (isDark ? Colors.white24 : Colors.black12),
+        ),
+      ),
+    );
   }
 
   Widget _buildAiFab(BuildContext context) {

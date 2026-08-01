@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../../../core/services/firebase_service.dart';
+import '../../../core/services/notification_service.dart';
 import '../../../core/theme/theme_provider.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -121,6 +122,23 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
               onChanged: (val) async {
                 if (!kIsWeb) {
                   await _openSystemNotificationSettings();
+                }
+              },
+            ),
+          ),
+          const SizedBox(height: 16),
+          Card(
+            color: cardColor,
+            child: ListTile(
+              leading: const Icon(Icons.send_rounded, color: Colors.green),
+              title: Text('Test Notification', style: TextStyle(color: textColor)),
+              subtitle: Text('Send a test notification now', style: TextStyle(color: hintColor, fontSize: 12)),
+              onTap: () async {
+                await NotificationService.testNotification();
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Test notification sent!'), backgroundColor: Colors.green),
+                  );
                 }
               },
             ),

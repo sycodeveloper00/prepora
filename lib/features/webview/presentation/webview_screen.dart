@@ -1,9 +1,13 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:open_filex/open_filex.dart';
 import 'webview_stub.dart'
     if (dart.library.html) 'webview_web.dart';
 import '../../../core/services/firebase_service.dart';
@@ -62,31 +66,33 @@ class _AppWebViewScreenState extends State<AppWebViewScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        if (widget.isMockTest) {
+          _showCloseTestDialog();
+        } else {
+          Navigator.pop(context);
+        }
+      },
+      child: Scaffold(
       backgroundColor: isDark ? const Color(0xFF0D0D2E) : Colors.white,
       appBar: AppBar(
         backgroundColor: isDark ? const Color(0xFF1A0533) : Colors.white,
         leading: IconButton(
           icon: Icon(Icons.arrow_back_ios_new_rounded, color: isDark ? Colors.white : Colors.black87),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () {
+            if (widget.isMockTest) {
+              _showCloseTestDialog();
+            } else {
+              Navigator.pop(context);
+            }
+          },
         ),
         title: Text(widget.title, style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontWeight: FontWeight.bold, fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis),
         actions: [
-          if (!kIsWeb && _controller != null) ...[
-            IconButton(
-              icon: Icon(Icons.arrow_back_ios_rounded, size: 18, color: isDark ? Colors.white70 : Colors.black54),
-              onPressed: () async {
-                try { if (await _controller!.canGoBack()) await _controller!.goBack(); } catch (_) {}
-              },
-              tooltip: 'Back',
-            ),
-            IconButton(
-              icon: Icon(Icons.arrow_forward_ios_rounded, size: 18, color: isDark ? Colors.white70 : Colors.black54),
-              onPressed: () async {
-                try { if (await _controller!.canGoForward()) await _controller!.goForward(); } catch (_) {}
-              },
-              tooltip: 'Forward',
-            ),
+          if (!kIsWeb && _controller != null && !widget.isMockTest) ...[
             IconButton(
               icon: Icon(Icons.refresh_rounded, size: 18, color: isDark ? Colors.white70 : Colors.black54),
               onPressed: () => _controller!.reload(),
@@ -105,13 +111,7 @@ class _AppWebViewScreenState extends State<AppWebViewScreen> {
             ),
             IconButton(
               icon: Icon(Icons.download_rounded, size: 18, color: isDark ? Colors.white70 : Colors.black54),
-              onPressed: () async {
-                final url = _currentUrl.isNotEmpty ? _currentUrl : (widget.url ?? '');
-                if (url.isNotEmpty) {
-                  final uri = Uri.parse(url);
-                  if (await canLaunchUrl(uri)) await launchUrl(uri, mode: LaunchMode.externalApplication);
-                }
-              },
+              onPressed: () => _downloadFile(),
               tooltip: 'Download',
             ),
           ],
@@ -149,6 +149,7 @@ class _AppWebViewScreenState extends State<AppWebViewScreen> {
               },
             )
           : null,
+    ),
     );
   }
 
@@ -171,6 +172,145 @@ class _AppWebViewScreenState extends State<AppWebViewScreen> {
           const Center(child: ProfessionalLoader()),
       ],
     );
+  }
+
+  void _showCloseTestDialog() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1A0533) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 60, height: 60,
+              decoration: const BoxDecoration(color: Color(0xFFFEF3C7), shape: BoxShape.circle),
+              child: const Icon(Icons.warning_amber_rounded, color: Color(0xFFF59E0B), size: 32),
+            ),
+            const SizedBox(height: 16),
+            Text('Close Test?', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87)),
+            const SizedBox(height: 8),
+            Text(
+              'Your progress will be lost if you close the test now. Are you sure?',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, color: isDark ? Colors.white70 : Colors.black54, height: 1.5),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              Navigator.pop(context);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white),
+            child: const Text('Close Test'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _downloadFile() async {
+    final url = _currentUrl.isNotEmpty ? _currentUrl : (widget.url ?? '');
+    if (url.isEmpty) return;
+
+    try {
+      if (Platform.isAndroid) {
+        final status = await Permission.storage.request();
+        if (!status.isGranted) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Storage permission required to download'), backgroundColor: Colors.redAccent),
+            );
+          }
+          return;
+        }
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Downloading...'), backgroundColor: Colors.blue, duration: Duration(seconds: 2)),
+        );
+      }
+
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode != 200) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Download failed'), backgroundColor: Colors.redAccent),
+          );
+        }
+        return;
+      }
+
+      String fileName = url.split('/').last.split('?').first;
+      if (fileName.isEmpty || !fileName.contains('.')) {
+        fileName = 'download_${DateTime.now().millisecondsSinceEpoch}';
+      }
+
+      Directory? downloadsDir;
+      if (Platform.isAndroid) {
+        downloadsDir = Directory('/storage/emulated/0/Download');
+        if (!await downloadsDir.exists()) {
+          downloadsDir = await getExternalStorageDirectory();
+        }
+      } else {
+        downloadsDir = await getApplicationDocumentsDirectory();
+      }
+
+      if (downloadsDir == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Could not access storage'), backgroundColor: Colors.redAccent),
+          );
+        }
+        return;
+      }
+
+      String savePath = '${downloadsDir.path}/$fileName';
+      int counter = 1;
+      while (await File(savePath).exists()) {
+        final ext = fileName.contains('.') ? '.${fileName.split('.').last}' : '';
+        final base = fileName.replaceAll(RegExp(r'\.[^.]*$'), '');
+        savePath = '${downloadsDir.path}/$base ($counter)$ext';
+        counter++;
+      }
+
+      final file = File(savePath);
+      await file.writeAsBytes(response.bodyBytes);
+
+      if (mounted) {
+        final displayPath = savePath.split('/').last;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Downloaded: $displayPath'),
+            backgroundColor: Colors.green,
+            action: SnackBarAction(
+              label: 'OPEN',
+              textColor: Colors.white,
+              onPressed: () async {
+                try {
+                  await OpenFilex.open(savePath);
+                } catch (_) {}
+              },
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Download failed: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
+    }
   }
 
   Widget _buildAiFab(BuildContext context) {

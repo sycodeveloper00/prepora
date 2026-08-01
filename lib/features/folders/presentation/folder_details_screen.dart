@@ -1068,12 +1068,40 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
     }
 
     if (['jpg', 'jpeg', 'png', 'gif', 'webp'].contains(ext)) {
+      if (_autoDownload && !kIsWeb) {
+        final cached = await _downloadForOffline(url, name);
+        if (cached != null && mounted) {
+          context.push('/image_viewer', extra: {'url': cached.path, 'title': displayTitle});
+          return;
+        }
+      }
       context.push('/image_viewer', extra: {'url': url, 'title': displayTitle});
     } else if (ext == 'pdf') {
+      if (_autoDownload && !kIsWeb) {
+        final cached = await _downloadForOffline(url, name);
+        if (cached != null && mounted) {
+          context.push('/pdf_reader/view', extra: {'url': cached.path, 'folderId': widget.folderId, 'parentContentId': widget.parentContentId});
+          return;
+        }
+      }
       context.push('/pdf_reader/view', extra: {'url': url, 'folderId': widget.folderId, 'parentContentId': widget.parentContentId});
     } else if (['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', 'webm'].contains(ext)) {
+      if (_autoDownload && !kIsWeb) {
+        final cached = await _downloadForOffline(url, name);
+        if (cached != null && mounted) {
+          context.push('/media_player', extra: {'url': cached.path, 'title': displayTitle, 'isAudio': false});
+          return;
+        }
+      }
       context.push('/media_player', extra: {'url': url, 'title': displayTitle, 'isAudio': false});
     } else if (['mp3', 'wav', 'aac', 'ogg', 'flac', 'wma', 'm4a', 'opus'].contains(ext)) {
+      if (_autoDownload && !kIsWeb) {
+        final cached = await _downloadForOffline(url, name);
+        if (cached != null && mounted) {
+          context.push('/media_player', extra: {'url': cached.path, 'title': displayTitle, 'isAudio': true});
+          return;
+        }
+      }
       context.push('/media_player', extra: {'url': url, 'title': displayTitle, 'isAudio': true});
     } else if (source == 'internal_storage' && !url.startsWith('http://') && !url.startsWith('https://')) {
       if (kIsWeb) {
@@ -2059,6 +2087,8 @@ child: TextField(
                         _showRenameContentDialog(id, name);
                       case 'delete':
                         _confirmDeleteContent(id, name, data);
+                      case 'save_note':
+                        _savePdfToNotes(data);
                     }
                   },
                   itemBuilder: (context) => [
@@ -2078,15 +2108,47 @@ child: TextField(
                     const PopupMenuItem(value: 'edit', child: ListTile(leading: Icon(Icons.edit, color: Colors.green), title: Text('Edit'))),
                     const PopupMenuItem(value: 'rename', child: ListTile(leading: Icon(Icons.drive_file_rename_outline, color: Colors.blue), title: Text('Rename'))),
                     const PopupMenuItem(value: 'delete', child: ListTile(leading: Icon(Icons.delete, color: Colors.red), title: Text('Delete', style: TextStyle(color: Colors.red)))),
+                    if (_isPdfFile(name))
+                      const PopupMenuItem(value: 'save_note', child: ListTile(leading: Icon(Icons.note_add_rounded, color: Color(0xFF00B8D4)), title: Text('Save to Notes'))),
                   ],
                 ),
               ] else if (!disabled)
-                const Icon(Icons.chevron_right, color: Colors.teal, size: 20),
+                _isPdfFile(name)
+                    ? IconButton(
+                        icon: const Icon(Icons.note_add_rounded, color: Color(0xFF00B8D4), size: 22),
+                        onPressed: () => _savePdfToNotes(data),
+                        tooltip: 'Save to Notes',
+                      )
+                    : const Icon(Icons.chevron_right, color: Colors.teal, size: 20),
             ]),
           ),
         ),
       ),
     );
+  }
+
+  bool _isPdfFile(String name) => name.toLowerCase().endsWith('.pdf');
+
+  void _savePdfToNotes(Map<String, dynamic> data) {
+    final name = data['name'] as String? ?? 'PDF';
+    final url = data['url'] as String? ?? '';
+    if (url.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No PDF URL found'), backgroundColor: Colors.redAccent),
+      );
+      return;
+    }
+    FirebaseService.saveNote(
+      url,
+      'PDF saved from folder: $name',
+      lectureName: name,
+    ).then((_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('"$name" saved to Notes'), backgroundColor: const Color(0xFF00B8D4)),
+        );
+      }
+    });
   }
 
   // ─── Upload Options ──────────────────────────────────────────────────────────

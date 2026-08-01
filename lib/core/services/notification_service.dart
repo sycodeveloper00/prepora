@@ -19,96 +19,106 @@ class NotificationService {
 
   static Future<void> initialize() async {
     if (kIsWeb) return;
-    tz_data.initializeTimeZones();
-    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const iosSettings = DarwinInitializationSettings();
-    await _plugin.initialize(settings: const InitializationSettings(android: androidSettings, iOS: iosSettings));
-    const badgeChannel = AndroidNotificationChannel(
-      _badgeChannelId, 'App Badge',
-      description: 'App icon badge count',
-      importance: Importance.min,
-      playSound: false,
-      enableVibration: false,
-      enableLights: false,
-      showBadge: true,
-    );
-    await _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(badgeChannel);
-    const studentChannel = AndroidNotificationChannel(
-      _studentChannelId, 'Student Notifications',
-      description: 'Notifications from admin',
-      importance: Importance.high,
-      playSound: true,
-      enableVibration: true,
-      showBadge: true,
-    );
-    await _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(studentChannel);
-    const adminChannel = AndroidNotificationChannel(
-      _adminChannelId, 'Admin Notifications',
-      description: 'Student activity notifications',
-      importance: Importance.high,
-      playSound: true,
-      enableVibration: true,
-      showBadge: true,
-    );
-    await _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(adminChannel);
-    const streakChannel = AndroidNotificationChannel(
-      'streak_channel', 'Daily Streak',
-      description: 'Daily streak reminders',
-      importance: Importance.high,
-      playSound: true,
-      enableVibration: true,
-      showBadge: true,
-    );
-    await _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(streakChannel);
+    try {
+      tz_data.initializeTimeZones();
+      const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+      const iosSettings = DarwinInitializationSettings();
+      await _plugin.initialize(settings: const InitializationSettings(android: androidSettings, iOS: iosSettings));
+      final androidPlugin = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+      const badgeChannel = AndroidNotificationChannel(
+        _badgeChannelId, 'App Badge',
+        description: 'App icon badge count',
+        importance: Importance.min,
+        playSound: false,
+        enableVibration: false,
+        enableLights: false,
+        showBadge: true,
+      );
+      await androidPlugin?.createNotificationChannel(badgeChannel);
+      const studentChannel = AndroidNotificationChannel(
+        _studentChannelId, 'Student Notifications',
+        description: 'Notifications from admin',
+        importance: Importance.high,
+        playSound: true,
+        enableVibration: true,
+        showBadge: true,
+      );
+      await androidPlugin?.createNotificationChannel(studentChannel);
+      const adminChannel = AndroidNotificationChannel(
+        _adminChannelId, 'Admin Notifications',
+        description: 'Student activity notifications',
+        importance: Importance.high,
+        playSound: true,
+        enableVibration: true,
+        showBadge: true,
+      );
+      await androidPlugin?.createNotificationChannel(adminChannel);
+      const streakChannel = AndroidNotificationChannel(
+        'streak_channel', 'Daily Streak',
+        description: 'Daily streak reminders',
+        importance: Importance.high,
+        playSound: true,
+        enableVibration: true,
+        showBadge: true,
+      );
+      await androidPlugin?.createNotificationChannel(streakChannel);
+      const feedbackChannel = AndroidNotificationChannel(
+        'feedback_channel', 'Feedbacks',
+        description: 'New student feedbacks',
+        importance: Importance.high,
+        playSound: true,
+        enableVibration: true,
+        showBadge: true,
+      );
+      await androidPlugin?.createNotificationChannel(feedbackChannel);
+    } catch (_) {}
   }
 
   // ─── Notification Permission (Android 13+) ────────────────────────────────
 
   static Future<void> requestNotificationPermission() async {
     if (kIsWeb) return;
-    final status = await Permission.notification.status;
-    if (status.isDenied || status.isPermanentlyDenied) {
-      await Permission.notification.request();
-    }
+    try {
+      final status = await Permission.notification.status;
+      if (status.isPermanentlyDenied) {
+        await openAppSettings();
+        return;
+      }
+      if (status.isDenied) {
+        await Permission.notification.request();
+      }
+    } catch (_) {}
   }
 
   // ─── Daily Streak Reminder Scheduling ─────────────────────────────────────
 
   static Future<void> scheduleDailyStreakReminder() async {
     if (kIsWeb) return;
-
-    // Cancel any existing scheduled streak notification
-    await _plugin.cancel(id: _dailyStreakNotificationId);
-
-    // Schedule daily at 9:00 AM local time
-    final now = tz.TZDateTime.now(tz.local);
-    var scheduledDate = tz.TZDateTime(tz.local, now.year, now.month, now.day, 9, 0, 0);
-    if (scheduledDate.isBefore(now)) {
-      scheduledDate = scheduledDate.add(const Duration(days: 1));
-    }
-
-    const androidDetails = AndroidNotificationDetails(
-      'streak_channel', 'Daily Streak',
-      channelDescription: 'Daily streak reminders',
-      importance: Importance.high,
-      priority: Priority.high,
-      icon: '@mipmap/ic_launcher',
-    );
-    const details = NotificationDetails(android: androidDetails, iOS: DarwinNotificationDetails());
-
-    await _plugin.zonedSchedule(
-      id: _dailyStreakNotificationId,
-      title: 'Don\'t break your streak!',
-      body: 'Open PrePora today and keep learning. Your streak is waiting for you!',
-      scheduledDate: scheduledDate,
-      notificationDetails: details,
-      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-      matchDateTimeComponents: DateTimeComponents.time,
-    );
+    try {
+      await _plugin.cancel(id: _dailyStreakNotificationId);
+      final now = tz.TZDateTime.now(tz.local);
+      var scheduledDate = tz.TZDateTime(tz.local, now.year, now.month, now.day, 9, 0, 0);
+      if (scheduledDate.isBefore(now)) {
+        scheduledDate = scheduledDate.add(const Duration(days: 1));
+      }
+      const androidDetails = AndroidNotificationDetails(
+        'streak_channel', 'Daily Streak',
+        channelDescription: 'Daily streak reminders',
+        importance: Importance.high,
+        priority: Priority.high,
+        icon: '@mipmap/ic_launcher',
+      );
+      const details = NotificationDetails(android: androidDetails, iOS: DarwinNotificationDetails());
+      await _plugin.zonedSchedule(
+        id: _dailyStreakNotificationId,
+        title: 'Don\'t break your streak!',
+        body: 'Open PrePora today and keep learning. Your streak is waiting for you!',
+        scheduledDate: scheduledDate,
+        notificationDetails: details,
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        matchDateTimeComponents: DateTimeComponents.time,
+      );
+    } catch (_) {}
   }
 
   static Future<void> cancelDailyStreakReminder() async {
@@ -230,33 +240,34 @@ class NotificationService {
 
   static Future<void> checkAndNotify() async {
     if (kIsWeb) return;
-    final user = FirebaseService.currentUser;
-    if (user == null) return;
+    try {
+      final user = FirebaseService.currentUser;
+      if (user == null) return;
 
-    final doc = await FirebaseService.firestore.collection('users').doc(user.uid).get();
-    if (!doc.exists) return;
+      final doc = await FirebaseService.firestore.collection('users').doc(user.uid).get();
+      if (!doc.exists) return;
 
-    final userData = doc.data();
+      final userData = doc.data();
+      final lastLogin = (userData?['lastLogin'] as Timestamp?)?.toDate();
+      final now = DateTime.now();
 
-    final lastLogin = (userData?['lastLogin'] as Timestamp?)?.toDate();
-    final now = DateTime.now();
+      await FirebaseService.firestore.collection('users').doc(user.uid).update({
+        'lastLogin': Timestamp.fromDate(now),
+      });
 
-    await FirebaseService.firestore.collection('users').doc(user.uid).update({
-      'lastLogin': Timestamp.fromDate(now),
-    });
+      if (lastLogin == null) return;
 
-    if (lastLogin == null) return;
+      final hoursSince = now.difference(lastLogin).inHours;
 
-    final hoursSince = now.difference(lastLogin).inHours;
+      final plugin = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+      final enabled = await plugin?.areNotificationsEnabled() ?? true;
 
-    final plugin = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
-    final enabled = await plugin?.areNotificationsEnabled() ?? true;
-
-    if (hoursSince >= 72) {
-      if (enabled) await _showStreakNotification('Long time no see!', "I am frustrated, when will you come back? Your streak is waiting.");
-    } else if (hoursSince >= 24) {
-      if (enabled) await _showStreakNotification("Let's Come Back to Learn", "I am waiting for you. Waiting for your return, I am tired!");
-    }
+      if (hoursSince >= 72) {
+        if (enabled) await _showStreakNotification('Long time no see!', "I am frustrated, when will you come back? Your streak is waiting.");
+      } else if (hoursSince >= 24) {
+        if (enabled) await _showStreakNotification("Let's Come Back to Learn", "I am waiting for you. Waiting for your return, I am tired!");
+      }
+    } catch (_) {}
   }
 
   static Future<void> _showStreakNotification(String title, String body) async {
@@ -299,6 +310,28 @@ class NotificationService {
   static Future<void> clearBadge() async {
     if (kIsWeb) return;
     await _plugin.cancel(id: _badgeNotificationId);
+  }
+
+  // ─── Test Notification ──────────────────────────────────────────────────────
+
+  static Future<void> testNotification() async {
+    if (kIsWeb) return;
+    try {
+      const androidDetails = AndroidNotificationDetails(
+        'streak_channel', 'Daily Streak',
+        channelDescription: 'Daily streak reminders',
+        importance: Importance.high,
+        priority: Priority.high,
+        icon: '@mipmap/ic_launcher',
+      );
+      const details = NotificationDetails(android: androidDetails, iOS: DarwinNotificationDetails());
+      await _plugin.show(
+        id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+        title: 'PrePora Test Notification',
+        body: 'Notifications are working! You will receive daily streak reminders.',
+        notificationDetails: details,
+      );
+    } catch (_) {}
   }
 
   static void dispose() {

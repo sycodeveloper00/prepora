@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/widgets/glassmorphic_container.dart';
 import '../../../core/services/firebase_service.dart';
+import '../../../core/services/notification_service.dart';
 import '../../../core/widgets/professional_loader.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -40,6 +41,7 @@ class _LoginScreenState extends State<LoginScreen> {
         final uid = credential!.user!.uid;
         final role = await FirebaseService.getUserRole(uid);
         if (role != null) FirebaseService.cacheUserRole(uid, role);
+        NotificationService.checkAndNotify();
         if (mounted) {
           if (kIsWeb && role != 'admin' && role != 'Assistant') {
             setState(() => _isLoading = false);
