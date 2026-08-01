@@ -558,24 +558,27 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                 // Background
                 Container(color: isDark ? const Color(0xFF0D0D2E) : Colors.white),
 
-                // PDF viewer — shows as soon as file is ready
+                // PDF viewer — fills entire area, scrolls smoothly
                 if (_localPath != null)
-                  SfPdfViewer.file(
-                    File(_localPath!),
-                    controller: _pdfController,
-                    enableTextSelection: true,
-                    canShowScrollStatus: true,
-                    canShowPaginationDialog: false,
-                    initialZoomLevel: 1.0,
-                    onDocumentLoaded: (details) {
-                      if (mounted) setState(() => _totalPages = details.document.pages.count);
-                    },
+                  Positioned.fill(
+                    child: SfPdfViewer.file(
+                      File(_localPath!),
+                      controller: _pdfController,
+                      enableTextSelection: true,
+                      canShowScrollStatus: false,
+                      canShowPaginationDialog: false,
+                      initialZoomLevel: 1.0,
+                      onDocumentLoaded: (details) {
+                        if (mounted) setState(() => _totalPages = details.document.pages.count);
+                      },
+                    ),
                   ),
 
                 // Loading overlay — compact, on top of PDF area
                 if (_isLoading)
-                  Center(
-                    child: Container(
+                  IgnorePointer(
+                    child: Center(
+                      child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
                       decoration: BoxDecoration(
                         color: (isDark ? Colors.black87 : Colors.white).withValues(alpha: 0.92),
@@ -617,31 +620,34 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                       ),
                     ),
                   ),
+                ),
 
                 // Error overlay
                 if (_error != null && !_isLoading)
-                  Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(32),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.error_outline_rounded, size: 56, color: Colors.redAccent),
-                          const SizedBox(height: 14),
-                          Text(_error!, textAlign: TextAlign.center,
-                              style: const TextStyle(color: Colors.redAccent, fontSize: 14)),
-                          const SizedBox(height: 20),
-                          ElevatedButton.icon(
-                            onPressed: () { setState(() { _isLoading = true; _error = null; }); _loadPdf(); },
-                            icon: const Icon(Icons.refresh_rounded, size: 18),
-                            label: const Text('Retry'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF4A148C),
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                  IgnorePointer(
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(32),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.error_outline_rounded, size: 56, color: Colors.redAccent),
+                            const SizedBox(height: 14),
+                            Text(_error!, textAlign: TextAlign.center,
+                                style: const TextStyle(color: Colors.redAccent, fontSize: 14)),
+                            const SizedBox(height: 20),
+                            ElevatedButton.icon(
+                              onPressed: () { setState(() { _isLoading = true; _error = null; }); _loadPdf(); },
+                              icon: const Icon(Icons.refresh_rounded, size: 18),
+                              label: const Text('Retry'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF4A148C),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
