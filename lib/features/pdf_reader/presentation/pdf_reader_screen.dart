@@ -7,7 +7,6 @@ import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import '../../../core/services/firebase_service.dart';
-import '../../../core/widgets/professional_loader.dart';
 
 class DrawPoint {
   final Offset position;
@@ -79,23 +78,49 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
       return;
     }
     try {
-      final doc = await FirebaseService.getUser(user.uid);
+      // Firestore query AND cache lookup in parallel for instant open
+      final docFuture = FirebaseService.getUser(user.uid);
+      final cachedPath = await _findCachedPdf();
+
+      // Show cached PDF instantly without waiting for Firestore
+      if (cachedPath != null && mounted) {
+        setState(() { _localPath = cachedPath; });
+      }
+
+      final doc = await docFuture;
       final data = doc?.data() as Map<String, dynamic>?;
       final isVerified = data?['verified'] == true;
       final isBlocked = data?['blocked'] == true;
       if (isBlocked) {
-        if (mounted) setState(() { _accessGranted = false; _isLoading = false; });
+        if (mounted) setState(() { _accessGranted = false; _isLoading = false; _localPath = null; });
         return;
       }
       if (isVerified) {
-        if (mounted) setState(() { _accessGranted = true; });
-        _loadPdf();
+        if (mounted) setState(() { _accessGranted = true; _isLoading = false; });
+        if (_localPath == null) _loadPdf();
       } else {
-        if (mounted) setState(() { _accessGranted = false; _isLoading = false; });
+        if (mounted) setState(() { _accessGranted = false; _isLoading = false; _localPath = null; });
       }
     } catch (_) {
       if (mounted) setState(() { _accessGranted = false; _isLoading = false; });
     }
+  }
+
+  Future<String?> _findCachedPdf() async {
+    final url = widget.documentId;
+    if (!url.startsWith('http://') && !url.startsWith('https://')) return null;
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final cacheDir = Directory('${dir.path}/pdf_cache');
+      if (!await cacheDir.exists()) return null;
+      final rawName = url.split('/').last.split('?').first.split('#').first;
+      final safeName = rawName.replaceAll(RegExp(r'[^\w\.\-]'), '_');
+      final localFile = File('${cacheDir.path}/$safeName');
+      if (await localFile.exists() && await localFile.length() > 0) {
+        return localFile.path;
+      }
+    } catch (_) {}
+    return null;
   }
 
   Future<void> _loadPdf() async {
@@ -525,153 +550,168 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
               ),
             ),
           ),
-          // PDF Viewer
+          // PDF Viewer — opens instantly, loading overlay on top
           Expanded(
-            child: _isLoading
-                ? Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        ProfessionalLoader(),
-                        const SizedBox(height: 20),
-                        if (_downloadProgress > 0 && _downloadProgress < 1.0) ...[
-                          SizedBox(
-                            width: 200,
-                            child: Column(
-                              children: [
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(4),
-                                  child: LinearProgressIndicator(
-                                    value: _downloadProgress,
-                                    backgroundColor: isDark ? Colors.white12 : Colors.black12,
-                                    valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF4A148C)),
-                                    minHeight: 6,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  '${(_downloadProgress * 100).round()}%',
-                                  style: TextStyle(
-                                    color: isDark ? Colors.white70 : Colors.black54,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                        const SizedBox(height: 12),
-                        Text(
-                          _loadingMessage,
-                          style: TextStyle(
-                            color: isDark ? Colors.white54 : Colors.black45,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                : _error != null
-                    ? Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(32),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.error_outline_rounded, size: 64, color: Colors.redAccent),
-                              const SizedBox(height: 16),
-                              Text(_error!, textAlign: TextAlign.center,
-                                  style: const TextStyle(color: Colors.redAccent, fontSize: 16)),
-                              const SizedBox(height: 24),
-                              ElevatedButton.icon(
-                                onPressed: () { setState(() { _isLoading = true; _error = null; }); _loadPdf(); },
-                                icon: const Icon(Icons.refresh_rounded),
-                                label: const Text('Retry'),
-                              ),
-                            ],
-                          ),
-                        ),
-                      )
-                    : Stack(
-                        key: _pdfAreaKey,
+            child: Stack(
+              key: _pdfAreaKey,
+              children: [
+                // Background
+                Container(color: isDark ? const Color(0xFF0D0D2E) : Colors.white),
+
+                // PDF viewer — shows as soon as file is ready
+                if (_localPath != null)
+                  SfPdfViewer.file(
+                    File(_localPath!),
+                    controller: _pdfController,
+                    enableTextSelection: true,
+                    canShowScrollStatus: true,
+                    canShowPaginationDialog: false,
+                    initialZoomLevel: 1.0,
+                    onDocumentLoaded: (details) {
+                      if (mounted) setState(() => _totalPages = details.document.pages.count);
+                    },
+                  ),
+
+                // Loading overlay — compact, on top of PDF area
+                if (_isLoading)
+                  Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
+                      decoration: BoxDecoration(
+                        color: (isDark ? Colors.black87 : Colors.white).withValues(alpha: 0.92),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 12)],
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          SfPdfViewer.file(
-                            File(_localPath!),
-                            controller: _pdfController,
-                            enableTextSelection: true,
-                            canShowScrollStatus: true,
-                            canShowPaginationDialog: false,
-                            initialZoomLevel: 1.0,
-                            onDocumentLoaded: (details) {
-                              setState(() => _totalPages = details.document.pages.count);
-                            },
+                          SizedBox(
+                            width: 28, height: 28,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 3,
+                              color: const Color(0xFF4A148C),
+                              backgroundColor: isDark ? Colors.white24 : Colors.black12,
+                            ),
                           ),
-                          if (_isAnnotating)
-                            GestureDetector(
-                              onPanStart: _isTextMode ? null : (d) {
-                                setState(() {
-                                  _currentStroke = [DrawPoint(d.localPosition, _penColor, _strokeWidth)];
-                                });
-                              },
-                              onPanUpdate: _isTextMode ? null : (d) {
-                                setState(() {
-                                  _currentStroke.add(DrawPoint(d.localPosition, _penColor, _strokeWidth));
-                                });
-                              },
-                              onPanEnd: _isTextMode ? null : (_) {
-                                setState(() {
-                                  _strokes.add(List.from(_currentStroke));
-                                  _currentStroke = [];
-                                });
-                              },
-                              onTapUp: _isTextMode ? (d) {
-                                _showTextInput(d.localPosition);
-                              } : null,
-                              child: RepaintBoundary(
-                                child: CustomPaint(
-                                  painter: _PdfAnnotPainter(
-                                    strokes: _strokes,
-                                    currentStroke: _currentStroke,
-                                  ),
-                                  size: Size.infinite,
+                          const SizedBox(height: 14),
+                          if (_downloadProgress > 0 && _downloadProgress < 1.0) ...[
+                            SizedBox(
+                              width: 180,
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(3),
+                                child: LinearProgressIndicator(
+                                  value: _downloadProgress,
+                                  backgroundColor: isDark ? Colors.white12 : Colors.black12,
+                                  valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF4A148C)),
+                                  minHeight: 5,
                                 ),
                               ),
                             ),
-                          if (_textOverlay != null && _textPosition != null)
-                            Positioned(
-                              left: _textPosition!.dx,
-                              top: _textPosition!.dy,
-                              child: GestureDetector(
-                                onLongPress: () => setState(() { _textOverlay = null; _textPosition = null; }),
-                                child: Container(
-                                  padding: const EdgeInsets.all(4),
-                                  color: Colors.yellow.withValues(alpha: 0.3),
-                                  child: Text(_textOverlay!, style: TextStyle(color: _penColor, fontSize: 16, fontWeight: FontWeight.bold)),
-                                ),
-                              ),
-                            ),
-                          if (_isAnnotating)
-                            Positioned(
-                              bottom: 16,
-                              left: 0,
-                              right: 0,
-                              child: Center(
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                  decoration: BoxDecoration(
-                                    color: (isDark ? Colors.black87 : Colors.white).withValues(alpha: 0.85),
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                  child: Text(
-                                    _isTextMode ? 'Tap to add text · Long-press to delete' : 'Draw with finger',
-                                    style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontSize: 12),
-                                  ),
-                                ),
-                              ),
-                            ),
+                            const SizedBox(height: 8),
+                          ],
+                          Text(
+                            _loadingMessage,
+                            style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontSize: 12),
+                          ),
                         ],
                       ),
+                    ),
+                  ),
+
+                // Error overlay
+                if (_error != null && !_isLoading)
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(32),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.error_outline_rounded, size: 56, color: Colors.redAccent),
+                          const SizedBox(height: 14),
+                          Text(_error!, textAlign: TextAlign.center,
+                              style: const TextStyle(color: Colors.redAccent, fontSize: 14)),
+                          const SizedBox(height: 20),
+                          ElevatedButton.icon(
+                            onPressed: () { setState(() { _isLoading = true; _error = null; }); _loadPdf(); },
+                            icon: const Icon(Icons.refresh_rounded, size: 18),
+                            label: const Text('Retry'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF4A148C),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                // Annotation overlays
+                if (_isAnnotating)
+                  GestureDetector(
+                    onPanStart: _isTextMode ? null : (d) {
+                      setState(() {
+                        _currentStroke = [DrawPoint(d.localPosition, _penColor, _strokeWidth)];
+                      });
+                    },
+                    onPanUpdate: _isTextMode ? null : (d) {
+                      setState(() {
+                        _currentStroke.add(DrawPoint(d.localPosition, _penColor, _strokeWidth));
+                      });
+                    },
+                    onPanEnd: _isTextMode ? null : (_) {
+                      setState(() {
+                        _strokes.add(List.from(_currentStroke));
+                        _currentStroke = [];
+                      });
+                    },
+                    onTapUp: _isTextMode ? (d) {
+                      _showTextInput(d.localPosition);
+                    } : null,
+                    child: RepaintBoundary(
+                      child: CustomPaint(
+                        painter: _PdfAnnotPainter(
+                          strokes: _strokes,
+                          currentStroke: _currentStroke,
+                        ),
+                        size: Size.infinite,
+                      ),
+                    ),
+                  ),
+                if (_textOverlay != null && _textPosition != null)
+                  Positioned(
+                    left: _textPosition!.dx,
+                    top: _textPosition!.dy,
+                    child: GestureDetector(
+                      onLongPress: () => setState(() { _textOverlay = null; _textPosition = null; }),
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        color: Colors.yellow.withValues(alpha: 0.3),
+                        child: Text(_textOverlay!, style: TextStyle(color: _penColor, fontSize: 16, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                  ),
+                if (_isAnnotating)
+                  Positioned(
+                    bottom: 16,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: (isDark ? Colors.black87 : Colors.white).withValues(alpha: 0.85),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          _isTextMode ? 'Tap to add text · Long-press to delete' : 'Draw with finger',
+                          style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontSize: 12),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ],
       ),

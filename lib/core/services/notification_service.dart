@@ -345,28 +345,6 @@ class NotificationService {
     await _plugin.cancel(id: _badgeNotificationId);
   }
 
-  // ─── Test Notification ──────────────────────────────────────────────────────
-
-  static Future<void> testNotification() async {
-    if (kIsWeb) return;
-    try {
-      const androidDetails = AndroidNotificationDetails(
-        'streak_channel', 'Daily Streak',
-        channelDescription: 'Daily streak reminders',
-        importance: Importance.high,
-        priority: Priority.high,
-        icon: '@drawable/ic_notification',
-      );
-      const details = NotificationDetails(android: androidDetails, iOS: DarwinNotificationDetails());
-      await _plugin.show(
-        id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
-        title: 'PrePora Test Notification',
-        body: 'Notifications are working! You will receive daily streak reminders.',
-        notificationDetails: details,
-      );
-    } catch (_) {}
-  }
-
   static void dispose() {
     _studentSub?.cancel();
     _adminSub?.cancel();
