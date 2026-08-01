@@ -51,7 +51,7 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
   // Page tracking
   int _currentPage = 1;
   int _totalPages = 0;
-  bool _isFitWidth = true;
+  bool _isFitWidth = false;
 
   @override
   void initState() {
@@ -484,10 +484,10 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                           const SizedBox(width: 8),
                           // Fit Width button
                           GestureDetector(
-                            onTap: () {
-                              setState(() => _isFitWidth = !_isFitWidth);
-                              _pdfController.zoomLevel = _isFitWidth ? 1.5 : 1.0;
-                            },
+            onTap: () {
+              setState(() => _isFitWidth = !_isFitWidth);
+              _pdfController.zoomLevel = 1.0;
+            },
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                               decoration: BoxDecoration(
@@ -602,7 +602,7 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                             enableTextSelection: true,
                             canShowScrollStatus: true,
                             canShowPaginationDialog: false,
-                            initialZoomLevel: _isFitWidth ? 1.5 : 1.0,
+                            initialZoomLevel: 1.0,
                             onDocumentLoaded: (details) {
                               setState(() => _totalPages = details.document.pages.count);
                             },

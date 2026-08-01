@@ -133,23 +133,6 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
             ),
           ),
           const SizedBox(height: 16),
-          Card(
-            color: cardColor,
-            child: ListTile(
-              leading: const Icon(Icons.send_rounded, color: Colors.green),
-              title: Text('Test Notification', style: TextStyle(color: textColor)),
-              subtitle: Text('Send a test notification now', style: TextStyle(color: hintColor, fontSize: 12)),
-              onTap: () async {
-                await NotificationService.testNotification();
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Test notification sent!'), backgroundColor: Colors.green),
-                  );
-                }
-              },
-            ),
-          ),
-          const SizedBox(height: 16),
           Consumer(builder: (ctx, ref, _) {
             final themeMode = ref.watch(themeModeProvider);
             final icon = themeMode == ThemeMode.light ? Icons.light_mode_rounded : (themeMode == ThemeMode.dark ? Icons.dark_mode_rounded : Icons.settings_brightness_rounded);

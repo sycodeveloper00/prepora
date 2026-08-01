@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:open_filex/open_filex.dart';
 
 class AutoDownloadsScreen extends StatefulWidget {
   const AutoDownloadsScreen({super.key});
@@ -217,7 +217,17 @@ class _AutoDownloadsScreenState extends State<AutoDownloadsScreen> {
                                 ],
                                 onSelected: (val) async {
                                   if (val == 'open') {
-                                    await OpenFilex.open(entry.file.path);
+                                    final path = entry.file.path;
+                                    final ext = path.split('.').last.toLowerCase();
+                                    if (['pdf'].contains(ext)) {
+                                      if (mounted) context.push('/pdf_reader/view', extra: {'url': path});
+                                    } else if (['jpg', 'jpeg', 'png', 'gif', 'webp'].contains(ext)) {
+                                      if (mounted) context.push('/image_viewer', extra: {'url': path, 'title': entry.name});
+                                    } else if (['mp4', 'avi', 'mkv', 'mov'].contains(ext)) {
+                                      if (mounted) context.push('/media_player', extra: {'url': path, 'title': entry.name, 'isAudio': false});
+                                    } else if (['mp3', 'wav', 'aac', 'ogg'].contains(ext)) {
+                                      if (mounted) context.push('/media_player', extra: {'url': path, 'title': entry.name, 'isAudio': true});
+                                    }
                                   } else if (val == 'delete') {
                                     _deleteFile(entry.file);
                                   }
