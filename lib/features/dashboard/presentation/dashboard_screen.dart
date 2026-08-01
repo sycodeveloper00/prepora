@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -9,7 +8,6 @@ import '../../../core/widgets/glassmorphic_container.dart';
 import '../../../core/widgets/animated_pressable.dart';
 import '../../../core/services/firebase_service.dart';
 import '../../../core/services/widget_service.dart';
-import '../../../core/theme/theme_provider.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/widgets/notification_bell_box.dart';
 import '../../../core/widgets/professional_loader.dart';
@@ -96,13 +94,19 @@ class _DashboardScreenState extends State<DashboardScreen>
   void _checkStatus() async {
     final uid = FirebaseService.currentUser?.uid;
     if (uid == null) return;
-    final blocked = await FirebaseService.isStudentBlocked(uid);
-    final settings = await FirebaseService.getSettings();
+    final results = await Future.wait([
+      FirebaseService.isStudentBlocked(uid),
+      FirebaseService.getSettings(),
+      FirebaseService.getUser(uid),
+    ]);
+    final blocked = results[0] as bool;
+    final settings = results[1] as Map<String, dynamic>;
     final paidAccess = settings['paidAccess'] as bool? ?? false;
     final verified = paidAccess ? await FirebaseService.isStudentVerified(uid) : true;
     final user = FirebaseService.currentUser;
-    final userDoc = await FirebaseService.getUser(uid);
+    final userDoc = results[2] as dynamic;
     final createdAt = (userDoc?.data() as Map<String, dynamic>?)?['createdAt'] as Timestamp?;
+    final streakData = await FirebaseService.getStreak(uid);
     if (mounted) setState(() {
       _isBlocked = blocked;
       _isVerified = verified;
@@ -112,15 +116,10 @@ class _DashboardScreenState extends State<DashboardScreen>
       _accountNo = settings['accountNo'] as String? ?? '';
       _bankName = settings['bankName'] as String? ?? '';
       _userName = user?.displayName ?? '';
-      _userEmail = user?.email ?? '';
       _userCreatedAt = createdAt?.toDate() ?? DateTime(2020);
-      _rebuildNotificationStream();
-    });
-    // Load streak
-    final streakData = await FirebaseService.getStreak(uid);
-    if (mounted) setState(() {
       _streakCount = streakData['streakCount'] as int? ?? 0;
       _totalActiveDays = streakData['totalActiveDays'] as int? ?? 0;
+      _rebuildNotificationStream();
     });
     WidgetService.updateStreakWidget(_streakCount, _totalActiveDays);
   }
@@ -801,10 +800,20 @@ class _DashboardScreenState extends State<DashboardScreen>
     final q = query.toLowerCase();
     final results = <_SearchResult>[];
     final foldersSnap = await FirebaseService.firestore.collection('folders').get();
-    for (final folderDoc in foldersSnap.docs) {
-      final folderData = folderDoc.data() as Map<String, dynamic>;
-      if (folderData['invisible'] == true) continue;
-      if (folderData['locked'] == true || folderData['updating'] == true) continue;
+    final visibleFolders = foldersSnap.docs.where((d) {
+      final data = d.data();
+      return data['invisible'] != true && data['locked'] != true && data['updating'] != true;
+    }).toList();
+    final contentsFutures = visibleFolders.map((folderDoc) async {
+      final contentsSnap = await FirebaseService.firestore
+          .collection('folders').doc(folderDoc.id)
+          .collection('contents').get();
+      return MapEntry(folderDoc, contentsSnap);
+    }).toList();
+    final contentsResults = await Future.wait(contentsFutures);
+    for (final entry in contentsResults) {
+      final folderDoc = entry.key;
+      final folderData = folderDoc.data();
       final folderName = folderData['name'] as String? ?? '';
       final folderId = folderDoc.id;
       if (folderName.toLowerCase().contains(q)) {
@@ -812,15 +821,12 @@ class _DashboardScreenState extends State<DashboardScreen>
           title: folderName, folderId: folderId, isFolder: true,
         ));
       }
-      final contentsSnap = await FirebaseService.firestore
-          .collection('folders').doc(folderId)
-          .collection('contents').get();
       final contentMap = <String, Map<String, dynamic>>{};
-      for (final cd in contentsSnap.docs) {
+      for (final cd in entry.value.docs) {
         contentMap[cd.id] = cd.data();
       }
-      for (final contentDoc in contentsSnap.docs) {
-        final contentData = contentDoc.data() as Map<String, dynamic>;
+      for (final contentDoc in entry.value.docs) {
+        final contentData = contentDoc.data();
         final contentName = contentData['name'] as String? ?? contentData['title'] as String? ?? '';
         if (contentName.toLowerCase().contains(q)) {
           if (contentData['invisible'] == true) continue;
@@ -930,108 +936,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  void _showSettings() {
-    final user = FirebaseService.currentUser;
-    final userName = user?.displayName ?? _userName;
-    final userEmail = user?.email ?? _userEmail;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final baseColor = isDark ? Colors.white : Colors.black87;
-    final mutedColor = isDark ? Colors.white70 : Colors.black54;
-    final dimColor = isDark ? Colors.white38 : Colors.black45;
-    final bgColor = isDark ? const Color(0xFF1A0533) : Colors.white;
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: bgColor,
-      shape: RoundedRectangleBorder(borderRadius: const BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (ctx) => StatefulBuilder(      builder: (ctx, setLocal) {
-        final container = ProviderScope.containerOf(context);
-        final themeMode = container.read(themeModeProvider.notifier);
-        ThemeMode currentTheme = container.read(themeModeProvider);
-        return Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              Icon(Icons.settings_outlined, color: mutedColor, size: 22),
-              const SizedBox(width: 10),
-              Text('Settings', style: TextStyle(color: baseColor, fontSize: 18, fontWeight: FontWeight.bold)),
-            ]),
-            const SizedBox(height: 12),
-            ListTile(
-              leading: CircleAvatar(child: Text(userName.isNotEmpty ? userName[0].toUpperCase() : '?', style: const TextStyle(color: Colors.white))),
-              title: Text(userName, style: TextStyle(color: baseColor, fontWeight: FontWeight.bold)),
-              subtitle: Text(userEmail, style: TextStyle(color: dimColor, fontSize: 12)),
-            ),
-            Divider(color: isDark ? Colors.white12 : Colors.black12),
-            ListTile(
-              leading: Icon(currentTheme == ThemeMode.light ? Icons.light_mode_rounded : (currentTheme == ThemeMode.dark ? Icons.dark_mode_rounded : Icons.settings_brightness_rounded), color: Colors.amber),
-              title: Text('Theme', style: TextStyle(color: baseColor)),
-              subtitle: Text(currentTheme == ThemeMode.light ? 'Light' : (currentTheme == ThemeMode.dark ? 'Dark' : 'System'), style: TextStyle(color: dimColor, fontSize: 12)),
-              trailing: Icon(Icons.chevron_right, color: dimColor, size: 18),
-              onTap: () {
-                Navigator.pop(ctx);
-                _showThemeDialog(context);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.notifications_rounded, color: Colors.blue),
-              title: Text('Notifications', style: TextStyle(color: baseColor)),
-              subtitle: Text('Daily streak reminders', style: TextStyle(color: dimColor, fontSize: 12)),
-              onTap: () => Navigator.pop(context),
-            ),
-            ListTile(
-              leading: const Icon(Icons.support_agent_rounded, color: Colors.orange),
-              title: Text('Contact Support', style: TextStyle(color: baseColor)),
-              subtitle: Text('Need help? Get in touch', style: TextStyle(color: dimColor, fontSize: 12)),
-              onTap: () { Navigator.pop(context); context.push('/student/feedbacks'); },
-            ),
-            ListTile(
-              leading: const Icon(Icons.info_outline_rounded, color: Colors.grey),
-              title: Text('Version', style: TextStyle(color: baseColor)),
-              subtitle: Text('PrePora v1.0.0', style: TextStyle(color: dimColor, fontSize: 12)),
-            ),
-            const SizedBox(height: 8),
-          ]),
-        );
-      }),
-    );
-  }
-
-  void _showThemeDialog(BuildContext context) {
-    final container = ProviderScope.containerOf(context);
-    final themeMode = container.read(themeModeProvider.notifier);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final baseColor = isDark ? Colors.white : Colors.black87;
-    final dimColor = isDark ? Colors.white38 : Colors.black54;
-    final bgColor = isDark ? const Color(0xFF1A0533) : Colors.white;
-    showDialog(
-      context: context,
-      builder: (d) => AlertDialog(
-        backgroundColor: bgColor,
-        title: Text('Choose Theme', style: TextStyle(color: baseColor)),
-        content: Column(mainAxisSize: MainAxisSize.min, children: [
-          ListTile(
-            leading: const Icon(Icons.light_mode_rounded, color: Colors.amber),
-            title: Text('Light', style: TextStyle(color: baseColor)),
-            onTap: () { themeMode.set(ThemeMode.light); Navigator.pop(d); },
-          ),
-          ListTile(
-            leading: const Icon(Icons.dark_mode_rounded, color: Colors.blueGrey),
-            title: Text('Dark', style: TextStyle(color: baseColor)),
-            onTap: () { themeMode.set(ThemeMode.dark); Navigator.pop(d); },
-          ),
-          ListTile(
-            leading: const Icon(Icons.settings_brightness_rounded, color: Colors.teal),
-            title: Text('System', style: TextStyle(color: baseColor)),
-            subtitle: Text('Follow device theme', style: TextStyle(color: dimColor, fontSize: 11)),
-            onTap: () { themeMode.set(ThemeMode.system); Navigator.pop(d); },
-          ),
-        ]),
-      ),
-    );
-  }
-
   Widget _buildBlockedScreen(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       backgroundColor: const Color(0xFF0D001A),
       appBar: _buildAppBar(context, showFullMenu: false),
@@ -1105,7 +1010,6 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   String _userName = '';
-  String _userEmail = '';
 
   Widget _buildPaymentBanner() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -1292,7 +1196,6 @@ class _DashboardScreenState extends State<DashboardScreen>
   void _showFeedbackWithPaymentDialog(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final baseColor = isDark ? Colors.white : Colors.black87;
-    final dimColor = isDark ? Colors.white38 : Colors.black54;
     final labelColor = isDark ? Colors.white38 : Colors.black54;
     final fillColor = isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.04);
     final bgColor = isDark ? const Color(0xFF1A0533) : Colors.white;
@@ -1456,8 +1359,8 @@ class _DashboardScreenState extends State<DashboardScreen>
             StatefulBuilder(builder: (ctx, setBtn) {
               bool sending = false;
               return ElevatedButton(
+                // ignore: dead_code
                 onPressed: sending ? null : () async {
-                  if (sending) return;
                   setBtn(() => sending = true);
                   final missing = <String>[];
                   if (nameCtrl.text.trim().isEmpty) missing.add('Name');
@@ -1516,8 +1419,8 @@ class _DashboardScreenState extends State<DashboardScreen>
           StatefulBuilder(builder: (ctx, setBtn) {
             bool sending = false;
             return ElevatedButton(
+              // ignore: dead_code
               onPressed: sending ? null : () async {
-                if (sending) return;
                 if (ctrl.text.trim().isEmpty) return;
                 setBtn(() => sending = true);
                 await FirebaseService.submitFeedback(ctrl.text.trim());
@@ -1606,39 +1509,6 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  void _rateApp(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF1A0533) : Colors.white;
-    final baseColor = isDark ? Colors.white : Colors.black87;
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: bgColor,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(children: [
-          Icon(Icons.star_rounded, color: Colors.amber, size: 24),
-          SizedBox(width: 10),
-          Text('Rate PrePora', style: TextStyle(fontWeight: FontWeight.bold)),
-        ]),
-        content: Text('Love using PrePora? Your rating helps us improve and reach more students!', style: TextStyle(color: baseColor.withValues(alpha: 0.8))),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Not Now', style: TextStyle(color: Colors.grey))),
-          ElevatedButton.icon(
-            icon: const Icon(Icons.star_rounded, color: Colors.white, size: 18),
-            label: const Text('Rate on Play Store'),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.amber.shade700, foregroundColor: Colors.white),
-            onPressed: () async {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Play Store link will open when published', style: TextStyle(color: Colors.white))),
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _bannerLine(String text, IconData icon, Color iconColor, double fontSize) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final baseColor = isDark ? Colors.white : Colors.black87;
@@ -1706,7 +1576,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     });
     FirebaseService.firestore.collection('app_updates').orderBy('createdAt', descending: true).limit(1).snapshots().listen((snap) {
       if (!mounted || snap.docs.isEmpty) return;
-      final d = snap.docs.first.data() as Map<String, dynamic>;
+      final d = snap.docs.first.data();
       final version = d['version'] as String?;
       final link = d['link'] as String?;
       if (version != null && version.isNotEmpty && version != _currentAppVersion) {

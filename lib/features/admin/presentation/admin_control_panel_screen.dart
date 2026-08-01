@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 import '../../../core/services/firebase_service.dart';
-import '../../../core/theme/theme_provider.dart';
 import '../../../core/utils.dart';
 import '../../../core/widgets/professional_loader.dart';
 import '../../student/presentation/student_progress_screen.dart';
@@ -31,24 +28,23 @@ class _AdminControlPanelScreenState extends State<AdminControlPanelScreen> {
   }
 
   Future<void> _load() async {
-    final settings = await FirebaseService.getSettings();
-    if (mounted) setState(() {
-      _price = (settings['price'] as num?)?.toDouble() ?? 0;
-      _paidAccess = settings['paidAccess'] as bool? ?? false;
-      _accountTitle = settings['accountTitle'] as String? ?? '';
-      _accountNo = settings['accountNo'] as String? ?? '';
-      _bankName = settings['bankName'] as String? ?? '';
-      _loading = false;
-    });
+    try {
+      final settings = await FirebaseService.getSettings();
+      if (mounted) setState(() {
+        _price = (settings['price'] as num?)?.toDouble() ?? 0;
+        _paidAccess = settings['paidAccess'] as bool? ?? false;
+        _accountTitle = settings['accountTitle'] as String? ?? '';
+        _accountNo = settings['accountNo'] as String? ?? '';
+        _bankName = settings['bankName'] as String? ?? '';
+        _loading = false;
+      });
+    } catch (e) {
+      if (mounted) setState(() { _loading = false; });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : const Color(0xFF1A0533);
-    final dimColor = isDark ? Colors.white38 : Colors.black54;
-    final cardColor = isDark ? const Color(0xFF1E1E1E) : const Color(0xFFFFFFFF);
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Control Panel', style: TextStyle(fontWeight: FontWeight.bold)),

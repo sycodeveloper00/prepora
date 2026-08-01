@@ -23,6 +23,7 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
   StreamSubscription? _historySub;
 
   static const int _maxWebSessions = 3;
+  DateTime? _lastScanTime;
 
   @override
   void initState() {
@@ -148,6 +149,9 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
 
   void _onQRDetected(BarcodeCapture capture) {
     if (!_showScanner || _isConnecting) return;
+    final now = DateTime.now();
+    if (_lastScanTime != null && now.difference(_lastScanTime!).inSeconds < 2) return;
+    _lastScanTime = now;
     final barcode = capture.barcodes.firstOrNull;
     if (barcode == null || barcode.rawValue == null) return;
     final raw = barcode.rawValue!;

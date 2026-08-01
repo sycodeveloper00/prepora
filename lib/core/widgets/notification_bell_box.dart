@@ -34,6 +34,19 @@ class _NotificationBellBoxState extends State<NotificationBellBox> {
       });
   }
 
+  @override
+  void didUpdateWidget(covariant NotificationBellBox oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.docs != oldWidget.docs) {
+      _docs = List.from(widget.docs)
+        ..sort((a, b) {
+          final aTime = (a.data() as Map<String, dynamic>)['createdAt'] as Timestamp?;
+          final bTime = (b.data() as Map<String, dynamic>)['createdAt'] as Timestamp?;
+          return (bTime?.toDate() ?? DateTime(0)).compareTo(aTime?.toDate() ?? DateTime(0));
+        });
+    }
+  }
+
   String _timeAgo(DateTime dt) {
     final diff = DateTime.now().difference(dt);
     if (diff.inMinutes < 1) return 'Just now';

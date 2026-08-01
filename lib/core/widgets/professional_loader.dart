@@ -147,7 +147,7 @@ class _CompassPainter extends CustomPainter {
       ..style = PaintingStyle.fill;
     canvas.drawCircle(Offset(cx, cy), radius * 0.06, dotPaint);
 
-    final needleAngle = rotation * 2 * math.pi;
+    final needleAngle = rotation;
     final needleLength = radius * 0.55;
 
     final northPaint = Paint()

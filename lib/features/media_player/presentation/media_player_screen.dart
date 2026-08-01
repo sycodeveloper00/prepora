@@ -114,10 +114,6 @@ class _MediaPlayerScreenState extends State<MediaPlayerScreen> {
                 child: LayoutBuilder(
                   builder: (context, constraints) {
                     final maxHeight = constraints.maxHeight;
-                    final videoHeight = widget.isAudio ? 120.0
-                        : (_controller != null && _controller!.value.size.height > 0)
-                            ? (constraints.maxWidth / _controller!.value.aspectRatio)
-                            : 200.0;
                     return SingleChildScrollView(
                       child: ConstrainedBox(
                         constraints: BoxConstraints(minHeight: maxHeight),

@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
@@ -9,9 +8,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_storage/firebase_storage.dart' as fb_storage;
-import 'package:supabase_flutter/supabase_flutter.dart' hide AuthenticatedClient;
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
 import 'package:device_info_plus/device_info_plus.dart';
@@ -83,7 +81,7 @@ class FirebaseService {
       );
       if (cred.user != null) {
         final userDoc = await firestore.collection('users').doc(cred.user!.uid).get();
-        final userData = userDoc.data() as Map<String, dynamic>?;
+        final userData = userDoc.data();
         final userRole = userData?['role'] as String?;
         if (userData?['blocked'] == true) {
           if (userRole == 'admin' || userRole == 'Assistant') {
@@ -143,7 +141,7 @@ class FirebaseService {
     final user = fb_auth.FirebaseAuth.instance.currentUser;
     if (user != null) {
       final userDoc = await firestore.collection('users').doc(user.uid).get();
-      final role = (userDoc.data() as Map<String, dynamic>?)?['role'] as String?;
+      final role = userDoc.data()?['role'] as String?;
       final label = role == 'admin' ? 'Admin' : (role == 'Assistant' ? 'Assistant' : 'Student');
       await addAdminNotification('logout', '$label logged out: ${user.email}', relatedUid: user.uid);
     }
@@ -200,7 +198,7 @@ class FirebaseService {
   static Future<String> getUserDisplayName(String uid) async {
     try {
       final doc = await firestore.collection('users').doc(uid).get();
-      return (doc.data() as Map<String, dynamic>?)?['name'] as String? ?? 'User';
+      return doc.data()?['name'] as String? ?? 'User';
     } catch (_) {
       return 'User';
     }
@@ -209,7 +207,7 @@ class FirebaseService {
   static Future<bool> isStudentBlocked(String uid) async {
     try {
       final doc = await firestore.collection('users').doc(uid).get();
-      return (doc.data() as Map<String, dynamic>?)?['blocked'] == true;
+      return doc.data()?['blocked'] == true;
     } catch (_) {
       return false;
     }
@@ -218,7 +216,7 @@ class FirebaseService {
   static Future<bool> isStudentVerified(String uid) async {
     try {
       final doc = await firestore.collection('users').doc(uid).get();
-      return (doc.data() as Map<String, dynamic>?)?['verified'] == true;
+      return doc.data()?['verified'] == true;
     } catch (_) {
       return false;
     }
@@ -228,7 +226,7 @@ class FirebaseService {
     await firestore.collection('users').doc(uid).update({'blocked': blocked});
     if (blocked) {
       final snap = await firestore.collection('users').doc(uid).get();
-      final email = (snap.data() as Map<String, dynamic>?)?['email'] as String? ?? uid;
+      final email = snap.data()?['email'] as String? ?? uid;
       await addAdminNotification('blocked', 'Student account blocked: $email', relatedUid: uid);
     }
   }
@@ -391,7 +389,7 @@ class FirebaseService {
     if (parentContentId != null && parentContentId != 'root') {
       final contentDoc = await firestore.collection('folders').doc(folderId).collection('contents').doc(parentContentId).get();
       if (contentDoc.exists) {
-        final data = contentDoc.data() as Map<String, dynamic>?;
+        final data = contentDoc.data();
         final link = data?['group_link'] as String?;
         final inherit = data?['inherit_group'] as bool? ?? true;
         if (link != null && link.isNotEmpty) return link;
@@ -400,7 +398,7 @@ class FirebaseService {
     }
     final folderDoc = await firestore.collection('folders').doc(folderId).get();
     if (folderDoc.exists) {
-      final data = folderDoc.data() as Map<String, dynamic>?;
+      final data = folderDoc.data();
       final link = data?['group_link'] as String?;
       if (link != null && link.isNotEmpty) return link;
     }
@@ -412,7 +410,7 @@ class FirebaseService {
     if (folderData == null) return null;
     Map<String, dynamic> data;
     if (folderData is DocumentSnapshot) {
-      data = folderData.data() as Map<String, dynamic>? ?? {};
+      data = (folderData.data() as Map<String, dynamic>?) ?? {};
     } else {
       data = folderData as Map<String, dynamic>;
     }
@@ -448,7 +446,7 @@ class FirebaseService {
   static Future<void> removeGroupLink(String folderId, {String? parentContentId}) async {
     if (parentContentId != null && parentContentId != 'root') {
       final doc = await firestore.collection('folders').doc(folderId).collection('contents').doc(parentContentId).get();
-      final inherit = (doc.data() as Map<String, dynamic>?)?['inherit_group'] as bool? ?? true;
+      final inherit = doc.data()?['inherit_group'] as bool? ?? true;
       await firestore.collection('folders').doc(folderId).collection('contents').doc(parentContentId).update({
         'group_link': null,
         'inherit_group': true,
@@ -458,7 +456,7 @@ class FirebaseService {
       }
     } else {
       final folderDoc = await firestore.collection('folders').doc(folderId).get();
-      final inherit = (folderDoc.data() as Map<String, dynamic>?)?['inherit_group'] as bool? ?? true;
+      final inherit = folderDoc.data()?['inherit_group'] as bool? ?? true;
       await firestore.collection('folders').doc(folderId).update({
         'group_link': null,
         'inherit_group': true,
@@ -543,7 +541,7 @@ class FirebaseService {
   static Future<void> deleteFolderContent(String folderId, String contentId) async {
     final contentDoc = await firestore.collection('folders').doc(folderId).collection('contents').doc(contentId).get();
     if (contentDoc.exists) {
-      final data = contentDoc.data() as Map<String, dynamic>?;
+      final data = contentDoc.data();
       if (data != null && data['type'] == 'subfolder') {
         await _deleteSubfolderChildrenRecursive(folderId, contentId, 'contents');
         await _deleteSubfolderChildrenRecursive(folderId, contentId, 'content');
@@ -557,7 +555,7 @@ class FirebaseService {
     final snap = await firestore.collection('folders').doc(folderId)
         .collection(subcollection).where('parentContentId', isEqualTo: parentContentId).get();
     for (final doc in snap.docs) {
-      final data = doc.data() as Map<String, dynamic>;
+      final data = doc.data();
       if (data['type'] == 'subfolder') {
         await _deleteSubfolderChildrenRecursive(folderId, doc.id, subcollection);
       }
@@ -693,8 +691,9 @@ class FirebaseService {
   // ─── Login Tracking & Auto-Block ──────────────────────────────────────────────
 
   static Future<void> _trackLogin(String uid, String deviceId) async {
+    if (kIsWeb) return;
     final userDoc = await firestore.collection('users').doc(uid).get();
-    final role = (userDoc.data() as Map<String, dynamic>?)?['role'] as String?;
+    final role = userDoc.data()?['role'] as String?;
     if (role == 'admin' || role == 'Assistant') return;
     final now = DateTime.now();
     final yesterday = now.subtract(const Duration(hours: 24));
@@ -707,23 +706,22 @@ class FirebaseService {
       } else if (Platform.isIOS) {
         final iosInfo = await deviceInfo.iosInfo;
         deviceModel = '${iosInfo.model} (iOS ${iosInfo.systemVersion})';
-      } else if (Platform.isWindows) {
-        final windowsInfo = await deviceInfo.windowsInfo;
-        deviceModel = 'Windows ${windowsInfo.buildNumber}';
-      } else if (Platform.isMacOS) {
-        final macInfo = await deviceInfo.macOsInfo;
-        deviceModel = 'macOS ${macInfo.osRelease}';
-      } else if (Platform.isLinux) {
-        final linuxInfo = await deviceInfo.linuxInfo;
-        deviceModel = 'Linux ${linuxInfo.name}';
-      } else {
-        deviceModel = 'Web Browser';
       }
     } catch (_) {}
+    final staleQuery = await firestore.collection('login_attempts')
+        .where('uid', isEqualTo: uid)
+        .get();
+    for (final doc in staleQuery.docs) {
+      final ts = (doc.data()['timestamp'] as String?) ?? '';
+      if (ts.compareTo(yesterday.toIso8601String()) < 0) {
+        await doc.reference.delete();
+      }
+    }
     await firestore.collection('login_attempts').add({
       'uid': uid,
       'deviceId': deviceId,
       'deviceModel': deviceModel,
+      'platform': 'mobile',
       'timestamp': now.toIso8601String(),
     });
     final all = await firestore.collection('login_attempts')
@@ -738,7 +736,7 @@ class FirebaseService {
     final isMultiDevice = uniqueDevices.length >= 2;
     final shouldBlock = isMultiDevice && totalAttempts >= 3;
     if (!shouldBlock) return;
-    final userData = userDoc.data() as Map<String, dynamic>?;
+    final userData = userDoc.data();
     if (userData?['verified'] != true) {
       await addAdminNotification('registration', 'Account not verified: ${userData?['email'] ?? uid}', relatedUid: uid);
     } else {
@@ -794,7 +792,7 @@ class FirebaseService {
     try {
       final doc = await firestore.collection('folders').doc(folderId).collection('contents').doc(contentId).get();
       if (!doc.exists) return false;
-      final data = doc.data() as Map<String, dynamic>?;
+      final data = doc.data();
       if (data == null) return false;
       final locked = data['locked'] as bool? ?? false;
       final invisible = data['invisible'] as bool? ?? false;
@@ -818,7 +816,7 @@ class FirebaseService {
     if (folderId != null) {
       final folderDoc = await firestore.collection('folders').doc(folderId).get();
       if (folderDoc.exists) {
-        final folderData = folderDoc.data() as Map<String, dynamic>?;
+        final folderData = folderDoc.data();
         if (folderData != null) {
           final folderLocked = folderData['locked'] as bool? ?? false;
           final folderInvisible = folderData['invisible'] as bool? ?? false;

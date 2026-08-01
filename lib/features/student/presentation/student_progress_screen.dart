@@ -19,7 +19,6 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
   bool _isBlocked = true;
   String _email = '';
   String _studentName = '';
-  String _gender = '';
   List<Map<String, dynamic>> _feedbacks = [];
   bool _loadingUser = true;
 
@@ -54,28 +53,31 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
       if (mounted) setState(() => _loadingUser = false);
       return;
     }
-    final results = await Future.wait([
-      FirebaseService.getUserData(uid),
-      FirebaseService.getStudentFeedbacks(uid),
-      FirebaseService.getStreak(uid),
-    ]);
-    final userData = results[0] as Map<String, dynamic>?;
-    final feedbacks = results[1] as List<Map<String, dynamic>>;
-    final streak = results[2] as Map<String, dynamic>;
-    if (mounted) {
-      setState(() {
-        _isVerified = userData?['verified'] == true;
-        _isBlocked = userData?['blocked'] == true;
-        _email = userData?['email'] as String? ?? '';
-        _studentName = userData?['name'] as String? ?? '';
-        _gender = userData?['gender'] as String? ?? '';
-        _feedbacks = feedbacks;
-        _streakCount = streak['streakCount'] as int? ?? 0;
-        _totalActiveDays = streak['totalActiveDays'] as int? ?? 0;
-        _lastActiveDate = streak['lastActiveDate'] as String? ?? '';
-        _streakBest = userData?['streakBest'] as int? ?? _streakCount;
-        _loadingUser = false;
-      });
+    try {
+      final results = await Future.wait([
+        FirebaseService.getUserData(uid),
+        FirebaseService.getStudentFeedbacks(uid),
+        FirebaseService.getStreak(uid),
+      ]);
+      final userData = results[0] as Map<String, dynamic>?;
+      final feedbacks = results[1] as List<Map<String, dynamic>>;
+      final streak = results[2] as Map<String, dynamic>;
+      if (mounted) {
+        setState(() {
+          _isVerified = userData?['verified'] == true;
+          _isBlocked = userData?['blocked'] == true;
+          _email = userData?['email'] as String? ?? '';
+          _studentName = userData?['name'] as String? ?? '';
+          _feedbacks = feedbacks;
+          _streakCount = streak['streakCount'] as int? ?? 0;
+          _totalActiveDays = streak['totalActiveDays'] as int? ?? 0;
+          _lastActiveDate = streak['lastActiveDate'] as String? ?? '';
+          _streakBest = userData?['streakBest'] as int? ?? _streakCount;
+          _loadingUser = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _loadingUser = false);
     }
   }
 

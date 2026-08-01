@@ -33,6 +33,8 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
   String? _error;
   String? _fileName;
   bool _accessGranted = false;
+  double _downloadProgress = 0;
+  String _loadingMessage = 'Loading PDF...';
   static const _pdfChannel = MethodChannel('com.prepora.academy.prepora/pdf_intent');
 
   // Annotation state
@@ -108,28 +110,61 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
       _fileName = rawName.replaceAll(RegExp(r'[%&+:?/#\\]'), '_');
 
       if (url.startsWith('http://') || url.startsWith('https://')) {
-        final dir = await getTemporaryDirectory();
+        final dir = await getApplicationDocumentsDirectory();
+        final cacheDir = Directory('${dir.path}/pdf_cache');
+        if (!await cacheDir.exists()) await cacheDir.create(recursive: true);
         final safeName = _fileName!.replaceAll(RegExp(r'[^\w\.\-]'), '_');
-        final localFile = File('${dir.path}/$safeName');
-        if (!await localFile.exists()) {
-          final response = await http.get(Uri.parse(url));
-          if (response.statusCode == 200) {
-            await localFile.writeAsBytes(response.bodyBytes);
-          } else {
-            setState(() { _error = 'Failed to download PDF'; _isLoading = false; });
-            return;
-          }
+        final localFile = File('${cacheDir.path}/$safeName');
+
+        if (await localFile.exists() && await localFile.length() > 0) {
+          if (mounted) setState(() { _localPath = localFile.path; _isLoading = false; });
+          return;
         }
-        if (!mounted) return;
-        if (await localFile.exists()) {
-          setState(() { _localPath = localFile.path; _isLoading = false; });
-        } else {
-          setState(() { _error = 'Downloaded file not found'; _isLoading = false; });
+
+        if (mounted) setState(() { _loadingMessage = 'Connecting...'; _downloadProgress = 0; });
+
+        final client = http.Client();
+        try {
+          final request = http.Request('GET', Uri.parse(url));
+          request.headers['Connection'] = 'keep-alive';
+          final response = await client.send(request).timeout(const Duration(seconds: 30));
+
+          if (response.statusCode == 200) {
+            final contentLength = response.contentLength;
+            final sink = localFile.openWrite();
+            int received = 0;
+
+            await for (final chunk in response.stream) {
+              sink.add(chunk);
+              received += chunk.length;
+              if (mounted) {
+                final progress = contentLength != null && contentLength > 0
+                    ? (received / contentLength).clamp(0.0, 1.0)
+                    : 0.0;
+                final kb = (received / 1024).toStringAsFixed(0);
+                final totalKb = contentLength != null ? (contentLength / 1024).toStringAsFixed(0) : '?';
+                setState(() {
+                  _downloadProgress = progress;
+                  _loadingMessage = 'Downloading... ${kb}KB / ${totalKb}KB';
+                });
+              }
+            }
+            await sink.close();
+
+            if (mounted) setState(() { _loadingMessage = 'Opening PDF...'; _downloadProgress = 1.0; });
+            if (mounted) setState(() { _localPath = localFile.path; _isLoading = false; });
+          } else {
+            if (mounted) setState(() { _error = 'Failed to download PDF (${response.statusCode})'; _isLoading = false; });
+          }
+        } finally {
+          client.close();
         }
       } else if (url.startsWith('content://')) {
-        final dir = await getTemporaryDirectory();
+        final dir = await getApplicationDocumentsDirectory();
+        final cacheDir = Directory('${dir.path}/pdf_cache');
+        if (!await cacheDir.exists()) await cacheDir.create(recursive: true);
         final safeName = _fileName!.replaceAll(RegExp(r'[^\w\.\-]'), '_');
-        final localFile = File('${dir.path}/$safeName');
+        final localFile = File('${cacheDir.path}/$safeName');
         try {
           final uri = Uri.parse(url);
           final bytes = await _readContentUri(uri);
@@ -153,7 +188,7 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
     } on SocketException catch (_) {
       setState(() { _error = 'No Internet Connection'; _isLoading = false; });
     } on TimeoutException catch (_) {
-      setState(() { _error = 'No Internet Connection'; _isLoading = false; });
+      setState(() { _error = 'Connection timed out'; _isLoading = false; });
     } catch (e) {
       final msg = e.toString().toLowerCase();
       if (msg.contains('socket') || msg.contains('host lookup') || msg.contains('connection refused') || msg.contains('network')) {
@@ -493,7 +528,50 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
           // PDF Viewer
           Expanded(
             child: _isLoading
-                ? Center(child: ProfessionalLoader())
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ProfessionalLoader(),
+                        const SizedBox(height: 20),
+                        if (_downloadProgress > 0 && _downloadProgress < 1.0) ...[
+                          SizedBox(
+                            width: 200,
+                            child: Column(
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(4),
+                                  child: LinearProgressIndicator(
+                                    value: _downloadProgress,
+                                    backgroundColor: isDark ? Colors.white12 : Colors.black12,
+                                    valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF4A148C)),
+                                    minHeight: 6,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  '${(_downloadProgress * 100).round()}%',
+                                  style: TextStyle(
+                                    color: isDark ? Colors.white70 : Colors.black54,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 12),
+                        Text(
+                          _loadingMessage,
+                          style: TextStyle(
+                            color: isDark ? Colors.white54 : Colors.black45,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
                 : _error != null
                     ? Center(
                         child: Padding(

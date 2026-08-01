@@ -95,7 +95,7 @@ class _AppWebViewScreenState extends State<AppWebViewScreen> {
           if (!kIsWeb && _controller != null && !widget.isMockTest) ...[
             IconButton(
               icon: Icon(Icons.refresh_rounded, size: 18, color: isDark ? Colors.white70 : Colors.black54),
-              onPressed: () => _controller!.reload(),
+              onPressed: () => _controller.reload(),
               tooltip: 'Refresh',
             ),
             IconButton(
@@ -167,7 +167,7 @@ class _AppWebViewScreenState extends State<AppWebViewScreen> {
     if (_controller == null) return const Center(child: ProfessionalLoader());
     return Stack(
       children: [
-        WebViewWidget(controller: _controller!),
+        WebViewWidget(controller: _controller),
         if (_isLoading)
           const Center(child: ProfessionalLoader()),
       ],

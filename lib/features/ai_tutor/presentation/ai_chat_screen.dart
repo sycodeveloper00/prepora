@@ -155,7 +155,7 @@ class _AiChatScreenState extends State<AiChatScreen> with SingleTickerProviderSt
         _messages.removeWhere((m) => m.text.isEmpty && !m.isUser);
         setState(() {
           _loadingError = '\u26A0\uFE0F Connection lost. Tap to retry.';
-          _isLoading = true;
+          _isLoading = false;
         });
       }
     }
@@ -172,7 +172,6 @@ class _AiChatScreenState extends State<AiChatScreen> with SingleTickerProviderSt
 
   void _retryLastMessage() {
     if (_failedText != null && _loadingError != null) {
-      _messages.removeWhere((m) => m.isError);
       setState(() {
         _loadingError = null;
         _isLoading = false;
@@ -292,6 +291,7 @@ class _AiChatScreenState extends State<AiChatScreen> with SingleTickerProviderSt
   }
 
   Future<void> _loadSession(String sessionId) async {
+    _isPendingResume = false;
     final uid = FirebaseService.currentUser?.uid;
     if (uid == null) return;
     final snap = await FirebaseService.firestore
@@ -616,39 +616,9 @@ class _AiChatScreenState extends State<AiChatScreen> with SingleTickerProviderSt
 
   Widget _buildMessage(_Message msg, bool isDark, {bool isStreaming = false}) {
     final isUser = msg.isUser;
-    final isError = msg.isError;
 
     Widget bubble;
-    if (isError) {
-      bubble = Align(
-        alignment: Alignment.centerLeft,
-        child: GestureDetector(
-          onTap: _failedText != null ? _retryLastMessage : null,
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            decoration: BoxDecoration(
-              color: Colors.red.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.refresh_rounded, color: Colors.redAccent, size: 18),
-                const SizedBox(width: 8),
-                Flexible(
-                  child: Text(
-                    msg.text,
-                    style: const TextStyle(color: Colors.redAccent, fontSize: 13, height: 1.5),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    } else {
+    {
       final timeStr = '${msg.timestamp.hour.toString().padLeft(2, '0')}:${msg.timestamp.minute.toString().padLeft(2, '0')}';
       final maxBubbleWidth = MediaQuery.of(context).size.width - 32;
       bubble = Align(
@@ -679,7 +649,7 @@ class _AiChatScreenState extends State<AiChatScreen> with SingleTickerProviderSt
                 Text(
                   msg.text,
                   style: TextStyle(
-                    color: msg.isError ? Colors.redAccent : Colors.white,
+                    color: Colors.white,
                     fontSize: 14,
                     height: 1.5,
                     fontFamilyFallback: const ['Noto Nastaliq Urdu'],
@@ -860,9 +830,8 @@ class _AiChatScreenState extends State<AiChatScreen> with SingleTickerProviderSt
 class _Message {
   String text;
   final bool isUser;
-  final bool isError;
   final DateTime timestamp;
-  _Message({required this.text, required this.isUser, this.isError = false, DateTime? timestamp})
+  _Message({required this.text, required this.isUser, DateTime? timestamp})
       : timestamp = timestamp ?? DateTime.now();
 }
 

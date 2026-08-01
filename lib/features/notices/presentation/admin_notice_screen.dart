@@ -4,12 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:http/http.dart' as http;
 import '../../../core/services/firebase_service.dart';
 import '../../../core/utils.dart';
 import '../../../core/widgets/professional_loader.dart';
@@ -271,7 +269,23 @@ class _AdminNoticeScreenState extends State<AdminNoticeScreen> {
                                 icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 20),
                                 padding: EdgeInsets.zero,
                                 constraints: const BoxConstraints(),
-                                onPressed: () => FirebaseService.firestore.collection('notices').doc(doc.id).delete(),
+                                onPressed: () async {
+                                  final confirm = await showDialog<bool>(
+                                    context: context,
+                                    builder: (d) => AlertDialog(
+                                      backgroundColor: listDark ? const Color(0xFF1A0533) : Colors.white,
+                                      title: Text('Delete Notice?', style: TextStyle(color: listDark ? Colors.white : Colors.black87)),
+                                      content: Text('Are you sure you want to delete this notice?', style: TextStyle(color: listDark ? Colors.white70 : Colors.black54)),
+                                      actions: [
+                                        TextButton(onPressed: () => Navigator.pop(d, false), child: Text('Cancel', style: TextStyle(color: listDark ? Colors.white70 : Colors.black54))),
+                                        ElevatedButton(onPressed: () => Navigator.pop(d, true), style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent), child: const Text('Delete', style: TextStyle(color: Colors.white))),
+                                      ],
+                                    ),
+                                  );
+                                  if (confirm == true) {
+                                    await FirebaseService.firestore.collection('notices').doc(doc.id).delete();
+                                  }
+                                },
                               ),
                             ]),
                           ],
@@ -292,7 +306,23 @@ class _AdminNoticeScreenState extends State<AdminNoticeScreen> {
                         subtitle: Text(timeStr, style: TextStyle(color: listDark ? Colors.white38 : Colors.black54, fontSize: 12)),
                         trailing: IconButton(
                           icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
-                          onPressed: () => FirebaseService.firestore.collection('notices').doc(doc.id).delete(),
+                          onPressed: () async {
+                            final confirm = await showDialog<bool>(
+                              context: context,
+                              builder: (d) => AlertDialog(
+                                backgroundColor: listDark ? const Color(0xFF1A0533) : Colors.white,
+                                title: Text('Delete Notice?', style: TextStyle(color: listDark ? Colors.white : Colors.black87)),
+                                content: Text('Are you sure you want to delete "$title"?', style: TextStyle(color: listDark ? Colors.white70 : Colors.black54)),
+                                actions: [
+                                  TextButton(onPressed: () => Navigator.pop(d, false), child: Text('Cancel', style: TextStyle(color: listDark ? Colors.white70 : Colors.black54))),
+                                  ElevatedButton(onPressed: () => Navigator.pop(d, true), style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent), child: const Text('Delete', style: TextStyle(color: Colors.white))),
+                                ],
+                              ),
+                            );
+                            if (confirm == true) {
+                              await FirebaseService.firestore.collection('notices').doc(doc.id).delete();
+                            }
+                          },
                         ),
                         onTap: () => _openFile(data),
                       ),
@@ -355,7 +385,7 @@ class _AdminNoticeScreenState extends State<AdminNoticeScreen> {
         final bytes = await File(path).readAsBytes();
         if (bytes.length > maxSize) {
           if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('${file.name} too large (${(bytes.length / 1024 / 1024).toStringAsFixed(1)}MB). Max: 10MB'), backgroundColor: Colors.redAccent),
+            SnackBar(content: Text('${file.name} too large (${(bytes.length / 1024 / 1024).toStringAsFixed(1)}MB). Max: 50MB'), backgroundColor: Colors.redAccent),
           );
           continue;
         }
@@ -375,23 +405,6 @@ class _AdminNoticeScreenState extends State<AdminNoticeScreen> {
       if (mounted && count > 0) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$count notice(s) added!'), backgroundColor: Colors.green));
       }
-    }
-  }
-
-  String _mimeForExt(String ext) {
-    switch (ext) {
-      case 'png': return 'image/png';
-      case 'jpg': case 'jpeg': return 'image/jpeg';
-      case 'gif': return 'image/gif';
-      case 'webp': return 'image/webp';
-      case 'pdf': return 'application/pdf';
-      case 'doc': case 'docx': return 'application/msword';
-      case 'xls': case 'xlsx': case 'csv': return 'application/vnd.ms-excel';
-      case 'ppt': case 'pptx': return 'application/vnd.ms-powerpoint';
-      case 'mp4': return 'video/mp4';
-      case 'mp3': return 'audio/mpeg';
-      case 'zip': return 'application/zip';
-      default: return 'application/octet-stream';
     }
   }
 
@@ -423,9 +436,23 @@ class _AdminNoticeScreenState extends State<AdminNoticeScreen> {
             ListTile(
               leading: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
               title: const Text('Delete', style: TextStyle(color: Colors.redAccent)),
-              onTap: () {
+              onTap: () async {
                 Navigator.pop(context);
-                FirebaseService.firestore.collection('notices').doc(docId).delete();
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (d) => AlertDialog(
+                    backgroundColor: isDark ? const Color(0xFF1A0533) : Colors.white,
+                    title: Text('Delete Notice?', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
+                    content: Text('Are you sure you want to delete "$currentTitle"?', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(d, false), child: Text('Cancel', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54))),
+                      ElevatedButton(onPressed: () => Navigator.pop(d, true), style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent), child: const Text('Delete', style: TextStyle(color: Colors.white))),
+                    ],
+                  ),
+                );
+                if (confirm == true) {
+                  await FirebaseService.firestore.collection('notices').doc(docId).delete();
+                }
               },
             ),
           ],

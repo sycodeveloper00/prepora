@@ -18,7 +18,6 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObserver {
   bool _autoDownload = true;
   bool _notificationsEnabled = true;
-  bool _loading = true;
 
   @override
   void initState() {
@@ -44,16 +43,23 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
   }
 
   Future<void> _load() async {
-    _autoDownload = await FirebaseService.getUserAutoDownload();
-    if (!kIsWeb) {
-      final enabled = await FlutterLocalNotificationsPlugin()
-          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-          ?.areNotificationsEnabled();
-      _notificationsEnabled = enabled ?? true;
+    try {
+      _autoDownload = await FirebaseService.getUserAutoDownload();
+      if (!kIsWeb) {
+        final enabled = await FlutterLocalNotificationsPlugin()
+            .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+            ?.areNotificationsEnabled();
+        _notificationsEnabled = enabled ?? true;
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load settings: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
+    } finally {
+      if (mounted) setState(() {});
     }
-    if (mounted) setState(() {
-      _loading = false;
-    });
   }
 
   @override
@@ -204,9 +210,9 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
               ListTile(
                 leading: const Icon(Icons.logout_rounded, color: Colors.redAccent),
                 title: const Text('Logout', style: TextStyle(color: Colors.redAccent)),
-                onTap: () {
-                  FirebaseService.signOut();
-                  context.go('/auth/login');
+                onTap: () async {
+                  await FirebaseService.signOut();
+                  if (mounted) context.go('/auth/login');
                 },
               ),
             ]),

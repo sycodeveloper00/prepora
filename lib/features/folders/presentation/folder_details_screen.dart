@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
@@ -104,11 +103,16 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
   void _checkStatus() async {
     final uid = FirebaseService.currentUser?.uid;
     if (uid != null) {
-      final blocked = await FirebaseService.isStudentBlocked(uid);
-      final settings = await FirebaseService.getSettings();
+      final results = await Future.wait([
+        FirebaseService.isStudentBlocked(uid),
+        FirebaseService.getSettings(),
+        FirebaseService.getUserAutoDownload(),
+      ]);
+      final blocked = results[0] as bool;
+      final settings = results[1] as Map<String, dynamic>;
       final paidAccess = settings['paidAccess'] as bool? ?? false;
       final verified = paidAccess ? await FirebaseService.isStudentVerified(uid) : true;
-      final autoDownload = await FirebaseService.getUserAutoDownload();
+      final autoDownload = results[2] as bool;
       if (mounted) setState(() {
         _isBlocked = blocked;
         _isVerified = verified;
@@ -866,42 +870,6 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
     );
   }
 
-  void _showContentOptions(String contentId, String contentName, String type, bool locked, Map<String, dynamic> data) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final baseColor = isDark ? Colors.white : Colors.black87;
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: isDark ? const Color(0xFF1A0533) : Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(contentName, style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 20),
-            ListTile(
-              leading: const Icon(Icons.drive_file_rename_outline_rounded, color: Colors.blue),
-              title: Text('Rename', style: TextStyle(color: baseColor)),
-              onTap: () { Navigator.pop(context); _showRenameContentDialog(contentId, contentName); },
-            ),
-            ListTile(
-              leading: const Icon(Icons.edit_rounded, color: Colors.green),
-              title: Text('Edit', style: TextStyle(color: baseColor)),
-              onTap: () { Navigator.pop(context); _showEditContentDialog(contentId, contentName, type, data); },
-            ),
-            ListTile(
-              leading: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
-              title: const Text('Delete', style: TextStyle(color: Colors.redAccent)),
-              onTap: () { Navigator.pop(context); _confirmDeleteContent(contentId, contentName, data); },
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
-  }
-
   bool _isDisabled(Map<String, dynamic> data, String contentId) {
     final locked = data['locked'] as bool? ?? false;
     final updating = data['updating'] as bool? ?? false;
@@ -1157,11 +1125,21 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
       if (!await cacheDir.exists()) await cacheDir.create(recursive: true);
       final safeName = name.replaceAll(RegExp(r'[^\w\.\-]'), '_');
       final file = File('${cacheDir.path}/$safeName');
-      if (await file.exists()) return file;
-      final response = await http.get(Uri.parse(url));
-      if (response.statusCode == 200) {
-        await file.writeAsBytes(response.bodyBytes);
-        return file;
+      if (await file.exists() && await file.length() > 0) return file;
+      final client = http.Client();
+      try {
+        final request = http.Request('GET', Uri.parse(url));
+        final response = await client.send(request).timeout(const Duration(seconds: 60));
+        if (response.statusCode == 200) {
+          final sink = file.openWrite();
+          await for (final chunk in response.stream) {
+            sink.add(chunk);
+          }
+          await sink.close();
+          return file;
+        }
+      } finally {
+        client.close();
       }
     } catch (_) {}
     return null;
@@ -2250,12 +2228,12 @@ class _GroupLinkDialogState extends State<GroupLinkDialog> {
       if (mounted) {
         _linkCtrl.text = link ?? '';
       }
-      if (widget.parentContentId != null && widget.parentContentId != 'root') {
+      if (widget.parentContentId != 'root') {
         final doc = await FirebaseService.firestore
             .collection('folders').doc(widget.folderId)
             .collection('contents').doc(widget.parentContentId).get();
         if (doc.exists) {
-          final data = doc.data() as Map<String, dynamic>?;
+          final data = doc.data();
           final inherit = data?['inherit_group'] as bool?;
           if (inherit != null) {
             _inheritGroup = inherit;
@@ -2264,7 +2242,7 @@ class _GroupLinkDialogState extends State<GroupLinkDialog> {
       } else {
         final folderDoc = await FirebaseService.firestore.collection('folders').doc(widget.folderId).get();
         if (folderDoc.exists) {
-          final data = folderDoc.data() as Map<String, dynamic>?;
+          final data = folderDoc.data();
           final inherit = data?['inherit_group'] as bool?;
           if (inherit != null) {
             _inheritGroup = inherit;

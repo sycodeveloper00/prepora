@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import 'package:go_router/go_router.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/services/firebase_service.dart';
 import '../../notepad/presentation/notepad_view.dart';
@@ -29,8 +28,6 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   double _dragStartY = 0;
   double _dragStartHeight = 0;
 
-  // Cache the folder future to prevent blinking
-  Future<DocumentSnapshot>? _folderFuture;
   Future<String?>? _groupLinkFuture;
 
   @override
@@ -46,7 +43,6 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       ),
     );
     if (widget.folderId != null) {
-      _folderFuture = FirebaseService.firestore.collection('folders').doc(widget.folderId).get();
       _groupLinkFuture = FirebaseService.getGroupLinkForLevel(widget.folderId!, parentContentId: widget.parentContentId);
     }
     _controller.setFullScreenListener(_onFullScreenChange);

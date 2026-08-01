@@ -21,7 +21,7 @@ class NotificationService {
     if (kIsWeb) return;
     try {
       tz_data.initializeTimeZones();
-      const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+      const androidSettings = AndroidInitializationSettings('@drawable/ic_notification');
       const iosSettings = DarwinInitializationSettings();
       await _plugin.initialize(settings: const InitializationSettings(android: androidSettings, iOS: iosSettings));
       final androidPlugin = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
@@ -96,6 +96,18 @@ class NotificationService {
     if (kIsWeb) return;
     try {
       await _plugin.cancel(id: _dailyStreakNotificationId);
+      final user = FirebaseService.currentUser;
+      if (user == null) return;
+      final doc = await FirebaseService.firestore.collection('users').doc(user.uid).get();
+      if (!doc.exists) return;
+      final userData = doc.data();
+      final lastLogin = (userData?['lastLogin'] as Timestamp?)?.toDate();
+      if (lastLogin != null) {
+        final now = DateTime.now();
+        final today = DateTime(now.year, now.month, now.day);
+        final lastLoginDay = DateTime(lastLogin.year, lastLogin.month, lastLogin.day);
+        if (today.difference(lastLoginDay).inHours < 12) return;
+      }
       final now = tz.TZDateTime.now(tz.local);
       var scheduledDate = tz.TZDateTime(tz.local, now.year, now.month, now.day, 9, 0, 0);
       if (scheduledDate.isBefore(now)) {
@@ -106,13 +118,13 @@ class NotificationService {
         channelDescription: 'Daily streak reminders',
         importance: Importance.high,
         priority: Priority.high,
-        icon: '@mipmap/ic_launcher',
+        icon: '@drawable/ic_notification',
       );
       const details = NotificationDetails(android: androidDetails, iOS: DarwinNotificationDetails());
       await _plugin.zonedSchedule(
         id: _dailyStreakNotificationId,
-        title: 'Don\'t break your streak!',
-        body: 'Open PrePora today and keep learning. Your streak is waiting for you!',
+        title: 'Time to study!',
+        body: 'Your learning journey is waiting. Open PrePora and continue where you left off.',
         scheduledDate: scheduledDate,
         notificationDetails: details,
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
@@ -140,7 +152,7 @@ class NotificationService {
         .listen((snap) async {
       int unreadCount = 0;
       for (final doc in snap.docs) {
-        final data = doc.data() as Map<String, dynamic>;
+        final data = doc.data();
         if (data['read'] != true) unreadCount++;
       }
       await setBadgeCount(unreadCount);
@@ -168,7 +180,7 @@ class NotificationService {
       channelDescription: 'Notifications from admin',
       importance: Importance.high,
       priority: Priority.high,
-      icon: '@mipmap/ic_launcher',
+      icon: '@drawable/ic_notification',
     );
     const details = NotificationDetails(android: androidDetails, iOS: DarwinNotificationDetails());
     await _plugin.show(
@@ -191,7 +203,7 @@ class NotificationService {
         .listen((snap) async {
       int unreadCount = 0;
       for (final doc in snap.docs) {
-        final data = doc.data() as Map<String, dynamic>;
+        final data = doc.data();
         if (data['read'] != true) unreadCount++;
       }
       await setBadgeCount(unreadCount);
@@ -225,7 +237,7 @@ class NotificationService {
       channelDescription: 'Student activity notifications',
       importance: Importance.high,
       priority: Priority.high,
-      icon: '@mipmap/ic_launcher',
+      icon: '@drawable/ic_notification',
     );
     const details = NotificationDetails(android: androidDetails, iOS: DarwinNotificationDetails());
     await _plugin.show(
@@ -248,8 +260,14 @@ class NotificationService {
       if (!doc.exists) return;
 
       final userData = doc.data();
-      final lastLogin = (userData?['lastLogin'] as Timestamp?)?.toDate();
       final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+
+      final lastLogin = (userData?['lastLogin'] as Timestamp?)?.toDate();
+      final lastStreakNotified = (userData?['lastStreakNotified'] as Timestamp?)?.toDate();
+      final lastStreakDate = lastStreakNotified != null
+          ? DateTime(lastStreakNotified.year, lastStreakNotified.month, lastStreakNotified.day)
+          : null;
 
       await FirebaseService.firestore.collection('users').doc(user.uid).update({
         'lastLogin': Timestamp.fromDate(now),
@@ -257,16 +275,31 @@ class NotificationService {
 
       if (lastLogin == null) return;
 
-      final hoursSince = now.difference(lastLogin).inHours;
+      final lastLoginDate = DateTime(lastLogin.year, lastLogin.month, lastLogin.day);
+      final daysSinceLogin = today.difference(lastLoginDate).inDays;
+
+      if (daysSinceLogin < 1) return;
+      if (lastStreakDate != null && !lastStreakDate.isBefore(today)) return;
 
       final plugin = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
       final enabled = await plugin?.areNotificationsEnabled() ?? true;
+      if (!enabled) return;
 
-      if (hoursSince >= 72) {
-        if (enabled) await _showStreakNotification('Long time no see!', "I am frustrated, when will you come back? Your streak is waiting.");
-      } else if (hoursSince >= 24) {
-        if (enabled) await _showStreakNotification("Let's Come Back to Learn", "I am waiting for you. Waiting for your return, I am tired!");
+      if (daysSinceLogin >= 3) {
+        await _showStreakNotification(
+          'We miss you!',
+          'Your study streak needs you. Come back and keep learning!',
+        );
+      } else if (daysSinceLogin >= 1) {
+        await _showStreakNotification(
+          'Keep your streak alive!',
+          'Don\'t let your progress slip away. Open PrePora today!',
+        );
       }
+
+      await FirebaseService.firestore.collection('users').doc(user.uid).update({
+        'lastStreakNotified': Timestamp.fromDate(now),
+      });
     } catch (_) {}
   }
 
@@ -322,7 +355,7 @@ class NotificationService {
         channelDescription: 'Daily streak reminders',
         importance: Importance.high,
         priority: Priority.high,
-        icon: '@mipmap/ic_launcher',
+        icon: '@drawable/ic_notification',
       );
       const details = NotificationDetails(android: androidDetails, iOS: DarwinNotificationDetails());
       await _plugin.show(

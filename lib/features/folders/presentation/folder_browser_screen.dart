@@ -62,7 +62,7 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
       final folderSnap = await FirebaseService.firestore.collection('folders').get();
       final rootNodes = <BrowseNode>[];
       for (final doc in folderSnap.docs) {
-        final data = doc.data() as Map<String, dynamic>;
+        final data = doc.data();
         rootNodes.add(BrowseNode(
           id: doc.id,
           name: data['name'] as String? ?? 'Untitled',
@@ -74,9 +74,9 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
       rootNodes.sort((a, b) => a.name.compareTo(b.name));
       _rootFolders = rootNodes;
 
-      // 2. Batch load all sub-folders for each top-level folder
+      // 2. Batch load all sub-folders for each top-level folder in parallel
       _subFolderCache.clear();
-      for (final root in rootNodes) {
+      final subFutures = rootNodes.map((root) async {
         final snap = await FirebaseService.firestore
             .collection('folders').doc(root.id)
             .collection('contents')
@@ -84,7 +84,7 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
             .get();
         final byParent = <String?, List<BrowseNode>>{};
         for (final doc in snap.docs) {
-          final d = doc.data() as Map<String, dynamic>;
+          final d = doc.data();
           final parentId = d['parentContentId'] as String?;
           byParent.putIfAbsent(parentId, () => []);
           byParent[parentId]!.add(BrowseNode(
@@ -95,11 +95,14 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
             parentContentId: parentId,
           ));
         }
-        // Sort each list
         for (final key in byParent.keys) {
           byParent[key]!.sort((a, b) => a.name.compareTo(b.name));
         }
-        _subFolderCache[root.id] = byParent;
+        return MapEntry(root.id, byParent);
+      }).toList();
+      final subResults = await Future.wait(subFutures);
+      for (final entry in subResults) {
+        _subFolderCache[entry.key] = entry.value;
       }
 
       if (!mounted) return;
@@ -280,7 +283,7 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
           .get();
       final byParent = <String?, List<BrowseNode>>{};
       for (final doc in snap.docs) {
-        final d = doc.data() as Map<String, dynamic>;
+        final d = doc.data();
         final pid = d['parentContentId'] as String?;
         byParent.putIfAbsent(pid, () => []);
         byParent[pid]!.add(BrowseNode(

@@ -40,7 +40,8 @@ class _AssistantDashboardScreenState extends State<AssistantDashboardScreen> {
     final user = FirebaseService.currentUser;
     if (user != null) {
       final access = await FirebaseService.getContentAccess(user.uid);
-      if (mounted) setState(() { _contentAccess = access; _loadingAccess = false; });
+      if (!mounted) return;
+      setState(() { _contentAccess = access; _loadingAccess = false; });
     } else {
       setState(() => _loadingAccess = false);
     }
@@ -323,7 +324,7 @@ class _AssistantDashboardScreenState extends State<AssistantDashboardScreen> {
           contentMap[cd.id] = cd.data();
         }
         for (final contentDoc in contentSnap.docs) {
-          final contentData = contentDoc.data() as Map<String, dynamic>;
+          final contentData = contentDoc.data();
           if (contentData['invisible'] == true) continue;
           if (contentData['locked'] == true || contentData['updating'] == true) continue;
           final contentParentId = contentData['parentContentId'] as String?;

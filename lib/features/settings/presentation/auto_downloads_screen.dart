@@ -9,8 +9,16 @@ class AutoDownloadsScreen extends StatefulWidget {
   State<AutoDownloadsScreen> createState() => _AutoDownloadsScreenState();
 }
 
+class _FileEntry {
+  final File file;
+  final String name;
+  final String size;
+  final DateTime date;
+  _FileEntry(this.file, this.name, this.size, this.date);
+}
+
 class _AutoDownloadsScreenState extends State<AutoDownloadsScreen> {
-  List<File> _files = [];
+  List<_FileEntry> _files = [];
   bool _isLoading = true;
   String _totalSize = '';
 
@@ -29,16 +37,20 @@ class _AutoDownloadsScreenState extends State<AutoDownloadsScreen> {
         setState(() { _files = []; _isLoading = false; _totalSize = '0 KB'; });
         return;
       }
-      final files = cacheDir.listSync().whereType<File>().toList();
-      files.sort((a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()));
-
+      final rawFiles = (await cacheDir.list().toList()).whereType<File>().toList();
+      final entries = <_FileEntry>[];
       int totalBytes = 0;
-      for (final f in files) {
-        totalBytes += await f.length();
+      for (final f in rawFiles) {
+        final name = f.path.split(Platform.pathSeparator).last;
+        final sizeBytes = await f.length();
+        final date = await f.lastModified();
+        totalBytes += sizeBytes;
+        entries.add(_FileEntry(f, name, _formatSize(sizeBytes), date));
       }
+      entries.sort((a, b) => b.date.compareTo(a.date));
 
       setState(() {
-        _files = files;
+        _files = entries;
         _isLoading = false;
         _totalSize = _formatSize(totalBytes);
       });
@@ -165,10 +177,10 @@ class _AutoDownloadsScreenState extends State<AutoDownloadsScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         itemCount: _files.length,
                         itemBuilder: (context, index) {
-                          final file = _files[index];
-                          final name = file.path.split(Platform.pathSeparator).last;
-                          final size = _formatSize(file.lengthSync());
-                          final date = file.lastModifiedSync();
+                          final entry = _files[index];
+                          final name = entry.name;
+                          final size = entry.size;
+                          final date = entry.date;
                           final type = _getFileType(name);
                           final icon = _getFileIcon(name);
                           final color = _getFileColor(name);
@@ -205,9 +217,9 @@ class _AutoDownloadsScreenState extends State<AutoDownloadsScreen> {
                                 ],
                                 onSelected: (val) async {
                                   if (val == 'open') {
-                                    await OpenFilex.open(file.path);
+                                    await OpenFilex.open(entry.file.path);
                                   } else if (val == 'delete') {
-                                    _deleteFile(file);
+                                    _deleteFile(entry.file);
                                   }
                                 },
                               ),

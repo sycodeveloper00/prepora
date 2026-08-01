@@ -102,6 +102,7 @@ class _AppLifecycleState extends State<_AppLifecycle> with WidgetsBindingObserve
       SessionManager.pause();
     } else if (state == AppLifecycleState.resumed) {
       SessionManager.resume();
+      NotificationService.clearBadge();
     }
   }
 

@@ -108,7 +108,6 @@ class WebScraperService {
   }
 
   static String _extractSearchQuery(String text) {
-    final lower = text.toLowerCase();
     final patterns = [
       RegExp(r'(?:search youtube|find youtube|youtube search)\s+(?:for\s+)?(.+)', caseSensitive: false),
       RegExp(r'find\s+a\s+video\s+on\s+(.+)', caseSensitive: false),

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/services/firebase_service.dart';
-import '../../../core/utils.dart';
 import '../../../core/widgets/professional_loader.dart';
 
 class StudentFeedbackScreen extends StatefulWidget {
@@ -130,9 +129,13 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                 if (sending) return;
                 if (ctrl.text.trim().isEmpty) return;
                 setLocal(() => sending = true);
-                await FirebaseService.submitFeedback(ctrl.text.trim());
-                if (d.mounted) Navigator.pop(d);
-                _load();
+                try {
+                  await FirebaseService.submitFeedback(ctrl.text.trim());
+                  if (d.mounted) Navigator.pop(d);
+                  _load();
+                } catch (_) {
+                  if (d.mounted) setLocal(() => sending = false);
+                }
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF4A148C),
