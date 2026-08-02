@@ -1063,11 +1063,11 @@ class FirebaseService {
 
   static Future<bool> getUserAutoDownload() async {
     final uid = currentUser?.uid;
-    if (uid == null) return true;
+    if (uid == null) return false;
     final snap = await firestore.collection('users').doc(uid).get();
     final data = snap.data();
-    if (data == null || !data.containsKey('autoDownload')) return true;
-    return data['autoDownload'] as bool? ?? true;
+    if (data == null || !data.containsKey('autoDownload')) return false;
+    return data['autoDownload'] as bool? ?? false;
   }
 
   static Future<void> updateUserAutoDownload(bool value) async {
