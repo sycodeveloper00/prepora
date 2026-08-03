@@ -96,18 +96,6 @@ class NotificationService {
     if (kIsWeb) return;
     try {
       await _plugin.cancel(id: _dailyStreakNotificationId);
-      final user = FirebaseService.currentUser;
-      if (user == null) return;
-      final doc = await FirebaseService.firestore.collection('users').doc(user.uid).get();
-      if (!doc.exists) return;
-      final userData = doc.data();
-      final lastLogin = (userData?['lastLogin'] as Timestamp?)?.toDate();
-      if (lastLogin != null) {
-        final now = DateTime.now();
-        final today = DateTime(now.year, now.month, now.day);
-        final lastLoginDay = DateTime(lastLogin.year, lastLogin.month, lastLogin.day);
-        if (today.difference(lastLoginDay).inHours < 12) return;
-      }
       final now = tz.TZDateTime.now(tz.local);
       var scheduledDate = tz.TZDateTime(tz.local, now.year, now.month, now.day, 9, 0, 0);
       if (scheduledDate.isBefore(now)) {
@@ -269,9 +257,11 @@ class NotificationService {
           ? DateTime(lastStreakNotified.year, lastStreakNotified.month, lastStreakNotified.day)
           : null;
 
-      await FirebaseService.firestore.collection('users').doc(user.uid).update({
-        'lastLogin': Timestamp.fromDate(now),
-      });
+      try {
+        await FirebaseService.firestore.collection('users').doc(user.uid).update({
+          'lastLogin': Timestamp.fromDate(now),
+        });
+      } catch (_) {}
 
       if (lastLogin == null) return;
 
@@ -297,9 +287,11 @@ class NotificationService {
         );
       }
 
-      await FirebaseService.firestore.collection('users').doc(user.uid).update({
-        'lastStreakNotified': Timestamp.fromDate(now),
-      });
+      try {
+        await FirebaseService.firestore.collection('users').doc(user.uid).update({
+          'lastStreakNotified': Timestamp.fromDate(now),
+        });
+      } catch (_) {}
     } catch (_) {}
   }
 
