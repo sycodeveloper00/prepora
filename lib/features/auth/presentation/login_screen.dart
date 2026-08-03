@@ -42,6 +42,7 @@ class _LoginScreenState extends State<LoginScreen> {
         final role = await FirebaseService.getUserRole(uid);
         if (role != null) FirebaseService.cacheUserRole(uid, role);
         NotificationService.checkAndNotify();
+        await NotificationService.scheduleDailyStreakReminder();
         if (mounted) {
           if (kIsWeb && role != 'admin' && role != 'Assistant') {
             setState(() => _isLoading = false);
