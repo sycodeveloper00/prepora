@@ -189,7 +189,7 @@ class AiService {
           'Please check your internet connection and try again.';
 
     } catch (e) {
-      return '❌ Connection Error: $e\n\nPlease check your internet connection and try again.';
+      return '❌ No internet connection. Please check your network and try again.';
     }
   }
 
@@ -623,7 +623,7 @@ class AiService {
     } on TimeoutException catch (_) {
       yield '\n\n⚠️ The AI server is not responding (timeout). Please try again in a few moments.';
     } catch (e) {
-      yield '\n\n❌ Connection Error\n\nPlease check your internet connection and try again.\n\nDetails: $e';
+      yield '\n\n❌ No internet connection. Please check your network and try again.';
     } finally {
       client?.close();
     }
