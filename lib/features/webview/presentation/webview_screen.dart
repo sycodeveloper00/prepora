@@ -10,6 +10,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:open_filex/open_filex.dart';
 import 'webview_stub.dart'
     if (dart.library.html) 'webview_web.dart';
+import '../../../core/helpers/katex_injector.dart';
 import '../../../core/services/firebase_service.dart';
 import '../../../core/widgets/professional_loader.dart';
 
@@ -55,7 +56,7 @@ class _AppWebViewScreenState extends State<AppWebViewScreen> {
         ));
 
       if (widget.html != null && widget.html!.isNotEmpty) {
-        _controller!.loadHtmlString(widget.html!);
+        _controller!.loadHtmlString(KaTeXInjector.inject(widget.html!));
       } else if (widget.url != null && widget.url!.isNotEmpty) {
         _currentUrl = widget.url!;
         _controller!.loadRequest(Uri.parse(widget.url!));
