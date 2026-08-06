@@ -805,9 +805,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
           try {
             final storageName = '${DateTime.now().millisecondsSinceEpoch}_${file.name}';
             final ref = FirebaseService.storage.ref('folder_files/$storageName');
-            await ref.putData(bytes, metadata: SettableMetadata(contentDisposition: 'inline; filename="${file.name}"'), onProgress: (p) {
-              if (mounted) setState(() => _uploadProgress[file.name] = p);
-            });
+            await ref.putData(bytes, metadata: SettableMetadata(contentDisposition: 'inline; filename="${file.name}"'));
             if (mounted) setState(() => _uploadProgress.remove(file.name));
 
             final downloadUrl = await ref.getDownloadURL();
