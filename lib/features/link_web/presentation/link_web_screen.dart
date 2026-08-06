@@ -201,7 +201,7 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
       final deviceModel = _getDeviceModel();
       final deviceId = _getDeviceId();
 
-      await sessionDoc.update({
+      await sessionDoc.set({
         'uid': user.uid,
         'userName': userData?['name'] ?? user.displayName ?? 'Student',
         'userEmail': userData?['email'] ?? user.email ?? '',
@@ -212,7 +212,7 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
         'deviceInfo': 'Mobile App',
         'androidDeviceModel': deviceModel,
         'androidDeviceId': deviceId,
-      });
+      }, SetOptions(merge: true));
 
       setState(() {
         _isConnecting = false;
@@ -226,7 +226,10 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
         );
       }
     } catch (e) {
-      _showError('Connection failed. Please try again.');
+      final msg = e.toString().contains('permission-denied')
+          ? 'Permission denied. Check Firestore rules for web_sessions.'
+          : 'Connection failed: ${e.toString().length > 80 ? e.toString().substring(0, 80) : e}';
+      _showError(msg);
       setState(() { _isConnecting = false; _showScanner = true; });
       _scannerController?.start();
     }
