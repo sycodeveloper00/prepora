@@ -84,8 +84,8 @@ class _AppLifecycleState extends State<_AppLifecycle> with WidgetsBindingObserve
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await NotificationService.initialize();
       await NotificationService.requestNotificationPermission();
-      await NotificationService.checkAndNotify();
       await NotificationService.scheduleDailyStreakReminder();
+      await NotificationService.checkAndNotify();
       _startSessionIfAdminOrAssistant();
     });
   }

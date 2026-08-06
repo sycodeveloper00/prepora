@@ -313,7 +313,7 @@ class NotificationService {
   static Future<void> _showStreakNotification(String title, String body) async {
     if (kIsWeb) return;
     const androidDetails = AndroidNotificationDetails('streak_channel', 'Daily Streak',
-      channelDescription: 'Daily streak reminders', importance: Importance.high, priority: Priority.high);
+ channelDescription: 'Daily streak reminders', importance: Importance.high, priority: Priority.high, icon: '@drawable/ic_notification');
     const details = NotificationDetails(android: androidDetails, iOS: DarwinNotificationDetails());
     await _plugin.show(id: DateTime.now().millisecondsSinceEpoch ~/ 1000, title: title, body: body, notificationDetails: details);
   }
