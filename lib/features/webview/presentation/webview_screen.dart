@@ -59,7 +59,28 @@ class _AppWebViewScreenState extends State<AppWebViewScreen> {
         _controller!.loadHtmlString(KaTeXInjector.inject(widget.html!));
       } else if (widget.url != null && widget.url!.isNotEmpty) {
         _currentUrl = widget.url!;
-        _controller!.loadRequest(Uri.parse(widget.url!));
+        final urlLower = widget.url!.toLowerCase();
+        if (urlLower.endsWith('.html') || urlLower.endsWith('.htm')) {
+          _fetchAndInjectHtml(widget.url!);
+        } else {
+          _controller!.loadRequest(Uri.parse(widget.url!));
+        }
+      }
+    }
+  }
+
+  Future<void> _fetchAndInjectHtml(String url) async {
+    try {
+      final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 30));
+      if (response.statusCode == 200 && mounted) {
+        final injected = KaTeXInjector.inject(response.body);
+        _controller!.loadHtmlString(injected);
+      } else if (mounted) {
+        _controller!.loadRequest(Uri.parse(url));
+      }
+    } catch (_) {
+      if (mounted) {
+        _controller!.loadRequest(Uri.parse(url));
       }
     }
   }
