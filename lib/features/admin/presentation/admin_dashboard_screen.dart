@@ -968,8 +968,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         Expanded(
           child: StreamBuilder<QuerySnapshot>(
             stream: _folderStream,
-            builder: (context, snapshot) {
+              builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) return Center(child: ProfessionalLoader());
+              if (snapshot.hasError) {
+                return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  Icon(Icons.error_outline_rounded, size: 60, color: Colors.redAccent.withValues(alpha: 0.6)),
+                  const SizedBox(height: 16),
+                  const Text('Something went wrong', style: TextStyle(color: Colors.white38, fontSize: 16)),
+                  const SizedBox(height: 8),
+                  const Text('Folders will reappear shortly', style: TextStyle(color: Colors.white24, fontSize: 13)),
+                ]));
+              }
               if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                 return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                   Icon(Icons.folder_open_rounded, size: 80, color: Colors.white12),

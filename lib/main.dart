@@ -98,25 +98,14 @@ class _AppLifecycleState extends State<_AppLifecycle> with WidgetsBindingObserve
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
-      SessionManager.pause();
-    } else if (state == AppLifecycleState.resumed) {
-      SessionManager.resume();
+    if (state == AppLifecycleState.resumed) {
       NotificationService.clearBadge();
     }
   }
 
   Future<void> _startSessionIfAdminOrAssistant() async {
-    final user = FirebaseService.currentUser;
-    if (user == null) return;
-    String? role = FirebaseService.cachedRole;
-    role ??= await FirebaseService.getUserRole(user.uid);
-    FirebaseService.cachedRole = role;
-    if (role == 'admin' || role == 'Assistant') {
-      SessionManager.start(onExpiredCallback: () async {
-        await FirebaseService.signOut();
-      });
-    }
+    // SessionManager is intentionally NOT started on Android.
+    // Firebase Auth persists by default — no auto-logout needed.
   }
 
   @override
@@ -130,17 +119,13 @@ class PrePoraApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final themeMode = ref.watch(themeModeProvider);
     return _AppLifecycle(
-      child: Listener(
-        onPointerDown: (_) => SessionManager.reset(),
-        onPointerMove: (_) => SessionManager.reset(),
-        child: MaterialApp.router(
-          title: 'PrePora',
-          debugShowCheckedModeBanner: false,
-          theme: AppTheme.lightTheme,
-          darkTheme: AppTheme.darkTheme,
-          themeMode: themeMode,
-          routerConfig: AppRouter.router,
-        ),
+      child: MaterialApp.router(
+        title: 'PrePora',
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.lightTheme,
+        darkTheme: AppTheme.darkTheme,
+        themeMode: themeMode,
+        routerConfig: AppRouter.router,
       ),
     );
   }

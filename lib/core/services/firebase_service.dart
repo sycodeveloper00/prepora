@@ -1501,7 +1501,8 @@ class _SupabaseStorageReference {
     await putData(bytes);
   }
 
-  Future<_SupabaseStorageReference> putData(Uint8List data, {fb_storage.SettableMetadata? metadata}) async {
+  Future<_SupabaseStorageReference> putData(Uint8List data, {fb_storage.SettableMetadata? metadata, void Function(double)? onProgress}) async {
+    onProgress?.call(0.0);
     final uri = Uri.parse('${FirebaseService.supabaseUrl}/storage/v1/object/$_bucket/$_objectPath');
     final request = http.MultipartRequest('POST', uri)
       ..headers['Authorization'] = 'Bearer ${FirebaseService.serviceRoleKey}'
@@ -1516,6 +1517,7 @@ class _SupabaseStorageReference {
         final body = await response.stream.bytesToString();
         throw Exception('Supabase upload failed ($fullPath): $body');
       }
+      onProgress?.call(1.0);
     } finally {
       client.close();
     }

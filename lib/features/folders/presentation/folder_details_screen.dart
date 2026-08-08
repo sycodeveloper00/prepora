@@ -529,6 +529,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
     try {
       final result = await FilePicker.platform.pickFiles(type: FileType.any, allowMultiple: true, withData: true);
       if (result != null && result.files.isNotEmpty) {
+        SessionManager.pause();
         int count = 0;
         for (final file in result.files) {
           final bytes = file.bytes ?? (!kIsWeb && file.path != null ? File(file.path!).readAsBytesSync() : null);
@@ -573,6 +574,8 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
       if (ctx.mounted) {
         ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.redAccent, duration: const Duration(seconds: 5)));
       }
+    } finally {
+      SessionManager.resume();
     }
   }
 
@@ -782,6 +785,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
         withData: true,
       );
       if (result != null && result.files.isNotEmpty) {
+        SessionManager.pause();
         int count = 0;
         for (final file in result.files) {
           final bytes = file.bytes ?? (file.path != null ? File(file.path!).readAsBytesSync() : null);
@@ -837,6 +841,8 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
       if (ctx.mounted) {
         ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Upload failed: $e'), backgroundColor: Colors.redAccent, duration: const Duration(seconds: 5)));
       }
+    } finally {
+      SessionManager.resume();
     }
   }
 
@@ -1111,18 +1117,9 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
           if (fileType == 'pdf') {
             context.push('/pdf_reader/view', extra: {'url': url, 'folderId': widget.folderId, 'parentContentId': widget.parentContentId});
           } else {
-            try {
-              final response = await http.get(Uri.parse(url));
-              if (response.statusCode == 200) {
-                final htmlContent = response.body;
-                if (context.mounted) {
-                  context.push('/webview', extra: {'html': htmlContent, 'title': name, 'folderId': widget.folderId, 'parentContentId': widget.parentContentId, 'isMockTest': true});
-                }
-              }
-            } catch (_) {
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to load mock test file'), backgroundColor: Colors.redAccent));
-              }
+            // Navigate immediately with URL — webview fetches content in background
+            if (context.mounted) {
+              context.push('/webview', extra: {'url': url, 'title': name, 'folderId': widget.folderId, 'parentContentId': widget.parentContentId, 'isMockTest': true});
             }
           }
         }
