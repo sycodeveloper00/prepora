@@ -6,7 +6,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import '../../../core/widgets/glassmorphic_container.dart';
@@ -547,13 +546,14 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
           if (mounted) setState(() => _uploadProgress[file.name] = 0);
 
           try {
-            final storageName = '${DateTime.now().millisecondsSinceEpoch}_${file.name}';
-            final ref = FirebaseService.storage.ref('folder_files/$storageName');
-            await ref.putData(bytes, metadata: SettableMetadata(contentDisposition: 'inline; filename="${file.name}"'));
+            final downloadUrl = await FirebaseService.uploadFile(bytes, file.name, onProgress: (p) {
+              if (mounted) setState(() => _uploadProgress[file.name] = p);
+            });
             if (mounted) setState(() => _uploadProgress.remove(file.name));
 
-            final downloadUrl = await ref.getDownloadURL();
-            final data = <String, dynamic>{'type': 'file', 'name': file.name, 'url': downloadUrl, 'source': 'supabase_storage'};
+            final provider = await FirebaseService.getStorageProvider();
+            final data = <String, dynamic>{'type': 'file', 'name': file.name, 'url': downloadUrl, 'source': 'storage', 'provider': provider};
+            if (provider == 'cloudinary') data['cloudAccount'] = await FirebaseService.getActiveCloudinaryAccountName();
             if (widget.parentContentId != null) data['parentContentId'] = widget.parentContentId!;
             final newId = await FirebaseService.addFolderContent(widget.folderId, data);
             if (newId != null && !widget.isAdmin) { _assistantAccess.add(newId); _pendingOptimistic.add(newId); }
@@ -803,19 +803,21 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
           if (mounted) setState(() => _uploadProgress[file.name] = 0);
 
           try {
-            final storageName = '${DateTime.now().millisecondsSinceEpoch}_${file.name}';
-            final ref = FirebaseService.storage.ref('folder_files/$storageName');
-            await ref.putData(bytes, metadata: SettableMetadata(contentDisposition: 'inline; filename="${file.name}"'));
+            final downloadUrl = await FirebaseService.uploadFile(bytes, file.name, onProgress: (p) {
+              if (mounted) setState(() => _uploadProgress[file.name] = p);
+            });
             if (mounted) setState(() => _uploadProgress.remove(file.name));
 
-            final downloadUrl = await ref.getDownloadURL();
+            final provider = await FirebaseService.getStorageProvider();
             final data = <String, dynamic>{
               'type': 'mocktest_file',
               'name': displayName,
               'url': downloadUrl,
               'fileType': fileType,
-              'source': 'supabase_storage',
+              'source': 'storage',
+              'provider': provider,
             };
+            if (provider == 'cloudinary') data['cloudAccount'] = await FirebaseService.getActiveCloudinaryAccountName();
             if (widget.parentContentId != null) data['parentContentId'] = widget.parentContentId!;
             final newId = await FirebaseService.addFolderContent(widget.folderId, data);
             if (newId != null && !widget.isAdmin) { _assistantAccess.add(newId); _pendingOptimistic.add(newId); }
@@ -1145,7 +1147,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
       final urlName = url.split('/').last.split('?').first.split('#').first;
       ext = urlName.contains('.') ? urlName.split('.').last.toLowerCase() : '';
     }
-    final displayTitle = name.replaceFirst(RegExp(r'^\d+_'), '');
+    final displayTitle = FirebaseService.cleanTitle(name);
 
     if (kIsWeb && source == 'internal_storage' && !url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('blob:')) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(

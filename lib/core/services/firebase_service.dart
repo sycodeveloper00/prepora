@@ -26,6 +26,14 @@ class FirebaseService {
   static const String supabaseUrl = 'https://zynfizrocesynbaguhtj.supabase.co';
   static const String serviceRoleKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp5bmZpenJvY2VzeW5iYWd1aHRqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MzY3MjkzOSwiZXhwIjoyMDk5MjQ4OTM5fQ.CdfQUkM_-O9lYZ8MIcJh8H1n_-SHIWUuwI8DE5HGdZU';
 
+  static String cleanTitle(String name) {
+    var cleaned = name.replaceFirst(RegExp(r'^\d+_'), '');
+    cleaned = cleaned.replaceFirst(RegExp(r'^\d{10,13}_'), '');
+    cleaned = cleaned.trim();
+    if (cleaned.isEmpty) cleaned = name;
+    return cleaned;
+  }
+
   /// Downloads a file from Supabase Storage using the REST API with service role auth.
   /// [bucketPath] format: "bucket_name/path/to/file"
   static Future<Uint8List> downloadSupabaseFile(String bucketPath) async {
@@ -286,9 +294,10 @@ class FirebaseService {
 
   static Future<Map<String, String>?> createAssistantAccount(String name) async {
     final sanitizedName = name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '').replaceAll(RegExp(r'\s+'), '');
-    final emailPrefix = sanitizedName.isNotEmpty ? sanitizedName : 'Assistant';
-    final displayEmail = '$emailPrefix@Assistant.prepora';
-    final password = 'Assistant123';
+    final emailPrefix = sanitizedName.isNotEmpty ? sanitizedName : 'assistant';
+    final displayEmail = '$emailPrefix@assistant.prepora';
+    final passwordName = name.replaceAll(RegExp(r'\s+'), '');
+    final password = '${passwordName[0].toUpperCase()}${passwordName.substring(1).toLowerCase()}123';
     try {
       final cred = await fb_auth.FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: displayEmail,
@@ -331,6 +340,272 @@ class FirebaseService {
 
   static Future<void> deleteFromSupabase(String bucket, String path) async {
     await supabase.storage.from(bucket).remove([path]);
+  }
+
+  // ─── Storage Provider Setting ──────────────────────────────────────────────────
+  static const String _storageProviderKey = 'storage_provider';
+  static String _cachedStorageProvider = 'supabase';
+
+  static Future<String> getStorageProvider() async {
+    try {
+      final settings = await getSettings();
+      final provider = settings[_storageProviderKey] as String?;
+      if (provider == 'cloudinary' || provider == 'supabase') {
+        _cachedStorageProvider = provider!;
+      }
+    } catch (_) {}
+    return _cachedStorageProvider;
+  }
+
+  static Future<void> setStorageProvider(String provider) async {
+    _cachedStorageProvider = provider;
+    await updateSetting(_storageProviderKey, provider);
+  }
+
+  // ─── Catbox Upload ────────────────────────────────────────────────────────────
+  static Future<String> uploadToCatbox(Uint8List bytes, String filename) async {
+    final uri = Uri.parse('https://catbox.moe/user/api.php');
+    final request = http.MultipartRequest('POST', uri);
+    request.fields['reqtype'] = 'fileupload';
+    request.fields['userhash'] = '';
+    request.files.add(http.MultipartFile.fromBytes('fileToUpload', bytes, filename: filename));
+
+    final client = http.Client();
+    try {
+      final streamed = await client.send(request).timeout(const Duration(minutes: 10));
+      final body = await streamed.stream.bytesToString();
+      if (streamed.statusCode != 200 || body.trim().isEmpty) {
+        throw Exception('Catbox upload failed: ${streamed.statusCode} $body');
+      }
+      final url = body.trim();
+      if (!url.startsWith('http')) {
+        throw Exception('Catbox returned invalid URL: $url');
+      }
+      return url;
+    } finally {
+      client.close();
+    }
+  }
+
+  // ─── Cloudinary Multi-Account Upload ─────────────────────────────────────────
+
+  static Future<List<Map<String, dynamic>>> getCloudinaryAccounts() async {
+    final snap = await firestore.collection('cloudinary_accounts').orderBy('createdAt', descending: false).get();
+    return snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
+  }
+
+  static Future<String> addCloudinaryAccount(String cloudName, String uploadPreset, {bool isActive = true}) async {
+    final doc = await firestore.collection('cloudinary_accounts').add({
+      'cloudName': cloudName.trim(),
+      'uploadPreset': uploadPreset.trim(),
+      'isActive': isActive,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+    if (isActive) {
+      final snap = await firestore.collection('cloudinary_accounts').get();
+      final batch = firestore.batch();
+      for (final d in snap.docs) {
+        if (d.id != doc.id) {
+          batch.update(d.reference, {'isActive': false});
+        }
+      }
+      await batch.commit();
+    }
+    return doc.id;
+  }
+
+  static Future<void> updateCloudinaryAccount(String id, {String? cloudName, String? uploadPreset, bool? isActive}) async {
+    if (isActive == true) {
+      final snap = await firestore.collection('cloudinary_accounts').get();
+      final batch = firestore.batch();
+      for (final doc in snap.docs) {
+        if (doc.id != id) {
+          batch.update(doc.reference, {'isActive': false});
+        } else {
+          batch.update(doc.reference, {'isActive': true});
+        }
+      }
+      await batch.commit();
+    } else if (isActive == false) {
+      await firestore.collection('cloudinary_accounts').doc(id).update({'isActive': false});
+    }
+    if (cloudName != null || uploadPreset != null) {
+      final data = <String, dynamic>{};
+      if (cloudName != null) data['cloudName'] = cloudName.trim();
+      if (uploadPreset != null) data['uploadPreset'] = uploadPreset.trim();
+      await firestore.collection('cloudinary_accounts').doc(id).update(data);
+    }
+  }
+
+  static Future<void> deleteCloudinaryAccount(String id) async {
+    await firestore.collection('cloudinary_accounts').doc(id).delete();
+  }
+
+  static Future<String> uploadToCloudinary(Uint8List bytes, String filename) async {
+    final accounts = await getCloudinaryAccounts();
+    final active = accounts.firstWhere((a) => a['isActive'] == true, orElse: () => {});
+
+    if (active.isEmpty) {
+      throw Exception('No active Cloudinary account. Go to Admin Settings → Storage Provider → Cloudinary → Add Account.');
+    }
+
+    final cloudName = active['cloudName'] as String;
+    final uploadPreset = active['uploadPreset'] as String;
+
+    final uri = Uri.parse('https://api.cloudinary.com/v1_1/$cloudName/raw/upload');
+    final request = http.MultipartRequest('POST', uri);
+    request.fields['upload_preset'] = uploadPreset;
+    request.fields['resource_type'] = 'raw';
+    request.files.add(http.MultipartFile.fromBytes('file', bytes, filename: filename));
+
+    final client = http.Client();
+    try {
+      final streamed = await client.send(request).timeout(const Duration(minutes: 15));
+      final body = await streamed.stream.bytesToString();
+      if (streamed.statusCode != 200) {
+        throw Exception('Cloudinary upload failed ($cloudName): ${streamed.statusCode} $body');
+      }
+      final decoded = jsonDecode(body) as Map<String, dynamic>;
+      final secureUrl = decoded['secure_url'] as String?;
+      if (secureUrl == null || secureUrl.isEmpty) {
+        throw Exception('No URL returned from Cloudinary ($cloudName)');
+      }
+      return secureUrl;
+    } finally {
+      client.close();
+    }
+  }
+
+  // ─── Assistant Cloudinary Accounts ───────────────────────────────────────────
+
+  static Future<List<Map<String, dynamic>>> getAssistantCloudinaryAccounts() async {
+    final snap = await firestore.collection('assistant_cloudinary').orderBy('createdAt', descending: false).get();
+    return snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
+  }
+
+  static Future<String> addAssistantCloudinaryAccount({
+    required String assistantUid,
+    required String assistantName,
+    required String cloudName,
+    required String uploadPreset,
+  }) async {
+    final doc = await firestore.collection('assistant_cloudinary').add({
+      'assistantUid': assistantUid,
+      'assistantName': assistantName,
+      'cloudName': cloudName.trim(),
+      'uploadPreset': uploadPreset.trim(),
+      'isActive': true,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+    final snap = await firestore.collection('assistant_cloudinary').where('assistantUid', isEqualTo: assistantUid).get();
+    final batch = firestore.batch();
+    for (final d in snap.docs) {
+      if (d.id != doc.id) {
+        batch.update(d.reference, {'isActive': false});
+      }
+    }
+    await batch.commit();
+    return doc.id;
+  }
+
+  static Future<void> updateAssistantCloudinaryAccount(String id, {String? cloudName, String? uploadPreset, bool? isActive}) async {
+    if (isActive == true) {
+      final docSnap = await firestore.collection('assistant_cloudinary').doc(id).get();
+      final assistantUid = (docSnap.data() as Map<String, dynamic>?)?['assistantUid'] as String?;
+      if (assistantUid != null) {
+        final snap = await firestore.collection('assistant_cloudinary').where('assistantUid', isEqualTo: assistantUid).get();
+        final batch = firestore.batch();
+        for (final doc in snap.docs) {
+          if (doc.id != id) {
+            batch.update(doc.reference, {'isActive': false});
+          } else {
+            batch.update(doc.reference, {'isActive': true});
+          }
+        }
+        await batch.commit();
+      }
+    } else if (isActive == false) {
+      await firestore.collection('assistant_cloudinary').doc(id).update({'isActive': false});
+    }
+    if (cloudName != null || uploadPreset != null) {
+      final data = <String, dynamic>{};
+      if (cloudName != null) data['cloudName'] = cloudName.trim();
+      if (uploadPreset != null) data['uploadPreset'] = uploadPreset.trim();
+      await firestore.collection('assistant_cloudinary').doc(id).update(data);
+    }
+  }
+
+  static Future<void> deleteAssistantCloudinaryAccount(String id) async {
+    await firestore.collection('assistant_cloudinary').doc(id).delete();
+  }
+
+  static Future<String> getActiveCloudinaryAccountName() async {
+    try {
+      final accounts = await getCloudinaryAccounts();
+      final active = accounts.firstWhere((a) => a['isActive'] == true, orElse: () => {});
+      if (active.isEmpty) return 'supabase';
+      return active['cloudName'] as String? ?? 'cloudinary';
+    } catch (_) {
+      return 'supabase';
+    }
+  }
+
+  static Future<String> _uploadToAssistantCloudinary(Uint8List bytes, String filename) async {
+    final user = currentUser;
+    if (user == null) throw Exception('No user logged in');
+    final assistantAccounts = await getAssistantCloudinaryAccounts();
+    final myAccounts = assistantAccounts.where((a) => a['assistantUid'] == user.uid).toList();
+    final active = myAccounts.isNotEmpty
+        ? myAccounts.firstWhere((a) => a['isActive'] == true, orElse: () => myAccounts.first)
+        : null;
+    if (active == null) {
+      return uploadToCloudinary(bytes, filename);
+    }
+    final cloudName = active['cloudName'] as String;
+    final uploadPreset = active['uploadPreset'] as String;
+    final uri = Uri.parse('https://api.cloudinary.com/v1_1/$cloudName/raw/upload');
+    final request = http.MultipartRequest('POST', uri);
+    request.fields['upload_preset'] = uploadPreset;
+    request.fields['resource_type'] = 'raw';
+    request.files.add(http.MultipartFile.fromBytes('file', bytes, filename: filename));
+    final client = http.Client();
+    try {
+      final streamed = await client.send(request).timeout(const Duration(minutes: 15));
+      final body = await streamed.stream.bytesToString();
+      if (streamed.statusCode != 200) {
+        throw Exception('Cloudinary upload failed ($cloudName): ${streamed.statusCode} $body');
+      }
+      final decoded = jsonDecode(body) as Map<String, dynamic>;
+      final secureUrl = decoded['secure_url'] as String?;
+      if (secureUrl == null || secureUrl.isEmpty) {
+        throw Exception('No URL returned from Cloudinary ($cloudName)');
+      }
+      return secureUrl;
+    } finally {
+      client.close();
+    }
+  }
+
+  // ─── Unified Upload ───────────────────────────────────────────────────────────
+  static Future<String> uploadFile(Uint8List bytes, String filename, {void Function(double)? onProgress, String? forceProvider}) async {
+    final provider = forceProvider ?? await getStorageProvider();
+
+    if (provider == 'cloudinary') {
+      final user = currentUser;
+      if (user != null) {
+        final userData = await getUserData(user.uid);
+        final role = userData?['role'] as String?;
+        if (role == 'Assistant') {
+          return _uploadToAssistantCloudinary(bytes, filename);
+        }
+      }
+      return uploadToCloudinary(bytes, filename);
+    } else {
+      final storageName = '${DateTime.now().millisecondsSinceEpoch}_$filename';
+      final ref = storage.ref('folder_files/$storageName');
+      await ref.putData(bytes, metadata: fb_storage.SettableMetadata(contentDisposition: 'inline; filename="$filename"'), onProgress: onProgress);
+      return ref.getDownloadURL();
+    }
   }
 
   // ─── FAKE Supabase Storage compat for notices ─────────────────────────────────

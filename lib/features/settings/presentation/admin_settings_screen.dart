@@ -19,7 +19,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> with WidgetsB
   bool _autoDownload = true;
   bool _notificationsEnabled = true;
   bool _loading = true;
-  String _appVersion = '1.0.0';
+  String _appVersion = '2.0.0';
 
   @override
   void initState() {
@@ -116,7 +116,6 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> with WidgetsB
                 Card(
                   color: cardColor,
                   child: SwitchListTile(
-                    secondary: const Icon(Icons.download_rounded, color: Color(0xFF00B8D4)),
                     title: Text('Auto Download Files', style: TextStyle(color: textColor)),
                     subtitle: Text('Auto-download files on first open', style: TextStyle(color: hintColor, fontSize: 12)),
                     value: _autoDownload,
