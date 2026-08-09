@@ -195,13 +195,26 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
     final srcData = doc.data() as Map<String, dynamic>;
     final isSubfolder = srcData['type'] == 'subfolder';
     final newData = Map<String, dynamic>.from(srcData)
-      ..remove('createdAt')
-      ..remove('order');
+      ..remove('createdAt');
     if (targetParentContentId != null) {
       newData['parentContentId'] = targetParentContentId;
     } else {
       newData.remove('parentContentId');
     }
+
+    // Get max order at destination to place item at end
+    final targetQuery = await FirebaseService.firestore
+        .collection('folders').doc(targetTopLevelFolderId)
+        .collection('contents')
+        .where('parentContentId', isEqualTo: targetParentContentId)
+        .get();
+    int maxOrder = -1;
+    for (final d in targetQuery.docs) {
+      final order = (d.data()['order'] as num?)?.toInt() ?? -1;
+      if (order > maxOrder) maxOrder = order;
+    }
+    newData['order'] = maxOrder + 1;
+
     final newContentId = await FirebaseService.addFolderContent(targetTopLevelFolderId, newData);
     if (isSubfolder && newContentId != null) {
       final childrenSnap = await FirebaseService.firestore
