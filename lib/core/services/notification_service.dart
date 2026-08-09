@@ -95,7 +95,6 @@ class NotificationService {
   static Future<void> scheduleDailyStreakReminder() async {
     if (kIsWeb) return;
     try {
-      await _plugin.cancel(id: _dailyStreakNotificationId);
       final user = FirebaseService.currentUser;
       if (user == null) return;
 
@@ -107,10 +106,13 @@ class NotificationService {
       final todayMidnight = DateTime(now.year, now.month, now.day);
       final lastLogin = (userData?['lastLogin'] as Timestamp?)?.toDate();
 
-      // If user opened app AFTER midnight today → no notification needed
-      if (lastLogin != null && lastLogin.isAfter(todayMidnight)) return;
+      // If user already opened app today → cancel any pending notification (will reschedule tomorrow)
+      if (lastLogin != null && lastLogin.isAfter(todayMidnight)) {
+        await _plugin.cancel(id: _dailyStreakNotificationId);
+        return;
+      }
 
-      // User hasn't opened app today → schedule 9 AM reminder
+      // User hasn't opened app today → schedule 9 AM reminder (even if past 9 AM, schedule tomorrow)
       final nowTz = tz.TZDateTime.now(tz.local);
       var scheduledDate = tz.TZDateTime(tz.local, nowTz.year, nowTz.month, nowTz.day, 9, 0, 0);
       if (scheduledDate.isBefore(nowTz)) {
@@ -258,6 +260,9 @@ class NotificationService {
     try {
       final user = FirebaseService.currentUser;
       if (user == null) return;
+
+      // User opened app → cancel any pending 9 AM scheduled notification (no longer needed)
+      await _plugin.cancel(id: _dailyStreakNotificationId);
 
       final doc = await FirebaseService.firestore.collection('users').doc(user.uid).get();
       if (!doc.exists) return;
