@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
@@ -7,7 +8,8 @@ import '../../../core/widgets/glassmorphic_container.dart';
 import '../../../core/widgets/animated_pressable.dart';
 import '../../../core/services/firebase_service.dart';
 import '../../../core/services/notification_service.dart';
-import '../../../core/widgets/notification_bell_box.dart';
+import '../../../core/theme/theme_provider.dart';
+import '../../../core/widgets/notification_popup_box.dart';
 import '../../folders/presentation/folder_details_screen.dart' show GroupLinkDialog;
 import '../../../core/utils.dart';
 import '../../../core/widgets/professional_loader.dart';
@@ -22,15 +24,16 @@ class AdminDashboardScreen extends StatefulWidget {
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   final _folderNameController = TextEditingController();
+  int _pendingFeedbackCount = 0;
   StreamSubscription? _feedbackSub;
+  Timer? _feedbackDebounce;
+  Timer? _tokenRefreshTimer;
   // Cached stream to prevent folder list from blinking on each rebuild
-  late final Stream<QuerySnapshot> _folderStream;
+  late Stream<QuerySnapshot> _folderStream;
   // Local docs for optimistic reorder — avoids snap-back on drag
   List<QueryDocumentSnapshot>? _localDocs;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
-  final GlobalKey _bellKey = GlobalKey();
-  OverlayEntry? _notifOverlay;
 
   @override
   void initState() {
@@ -38,6 +41,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     _folderStream = FirebaseService.getAllFolders();
     _loadPendingCount();
     _listenNewFeedbacks();
+    _startTokenRefreshTimer();
+  }
+
+  void _startTokenRefreshTimer() {
+    _tokenRefreshTimer = Timer.periodic(const Duration(minutes: 30), (_) async {
+      try {
+        final user = FirebaseService.currentUser;
+        if (user != null) await user.getIdToken(true);
+      } catch (_) {}
+    });
+  }
+
+  void _refreshFolderStream() {
+    setState(() {
+      _folderStream = FirebaseService.getAllFolders();
+    });
   }
 
   void _markAllFeedbacksViewed() async {
@@ -55,7 +74,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   void _loadPendingCount() async {
-    await FirebaseService.getPendingFeedbackCount();
+    final count = await FirebaseService.getPendingFeedbackCount();
+    if (mounted) setState(() => _pendingFeedbackCount = count);
   }
 
   void _listenNewFeedbacks() {
@@ -65,10 +85,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         .snapshots()
         .listen((snap) {
       final all = snap.docs.where((d) {
-        final data = d.data();
+        final data = d.data() as Map<String, dynamic>;
         return data['viewed'] != true;
       }).toList();
       final count = all.length;
+      _feedbackDebounce?.cancel();
+      _feedbackDebounce = Timer(const Duration(milliseconds: 500), () {
+        if (mounted) setState(() => _pendingFeedbackCount = count);
+      });
       NotificationService.setBadgeCount(count);
       for (final change in snap.docChanges) {
         if (change.type == DocumentChangeType.added) {
@@ -87,9 +111,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   @override
   void dispose() {
+    _tokenRefreshTimer?.cancel();
     _feedbackSub?.cancel();
+    _feedbackDebounce?.cancel();
     _folderNameController.dispose();
-    _notifOverlay?.remove();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -130,6 +156,652 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   // ─── Assistant Management ───────────────────────────────────────────────────────
+
+  void _showAllAssistant() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final baseColor = isDark ? Colors.white : Colors.black87;
+    final dimColor = isDark ? Colors.white38 : Colors.black54;
+    final bgColor = isDark ? const Color(0xFF1A0533) : Colors.white;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: bgColor,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (_) => DraggableScrollableSheet(
+        initialChildSize: 0.7, minChildSize: 0.3, maxChildSize: 0.9, expand: false,
+        builder: (ctx, scrollCtrl) => Column(children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            child: Row(children: [
+              const Icon(Icons.people_alt_rounded, color: Colors.orange, size: 20),
+              const SizedBox(width: 8),
+              Expanded(child: Text('All Assistant', style: TextStyle(color: baseColor, fontWeight: FontWeight.bold, fontSize: 16))),
+              IconButton(
+                icon: const Icon(Icons.person_add_rounded, color: Colors.orange, size: 28),
+                onPressed: () { Navigator.pop(ctx); _showCreateAssistantDialog(); },
+              ),
+            ]),
+          ),
+          Divider(color: isDark ? Colors.white12 : Colors.black12, height: 1),
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseService.getAllAssistant(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: ProfessionalLoader());
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    Icon(Icons.person_off_rounded, size: 50, color: isDark ? Colors.white12 : Colors.black12),
+                    const SizedBox(height: 12),
+                    Text('No Assistant yet', style: TextStyle(color: dimColor, fontSize: 14)),
+                    const SizedBox(height: 4),
+                    Text('Tap + to create an Assistant account', style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 12)),
+                  ]));
+                }
+                final docs = snapshot.data!.docs;
+                return ListView.builder(
+                  controller: scrollCtrl,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  itemCount: docs.length,
+                  itemBuilder: (context, index) {
+                    final data = docs[index].data() as Map<String, dynamic>;
+                    final uid = docs[index].id;
+                    final name = data['name'] as String? ?? 'Unknown';
+                    final email = data['email'] as String? ?? '';
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: (isDark ? Colors.white : Colors.black87).withValues(alpha: isDark ? 0.05 : 0.03),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: (isDark ? Colors.white : Colors.black87).withValues(alpha: isDark ? 0.1 : 0.08)),
+                      ),
+                      child: Row(children: [
+                        CircleAvatar(
+                          backgroundColor: Colors.orange.withValues(alpha: isDark ? 0.2 : 0.1),
+                          child: const Icon(Icons.person, color: Colors.orange, size: 20),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text(name, style: TextStyle(color: baseColor, fontWeight: FontWeight.bold, fontSize: 14)),
+                          const SizedBox(height: 2),
+                          Text(email, style: const TextStyle(color: Colors.orange, fontSize: 12)),
+                          const SizedBox(height: 2),
+                          Text('Password: ${name.replaceAll(RegExp(r'\s+'), '')[0].toUpperCase()}${name.replaceAll(RegExp(r'\s+'), '').substring(1).toLowerCase()}123', style: TextStyle(color: dimColor, fontSize: 11)),
+                        ])),
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 20),
+                          onPressed: () async {
+                            final confirm = await showDialog<bool>(
+                              context: context,
+                              builder: (d) => AlertDialog(
+                                backgroundColor: bgColor,
+                                title: Text('Delete Assistant?', style: TextStyle(color: baseColor)),
+                                content: Text('Delete "$name"? This removes all folder access.', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
+                                actions: [
+                                  TextButton(onPressed: () => Navigator.pop(d, false), child: Text('Cancel', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54))),
+                                  ElevatedButton(onPressed: () => Navigator.pop(d, true), style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent), child: const Text('Delete', style: TextStyle(color: Colors.white))),
+                                ],
+                              ),
+                            );
+                            if (confirm == true) await FirebaseService.deleteAssistantAccount(uid);
+                          },
+                        ),
+                      ]),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  void _showAllStudents() {
+    bool paidAccess = false;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final baseColor = isDark ? Colors.white : Colors.black87;
+    final dimColor = isDark ? Colors.white38 : Colors.black54;
+    final bgColor = isDark ? const Color(0xFF1A0533) : Colors.white;
+    final cardBg = isDark ? const Color(0xFF0D0D2E) : Colors.grey.shade50;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: bgColor,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => FutureBuilder<List<Map<String, dynamic>>>(
+        future: FirebaseService.getAllStudents(),
+        builder: (context, snap) {
+          if (snap.connectionState == ConnectionState.waiting) return SizedBox(height: 300, child: Center(child: ProfessionalLoader()));
+          final students = snap.data ?? [];
+          return StatefulBuilder(builder: (ctx, setLocal) {
+            if (students.isEmpty) return SizedBox(height: 200, child: Center(child: Text('No students registered', style: TextStyle(color: dimColor))));
+            return DraggableScrollableSheet(
+              expand: false,
+              maxChildSize: 0.85,
+              initialChildSize: 0.5,
+              builder: (ctx, scrollCtrl) => Column(children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                  child: Row(children: [
+                    const Icon(Icons.school_rounded, color: Colors.blue, size: 22),
+                    const SizedBox(width: 8),
+                    Text('Registered Students', style: TextStyle(color: baseColor, fontWeight: FontWeight.bold, fontSize: 16)),
+                    const Spacer(),
+                    IconButton(icon: Icon(Icons.close, color: dimColor), onPressed: () => Navigator.pop(ctx)),
+                  ]),
+                ),
+                Divider(color: isDark ? Colors.white12 : Colors.black12),
+                Expanded(
+                  child: ListView.builder(
+                    controller: scrollCtrl,
+                    padding: const EdgeInsets.all(16),
+                    itemCount: students.length,
+                    itemBuilder: (context, i) {
+                      final s = students[i];
+                      final uid = s['id'] as String;
+                      final name = s['name'] as String? ?? 'Unknown';
+                      final email = s['email'] as String? ?? '';
+                      final verified = s['verified'] as bool? ?? true;
+                      return Card(
+                        color: cardBg,
+                        margin: const EdgeInsets.only(bottom: 8),
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: verified ? Colors.green.shade700 : Colors.grey.shade700,
+                            child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?', style: const TextStyle(color: Colors.white)),
+                          ),
+                          title: Text(name, style: TextStyle(color: baseColor, fontWeight: FontWeight.bold)),
+                          subtitle: Text(email, style: TextStyle(color: dimColor, fontSize: 12)),
+                          trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                            GestureDetector(
+                              onTap: () async {
+                                if (!debounce('verify_stud_$uid')) return;
+                                final settings = await FirebaseService.getSettings();
+                                final isPaid = settings['paidAccess'] as bool? ?? false;
+                                if (!isPaid) return;
+                                await FirebaseService.toggleStudentVerified(uid, !verified);
+                                if (ctx.mounted) setLocal(() => s['verified'] = !verified);
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: verified ? Colors.green : Colors.grey.shade700,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                  Icon(Icons.check_circle, size: 14, color: verified ? Colors.white : Colors.white38),
+                                  const SizedBox(width: 4),
+                                  Text('Verified', style: TextStyle(color: verified ? Colors.white : Colors.white38, fontSize: 11)),
+                                ]),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            IconButton(
+                              icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 20),
+                              onPressed: () async {
+                                final confirm = await showDialog<bool>(context: ctx, builder: (d) => AlertDialog(
+                                  backgroundColor: bgColor,
+                                  title: Text('Delete Student?', style: TextStyle(color: baseColor)),
+                                  content: Text('Remove "$name"?', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
+                                  actions: [
+                                    TextButton(onPressed: () => Navigator.pop(d, false), child: Text('Cancel', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54))),
+                                    ElevatedButton(onPressed: () => Navigator.pop(d, true), style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent), child: const Text('Delete', style: TextStyle(color: Colors.white))),
+                                  ],
+                                ));
+                                if (confirm == true) {
+                                  await FirebaseService.deleteStudentCompletely(uid);
+                                  if (ctx.mounted) Navigator.pop(ctx);
+                                  _showAllStudents();
+                                }
+                              },
+                            ),
+                          ]),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ]),
+            );
+          });
+        },
+      ),
+    );
+  }
+
+  void _showControlPanel() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final baseColor = isDark ? Colors.white : Colors.black87;
+    final dimColor = isDark ? Colors.white38 : Colors.black54;
+    final bgColor = isDark ? const Color(0xFF1A0533) : Colors.white;
+    double price = 0;
+    bool paidAccess = false;
+    bool loading = true;
+    String accountTitle = '', accountNo = '', bankName = '';
+    showModalBottomSheet(
+      context: context, isScrollControlled: true, backgroundColor: bgColor,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setLocal) {
+        if (loading) {
+          FirebaseService.getSettings().then((s) {
+            if (ctx.mounted) setLocal(() { price = (s['price'] as num?)?.toDouble() ?? 0; paidAccess = s['paidAccess'] as bool? ?? false; accountTitle = s['accountTitle'] as String? ?? ''; accountNo = s['accountNo'] as String? ?? ''; bankName = s['bankName'] as String? ?? ''; loading = false; });
+          });
+        }
+        return Container(
+          padding: const EdgeInsets.all(24),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              const Icon(Icons.admin_panel_settings_rounded, color: Colors.cyan, size: 22),
+              const SizedBox(width: 10),
+              Expanded(child: Text('Control Panel', style: TextStyle(color: baseColor, fontSize: 18, fontWeight: FontWeight.bold))),
+              IconButton(icon: Icon(Icons.close, color: dimColor), onPressed: () => Navigator.pop(ctx)),
+            ]),
+            const SizedBox(height: 16),
+            if (loading)
+              const Center(child: Padding(padding: EdgeInsets.all(20), child: ProfessionalLoader()))
+            else
+              Expanded(
+                child: ListView(children: [
+                  _ctrlSection('Paid Access', [
+                    _ctrlTile(Icons.verified_user_rounded, Colors.blue, 'Student Paid Access', paidAccess ? 'ON - Manual verification' : 'OFF - Auto verify', trailing: Switch(
+                      value: paidAccess, activeColor: Colors.blue,
+                      onChanged: (v) async { await FirebaseService.updateSetting('paidAccess', v); if (ctx.mounted) setLocal(() => paidAccess = v); },
+                    )),
+                    _ctrlTile(Icons.attach_money_rounded, Colors.green, 'Set Price', 'Current: Rs.${price.toStringAsFixed(0)}', onTap: () async {
+                      final ctrl = TextEditingController(text: price.toStringAsFixed(0));
+                      final result = await showDialog<String>(context: ctx, builder: (d) => AlertDialog(
+                        backgroundColor: bgColor, title: Text('Set Price', style: TextStyle(color: baseColor)),
+                        content: TextField(controller: ctrl, keyboardType: TextInputType.number, style: TextStyle(color: baseColor), decoration: InputDecoration(filled: true, fillColor: isDark ? Colors.white10 : Colors.black12, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
+                        actions: [TextButton(onPressed: () => Navigator.pop(d), child: Text('Cancel', style: TextStyle(color: dimColor))), ElevatedButton(onPressed: () => Navigator.pop(d, ctrl.text.trim()), child: const Text('Save'))],
+                      ));
+                      if (result != null && result.isNotEmpty) { final p = double.tryParse(result) ?? 0; await FirebaseService.updateSetting('price', p); if (ctx.mounted) setLocal(() => price = p); }
+                    }),
+                    _ctrlTile(Icons.account_balance_rounded, Colors.teal, 'Account Info', accountTitle.isNotEmpty ? '$accountTitle - $bankName' : 'Add bank details', onTap: () => _showAccountInfoDialog(ctx, setLocal, accountTitle, accountNo, bankName)),
+                  ]),
+                  const SizedBox(height: 8),
+                  _ctrlSection('Student Management', [
+                    _ctrlTile(Icons.admin_panel_settings_rounded, Colors.cyan, 'Control Student Panel', 'Open full admin panel for a student', onTap: () { Navigator.pop(ctx); Future.delayed(const Duration(milliseconds: 300), () => _showStudentListForPanel()); }),
+                    _ctrlTile(Icons.history_rounded, Colors.lime, 'Student Activity', 'Login history & send notifications', onTap: () { Navigator.pop(ctx); Future.delayed(const Duration(milliseconds: 300), () => _showStudentActivity()); }),
+                    _ctrlTile(Icons.school_rounded, Colors.blue, 'Students', 'View registered students', onTap: () { Navigator.pop(ctx); Future.delayed(const Duration(milliseconds: 300), () => _showAllStudents()); }),
+                  ]),
+                  const SizedBox(height: 8),
+                  _ctrlSection('Restrictions', [
+                    _ctrlTile(Icons.block_rounded, Colors.redAccent, 'Block Students', 'Manage blocked student accounts', onTap: () { Navigator.pop(ctx); Future.delayed(const Duration(milliseconds: 300), () => _showBlockStudents(context)); }),
+                    _ctrlTile(Icons.people_alt_rounded, Colors.teal, 'Assistant', 'Create & manage Assistant accounts', onTap: () { Navigator.pop(ctx); Future.delayed(const Duration(milliseconds: 300), () => _showAllAssistant()); }),
+                  ]),
+                  const SizedBox(height: 8),
+                  _ctrlSection('App', [
+                    _ctrlTile(Icons.update_rounded, Colors.cyanAccent, 'App Updates', 'Manage version & update banner', onTap: () { Navigator.pop(ctx); Future.delayed(const Duration(milliseconds: 300), () => _showAppUpdates()); }),
+                  ]),
+                ]),
+              ),
+          ]),
+        );
+      }),
+    );
+  }
+
+  void _showStudentListForPanel() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final baseColor = isDark ? Colors.white : Colors.black87;
+    final dimColor = isDark ? Colors.white38 : Colors.black54;
+    final bgColor = isDark ? const Color(0xFF1A0533) : Colors.white;
+    final cardBg = isDark ? const Color(0xFF0D0D2E) : Colors.grey.shade50;
+    showModalBottomSheet(
+      context: context, isScrollControlled: true, backgroundColor: bgColor,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => FutureBuilder<List<Map<String, dynamic>>>(
+        future: FirebaseService.getAllStudents(),
+        builder: (context, snap) {
+          if (snap.connectionState == ConnectionState.waiting) return SizedBox(height: 300, child: Center(child: ProfessionalLoader()));
+          final students = snap.data ?? [];
+          return StatefulBuilder(builder: (ctx, setLocal) {
+            if (students.isEmpty) return SizedBox(height: 200, child: Center(child: Text('No students registered', style: TextStyle(color: dimColor))));
+            return DraggableScrollableSheet(
+              expand: false, maxChildSize: 0.85, initialChildSize: 0.5,
+              builder: (ctx, scrollCtrl) => Column(children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                  child: Row(children: [
+                    const Icon(Icons.admin_panel_settings_rounded, color: Colors.cyan, size: 22),
+                    const SizedBox(width: 8),
+                    Text('Select Student', style: TextStyle(color: baseColor, fontWeight: FontWeight.bold, fontSize: 16)),
+                    const Spacer(),
+                    IconButton(icon: Icon(Icons.close, color: dimColor), onPressed: () => Navigator.pop(ctx)),
+                  ]),
+                ),
+                Divider(color: isDark ? Colors.white12 : Colors.black12),
+                Expanded(
+                  child: ListView.builder(
+                    controller: scrollCtrl, padding: const EdgeInsets.all(16),
+                    itemCount: students.length,
+                    itemBuilder: (context, i) {
+                      final s = students[i];
+                      final uid = s['id'] as String;
+                      final name = s['name'] as String? ?? 'Unknown';
+                      final email = s['email'] as String? ?? '';
+                      return Card(
+                        color: cardBg, margin: const EdgeInsets.only(bottom: 8),
+                        child: ListTile(
+                          leading: CircleAvatar(backgroundColor: Colors.cyan.shade700, child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?', style: const TextStyle(color: Colors.white))),
+                          title: Text(name, style: TextStyle(color: baseColor, fontWeight: FontWeight.bold)),
+                          subtitle: Text(email, style: TextStyle(color: dimColor, fontSize: 12)),
+                          trailing: const Icon(Icons.chevron_right, color: Colors.cyan, size: 20),
+                          onTap: () { Navigator.pop(ctx); context.push('/admin', extra: {'studentUid': uid, 'studentName': name}); },
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ]),
+            );
+          });
+        },
+      ),
+    );
+  }
+
+  Widget _ctrlSection(String title, List<Widget> tiles) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final baseColor = isDark ? Colors.white : Colors.black87;
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Padding(
+        padding: const EdgeInsets.only(left: 4, bottom: 8),
+        child: Text(title, style: TextStyle(color: baseColor.withValues(alpha: 0.5), fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.8)),
+      ),
+      Container(
+        decoration: BoxDecoration(
+          color: (isDark ? Colors.white : Colors.black87).withValues(alpha: isDark ? 0.05 : 0.03),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: (isDark ? Colors.white : Colors.black87).withValues(alpha: isDark ? 0.08 : 0.06)),
+          boxShadow: [
+            BoxShadow(
+              color: (isDark ? Colors.black : Colors.grey).withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(children: tiles),
+      ),
+    ]);
+  }
+
+  Widget _ctrlTile(IconData icon, Color iconColor, String title, String subtitle, {Widget? trailing, VoidCallback? onTap}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final baseColor = isDark ? Colors.white : Colors.black87;
+    final dimColor = isDark ? Colors.white38 : Colors.black54;
+    return ListTile(
+      leading: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: iconColor.withValues(alpha: isDark ? 0.2 : 0.1),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(icon, color: iconColor, size: 20),
+      ),
+      title: Text(title, style: TextStyle(color: baseColor, fontWeight: FontWeight.w600, fontSize: 14)),
+      subtitle: Text(subtitle, style: TextStyle(color: dimColor, fontSize: 11)),
+      trailing: trailing ?? Icon(Icons.chevron_right, color: dimColor, size: 18),
+      onTap: onTap,
+      dense: true,
+    );
+  }
+
+  void _showStudentActivity() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final baseColor = isDark ? Colors.white : Colors.black87;
+    final dimColor = isDark ? Colors.white38 : Colors.black54;
+    final bgColor = isDark ? const Color(0xFF1A0533) : Colors.white;
+    final cardBg = isDark ? const Color(0xFF0D0D2E) : Colors.grey.shade50;
+    showModalBottomSheet(
+      context: context, isScrollControlled: true, backgroundColor: bgColor,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => FutureBuilder<List<Map<String, dynamic>>>(
+        future: FirebaseService.getAllStudents(),
+        builder: (context, snap) {
+          if (snap.connectionState == ConnectionState.waiting) return SizedBox(height: 300, child: Center(child: ProfessionalLoader()));
+          final students = snap.data ?? [];
+          return StatefulBuilder(builder: (ctx, setLocal) {
+            if (students.isEmpty) return SizedBox(height: 200, child: Center(child: Text('No students registered', style: TextStyle(color: dimColor))));
+            return DraggableScrollableSheet(
+              expand: false, maxChildSize: 0.85, initialChildSize: 0.5,
+              builder: (ctx, scrollCtrl) => Column(children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                  child: Row(children: [
+                    const Icon(Icons.history_rounded, color: Colors.lime, size: 22),
+                    const SizedBox(width: 8),
+                    Text('Student Activity', style: TextStyle(color: baseColor, fontWeight: FontWeight.bold, fontSize: 16)),
+                    const Spacer(),
+                    IconButton(icon: Icon(Icons.close, color: dimColor), onPressed: () => Navigator.pop(ctx)),
+                  ]),
+                ),
+                Divider(color: isDark ? Colors.white12 : Colors.black12),
+                Expanded(
+                  child: ListView.builder(
+                    controller: scrollCtrl, padding: const EdgeInsets.all(16),
+                    itemCount: students.length,
+                    itemBuilder: (context, i) {
+                      final s = students[i];
+                      final uid = s['id'] as String;
+                      final name = s['name'] as String? ?? 'Unknown';
+                      final email = s['email'] as String? ?? '';
+                      return Card(
+                        color: cardBg, margin: const EdgeInsets.only(bottom: 8),
+                        child: ListTile(
+                          leading: CircleAvatar(backgroundColor: Colors.lime.shade800, child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?', style: const TextStyle(color: Colors.white))),
+                          title: Text(name, style: TextStyle(color: baseColor, fontWeight: FontWeight.bold)),
+                          subtitle: Text(email, style: TextStyle(color: dimColor, fontSize: 12)),
+                          trailing: const Icon(Icons.chevron_right, color: Colors.lime, size: 20),
+                          onTap: () => _showStudentActivityDetail(ctx, uid, name),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ]),
+            );
+          });
+        },
+      ),
+    );
+  }
+
+  void _showStudentActivityDetail(BuildContext parentCtx, String uid, String name) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final baseColor = isDark ? Colors.white : Colors.black87;
+    final dimColor = isDark ? Colors.white38 : Colors.black54;
+    final bgColor = isDark ? const Color(0xFF1A0533) : Colors.white;
+    showModalBottomSheet(
+      context: parentCtx, isScrollControlled: true, backgroundColor: bgColor,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setLocal) {
+        return Container(
+          padding: const EdgeInsets.all(24),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              CircleAvatar(backgroundColor: Colors.lime.shade800, child: Text(name[0].toUpperCase(), style: const TextStyle(color: Colors.white))),
+              const SizedBox(width: 10),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(name, style: TextStyle(color: baseColor, fontWeight: FontWeight.bold, fontSize: 16)),
+                Text('Login Activity', style: TextStyle(color: dimColor, fontSize: 12)),
+              ])),
+              IconButton(icon: Icon(Icons.close, color: dimColor), onPressed: () => Navigator.pop(ctx)),
+            ]),
+            const SizedBox(height: 16),
+            StreamBuilder<QuerySnapshot>(
+              stream: FirebaseService.firestore.collection('login_history').doc(uid).collection('logins').orderBy('timestamp', descending: true).limit(20).snapshots(),
+              builder: (ctx, snap) {
+                final logs = snap.data?.docs ?? [];
+                if (logs.isEmpty) {
+                  return Padding(padding: const EdgeInsets.all(20), child: Center(child: Text('No login history yet', style: TextStyle(color: dimColor))));
+                }
+                return ConstrainedBox(
+                  constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.4),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: logs.length,
+                    separatorBuilder: (_, __) => Divider(color: isDark ? Colors.white12 : Colors.black12),
+                    itemBuilder: (_, i) {
+                      final d = logs[i].data() as Map<String, dynamic>;
+                      final time = (d['timestamp'] as Timestamp?)?.toDate();
+                      final device = d['device'] as String? ?? 'Unknown device';
+                      final ip = d['ip'] as String? ?? '';
+                      final timeStr = time != null ? '${time.day}/${time.month}/${time.year} ${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}' : 'N/A';
+                      return ListTile(
+                        leading: const Icon(Icons.login_rounded, color: Colors.green, size: 20),
+                        title: Text(device, style: TextStyle(color: baseColor, fontSize: 13, fontWeight: FontWeight.bold)),
+                        subtitle: Text('$timeStr${ip.isNotEmpty ? ' • $ip' : ''}', style: TextStyle(color: dimColor, fontSize: 11)),
+                      );
+                    },
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () { Navigator.pop(ctx); _showSendNotificationDialog(uid, name); },
+                icon: const Icon(Icons.notifications_active_rounded, size: 18),
+                label: const Text('Send Notification'),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 12)),
+              ),
+            ),
+          ]),
+        );
+      }),
+    );
+  }
+
+  void _showSendNotificationDialog(String uid, String name) {
+    final msgCtrl = TextEditingController();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final baseColor = isDark ? Colors.white : Colors.black87;
+    final dimColor = isDark ? Colors.white38 : Colors.black54;
+    final fillColor = isDark ? Colors.white10 : Colors.black12;
+    showDialog(
+      context: context,
+      builder: (d) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1A0533) : Colors.white,
+        title: Text('Notify $name', style: TextStyle(color: baseColor, fontSize: 16)),
+        content: TextField(
+          controller: msgCtrl, maxLines: 3,
+          style: TextStyle(color: baseColor),
+          decoration: InputDecoration(
+            hintText: 'Type your notification message...', hintStyle: TextStyle(color: dimColor),
+            filled: true, fillColor: fillColor, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(d), child: Text('Cancel', style: TextStyle(color: dimColor))),
+          ElevatedButton(
+            onPressed: () async {
+              if (!debounce('notif_send')) return;
+              final msg = msgCtrl.text.trim();
+              if (msg.isEmpty) return;
+              await FirebaseService.addTargetedNotification(uid, msg);
+              if (d.mounted) Navigator.pop(d);
+              if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Notification sent to $name')));
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+            child: const Text('Send', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAppUpdates() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final baseColor = isDark ? Colors.white : Colors.black87;
+    final dimColor = isDark ? Colors.white38 : Colors.black54;
+    final bgColor = isDark ? const Color(0xFF1A0533) : Colors.white;
+    showModalBottomSheet(
+      context: context, isScrollControlled: true, backgroundColor: bgColor,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setLocal) {
+        return Container(
+          padding: const EdgeInsets.all(24),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              const Icon(Icons.update_rounded, color: Colors.cyanAccent, size: 22),
+              const SizedBox(width: 10),
+              Expanded(child: Text('App Updates', style: TextStyle(color: baseColor, fontSize: 18, fontWeight: FontWeight.bold))),
+              IconButton(icon: const Icon(Icons.add_circle_outline_rounded, color: Colors.cyanAccent, size: 28), onPressed: () { Navigator.pop(ctx); _showAddUpdateDialog(); }),
+            ]),
+            const SizedBox(height: 16),
+            StreamBuilder<QuerySnapshot>(
+              stream: FirebaseService.firestore.collection('app_updates').orderBy('createdAt', descending: true).snapshots(),
+              builder: (ctx, snap) {
+                final updates = snap.data?.docs ?? [];
+                if (updates.isEmpty) {
+                  return Padding(padding: const EdgeInsets.all(20), child: Center(child: Column(children: [
+                    Icon(Icons.update_disabled_rounded, size: 48, color: dimColor),
+                    const SizedBox(height: 8), Text('No updates yet', style: TextStyle(color: dimColor)),
+                    const SizedBox(height: 4), Text('Tap + to add', style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 12)),
+                  ])));
+                }
+                return ConstrainedBox(
+                  constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.5),
+                  child: ListView.separated(shrinkWrap: true, itemCount: updates.length,
+                    separatorBuilder: (_, __) => Divider(color: isDark ? Colors.white12 : Colors.black12),
+                    itemBuilder: (_, i) {
+                      final d = updates[i].data() as Map<String, dynamic>;
+                      final id = updates[i].id;
+                      final version = d['version'] as String? ?? '';
+                      final link = d['link'] as String? ?? '';
+                      final time = (d['createdAt'] as Timestamp?)?.toDate();
+                      final timeStr = time != null ? '${time.day}/${time.month}/${time.year}' : '';
+                      return ListTile(
+                        leading: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: Colors.cyanAccent.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(8)),
+                          child: Text('v$version', style: const TextStyle(color: Colors.cyanAccent, fontWeight: FontWeight.bold, fontSize: 12))),
+                        title: Text(link.isNotEmpty ? link : 'No link', style: TextStyle(color: baseColor, fontSize: 13)),
+                        subtitle: Text(timeStr, style: TextStyle(color: dimColor, fontSize: 11)),
+                        trailing: IconButton(icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 20),
+                          onPressed: () async { await FirebaseService.firestore.collection('app_updates').doc(id).delete(); }),
+                      );
+                    },
+                  ),
+                );
+              },
+            ),
+          ]),
+        );
+      }),
+    );
+  }
+
+  void _showAddUpdateDialog() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final baseColor = isDark ? Colors.white : Colors.black87;
+    final dimColor = isDark ? Colors.white38 : Colors.black54;
+    final fillColor = isDark ? Colors.white10 : Colors.black12;
+    final bgColor = isDark ? const Color(0xFF1A0533) : Colors.white;
+    final versionCtrl = TextEditingController();
+    final linkCtrl = TextEditingController();
+    showDialog(context: context, builder: (d) => AlertDialog(
+      backgroundColor: bgColor,
+      title: Row(children: [const Icon(Icons.update_rounded, color: Colors.cyanAccent, size: 22), const SizedBox(width: 8), Text('Add Update', style: TextStyle(color: baseColor))]),
+      content: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextField(controller: versionCtrl, style: TextStyle(color: baseColor), decoration: InputDecoration(labelText: 'Version (e.g., 1.0.1)', labelStyle: TextStyle(color: dimColor), filled: true, fillColor: fillColor, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
+        const SizedBox(height: 12),
+        TextField(controller: linkCtrl, style: TextStyle(color: baseColor), decoration: InputDecoration(labelText: 'Update Link', labelStyle: TextStyle(color: dimColor), filled: true, fillColor: fillColor, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
+      ]),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(d), child: Text('Cancel', style: TextStyle(color: dimColor))),
+        ElevatedButton(onPressed: () async {
+          final version = versionCtrl.text.trim();
+          if (version.isEmpty) return;
+          await FirebaseService.firestore.collection('app_updates').add({'version': version, 'link': linkCtrl.text.trim(), 'createdAt': FieldValue.serverTimestamp()});
+          if (d.mounted) Navigator.pop(d);
+        }, style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4A148C)), child: const Text('Add', style: TextStyle(color: Colors.white))),
+      ],
+    ));
+  }
 
   void _showCreateAssistantDialog() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -198,108 +870,76 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  void _showGrantAccessDialog(String folderId, String folderName) {
+  // ─── Assistant Access Per Folder ────────────────────────────────────────────────
+
+  void _showFolderAssistantAccess(String folderId, String folderName) {
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF1A0533),
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (_) => DraggableScrollableSheet(
-        initialChildSize: 0.5, minChildSize: 0.3, maxChildSize: 0.7, expand: false,
+        initialChildSize: 0.6, minChildSize: 0.3, maxChildSize: 0.85, expand: false,
         builder: (ctx, scrollCtrl) => Column(children: [
           Container(
             padding: const EdgeInsets.all(16),
             child: Row(children: [
-              const Icon(Icons.person_add_rounded, color: Colors.orange, size: 20),
+              const Icon(Icons.vpn_key_rounded, color: Colors.orange, size: 20),
               const SizedBox(width: 8),
-              Expanded(child: Text('Grant Access — $folderName', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16))),
-              IconButton(
-                icon: const Icon(Icons.person_add_rounded, color: Colors.orange, size: 28),
-                tooltip: 'Add Assistant',
-                onPressed: () { Navigator.pop(ctx); _showCreateAssistantDialog(); },
-              ),
+              Expanded(child: Text('Assistant Access — $folderName', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16))),
             ]),
           ),
           const Divider(color: Colors.white12, height: 1),
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseService.getAllAssistant(),
+              stream: FirebaseService.getAssistantLoginsForFolder(folderId),
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) return Center(child: ProfessionalLoader());
+                if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: ProfessionalLoader());
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.person_off_rounded, size: 48, color: Colors.white12),
-                        const SizedBox(height: 12),
-                        const Text('No Assistant yet', style: TextStyle(color: Colors.white38, fontSize: 14)),
-                        const SizedBox(height: 12),
-                        ElevatedButton.icon(
-                          icon: const Icon(Icons.person_add_rounded, size: 18),
-                          label: const Text('Create Assistant'),
-                          style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-                          onPressed: () { Navigator.pop(ctx); _showCreateAssistantDialog(); },
-                        ),
-                      ],
-                    ),
-                  );
+                  return const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    Icon(Icons.vpn_key_off_rounded, size: 50, color: Colors.white12),
+                    SizedBox(height: 12),
+                    Text('No Assistant have access to this folder', style: TextStyle(color: Colors.white38, fontSize: 14)),
+                    SizedBox(height: 4),
+                    Text('Use "Assistant" button to grant access', style: TextStyle(color: Colors.white24, fontSize: 12)),
+                  ]));
                 }
                 final docs = snapshot.data!.docs;
-                return FutureBuilder<Set<String>>(
-                  future: FirebaseService.getUidsWithFolderAccess(folderId),
-                  builder: (context, accessSnap) {
-                    if (accessSnap.connectionState == ConnectionState.waiting) return Center(child: ProfessionalLoader());
-                    final grantedUids = accessSnap.data ?? {};
-                    return ListView.builder(
-                      controller: scrollCtrl,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      itemCount: docs.length,
-                      itemBuilder: (context, index) {
-                        final data = docs[index].data() as Map<String, dynamic>;
-                        final uid = docs[index].id;
-                        final name = data['name'] as String? ?? 'Unknown';
-                        final email = data['email'] as String? ?? '';
-                        final hasAccess = grantedUids.contains(uid);
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: hasAccess ? Colors.green.withValues(alpha: 0.08) : Colors.white.withValues(alpha: 0.05),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: hasAccess ? Colors.green.withValues(alpha: 0.3) : Colors.white.withValues(alpha: 0.1)),
-                          ),
-                          child: Row(children: [
-                            CircleAvatar(
-                              backgroundColor: hasAccess ? Colors.green.withValues(alpha: 0.2) : Colors.white10,
-                              child: Icon(hasAccess ? Icons.check : Icons.person, color: hasAccess ? Colors.green : Colors.white54, size: 18),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              Text(name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
-                              Text(email, style: const TextStyle(color: Colors.white38, fontSize: 11)),
-                            ])),
-                            if (hasAccess)
-                              ElevatedButton(
-                                onPressed: () async {
-                                  await FirebaseService.revokeAssistantAccess(uid, folderId);
-                                  if (ctx.mounted) setState(() {});
-                                },
-                                style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6)),
-                                child: const Text('Denied', style: TextStyle(color: Colors.white, fontSize: 12)),
-                              )
-                            else
-                              ElevatedButton(
-                                onPressed: () async {
-                                  await FirebaseService.grantAssistantAccess(uid, folderId, name);
-                                  if (ctx.mounted) setState(() {});
-                                },
-                                style: ElevatedButton.styleFrom(backgroundColor: Colors.green, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6)),
-                                child: const Text('Grant', style: TextStyle(color: Colors.white, fontSize: 12)),
+                return ListView.builder(
+                  controller: scrollCtrl,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  itemCount: docs.length,
+                  itemBuilder: (context, index) {
+                    final data = docs[index].data() as Map<String, dynamic>;
+                    final uid = data['uid'] as String? ?? '';
+                    final name = data['name'] as String? ?? 'Unknown';
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.white.withValues(alpha: 0.1))),
+                      child: Row(children: [
+                        const Icon(Icons.person, color: Colors.orange, size: 20),
+                        const SizedBox(width: 12),
+                        Expanded(child: Text(name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14))),
+                        IconButton(
+                          icon: const Icon(Icons.remove_circle_outline_rounded, color: Colors.redAccent, size: 22),
+                          onPressed: () async {
+                            final confirm = await showDialog<bool>(
+                              context: context,
+                              builder: (d) => AlertDialog(
+                                backgroundColor: const Color(0xFF1A0533),
+                                title: const Text('Revoke Access?', style: TextStyle(color: Colors.white)),
+                                content: Text('Remove $name\'s access to this folder?', style: const TextStyle(color: Colors.white70)),
+                                actions: [
+                                  TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Cancel')),
+                                  ElevatedButton(onPressed: () => Navigator.pop(d, true), style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent), child: const Text('Revoke', style: TextStyle(color: Colors.white))),
+                                ],
                               ),
-                          ]),
-                        );
-                      },
+                            );
+                            if (confirm == true) await FirebaseService.revokeAssistantAccess(uid, folderId);
+                          },
+                        ),
+                      ]),
                     );
                   },
                 );
@@ -307,6 +947,130 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ),
           ),
         ]),
+      ),
+    );
+  }
+
+  void _showGrantAccessDialog(String folderId, String folderName) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A0533),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setLocal) {
+          Set<String> grantedUids = {};
+          List<Map<String, dynamic>> assistants = [];
+          bool loading = true;
+          Future<void> load() async {
+            final results = await Future.wait([
+              FirebaseService.getAllAssistant().first,
+              FirebaseService.getUidsWithFolderAccess(folderId),
+            ]);
+            final assistantSnap = results[0] as QuerySnapshot;
+            final uids = results[1] as Set<String>;
+            assistants = assistantSnap.docs.map((d) => {
+              'uid': d.id,
+              'name': ((d.data() as Map<String, dynamic>)['name'] as String?) ?? 'Unknown',
+              'email': ((d.data() as Map<String, dynamic>)['email'] as String?) ?? '',
+            }).toList();
+            grantedUids = uids;
+            loading = false;
+            if (ctx.mounted) setLocal(() {});
+          }
+          load();
+          return DraggableScrollableSheet(
+            initialChildSize: 0.5, minChildSize: 0.3, maxChildSize: 0.7, expand: false,
+            builder: (scrollCtx, scrollCtrl) => Column(children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                child: Row(children: [
+                  const Icon(Icons.person_add_rounded, color: Colors.orange, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text('Grant Access — $folderName', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16))),
+                  IconButton(
+                    icon: const Icon(Icons.person_add_rounded, color: Colors.orange, size: 28),
+                    tooltip: 'Add Assistant',
+                    onPressed: () { Navigator.pop(ctx); _showCreateAssistantDialog(); },
+                  ),
+                ]),
+              ),
+              const Divider(color: Colors.white12, height: 1),
+              Expanded(
+                child: loading
+                    ? const Center(child: ProfessionalLoader())
+                    : assistants.isEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.person_off_rounded, size: 48, color: Colors.white12),
+                                const SizedBox(height: 12),
+                                const Text('No Assistant yet', style: TextStyle(color: Colors.white38, fontSize: 14)),
+                                const SizedBox(height: 12),
+                                ElevatedButton.icon(
+                                  icon: const Icon(Icons.person_add_rounded, size: 18),
+                                  label: const Text('Create Assistant'),
+                                  style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+                                  onPressed: () { Navigator.pop(ctx); _showCreateAssistantDialog(); },
+                                ),
+                              ],
+                            ),
+                          )
+                        : ListView.builder(
+                            controller: scrollCtrl,
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            itemCount: assistants.length,
+                            itemBuilder: (context, index) {
+                              final data = assistants[index];
+                              final uid = data['uid'] as String;
+                              final name = data['name'] as String;
+                              final email = data['email'] as String;
+                              final hasAccess = grantedUids.contains(uid);
+                              return Container(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                  color: hasAccess ? Colors.green.withValues(alpha: 0.08) : Colors.white.withValues(alpha: 0.05),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: hasAccess ? Colors.green.withValues(alpha: 0.3) : Colors.white.withValues(alpha: 0.1)),
+                                ),
+                                child: Row(children: [
+                                  CircleAvatar(
+                                    backgroundColor: hasAccess ? Colors.green.withValues(alpha: 0.2) : Colors.white10,
+                                    child: Icon(hasAccess ? Icons.check : Icons.person, color: hasAccess ? Colors.green : Colors.white54, size: 18),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                    Text(name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                                    Text(email, style: const TextStyle(color: Colors.white38, fontSize: 11)),
+                                  ])),
+                                  if (hasAccess)
+                                    ElevatedButton(
+                                      onPressed: () async {
+                                        await FirebaseService.revokeAssistantAccess(uid, folderId);
+                                        if (ctx.mounted) setLocal(() { grantedUids.remove(uid); });
+                                      },
+                                      style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6)),
+                                      child: const Text('Denied', style: TextStyle(color: Colors.white, fontSize: 12)),
+                                    )
+                                  else
+                                    ElevatedButton(
+                                      onPressed: () async {
+                                        await FirebaseService.grantAssistantAccess(uid, folderId, name);
+                                        if (ctx.mounted) setLocal(() { grantedUids.add(uid); });
+                                      },
+                                      style: ElevatedButton.styleFrom(backgroundColor: Colors.green, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6)),
+                                      child: const Text('Grant', style: TextStyle(color: Colors.white, fontSize: 12)),
+                                    ),
+                                ]),
+                              );
+                            },
+                          ),
+              ),
+            ]),
+          );
+        },
       ),
     );
   }
@@ -364,45 +1128,26 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  void _showAdminNotifications(BuildContext ctx, List<QueryDocumentSnapshot> docs) {
-    FirebaseService.markAdminNotificationsRead();
-    NotificationService.clearBadge();
-    if (_notifOverlay != null) {
-      _notifOverlay!.remove();
-      _notifOverlay = null;
-      return;
+  String _formatTimestamp(dynamic ts) {
+    if (ts is Timestamp) {
+      final dt = ts.toDate();
+      final now = DateTime.now();
+      final diff = now.difference(dt);
+      if (diff.inMinutes < 1) return 'Just now';
+      if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+      if (diff.inHours < 24) return '${diff.inHours}h ago';
+      if (diff.inDays < 7) return '${diff.inDays}d ago';
+      return '${dt.day}/${dt.month}/${dt.year}';
     }
-    final renderBox = _bellKey.currentContext?.findRenderObject() as RenderBox?;
-    if (renderBox == null) return;
-    final pos = renderBox.localToGlobal(Offset.zero);
-    final size = renderBox.size;
-    _notifOverlay = OverlayEntry(
-      builder: (overlayCtx) => Stack(children: [
-        Positioned.fill(
-          child: GestureDetector(
-            onTap: () { _notifOverlay?.remove(); _notifOverlay = null; },
-            behavior: HitTestBehavior.translucent,
-          ),
-        ),
-        Positioned(
-          left: (pos.dx + size.width / 2 - 170).clamp(8.0, MediaQuery.of(ctx).size.width - 348.0),
-          top: pos.dy + size.height + 8,
-          child: NotificationBellBox(
-            docs: docs,
-            showDelete: true,
-            onClear: () async {
-              await FirebaseService.clearAdminNotifications();
-              _notifOverlay?.remove();
-              _notifOverlay = null;
-            },
-            onDelete: (doc) async {
-              await doc.reference.delete();
-            },
-          ),
-        ),
-      ]),
+    return '';
+  }
+
+  void _showAdminNotifications(BuildContext ctx, List<QueryDocumentSnapshot> docs) {
+    NotificationPopupBox.show(
+      context: ctx,
+      docs: docs,
+      panelType: NotificationPanelType.admin,
     );
-    Overlay.of(ctx).insert(_notifOverlay!);
   }
 
   Future<List<Map<String, dynamic>>> _fetchContentMatches(String query) async {
@@ -410,14 +1155,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     final results = <Map<String, dynamic>>[];
     final foldersSnap = await FirebaseService.firestore.collection('folders').get();
     for (final folderDoc in foldersSnap.docs) {
-      final data = folderDoc.data();
+      final data = folderDoc.data() as Map<String, dynamic>;
       if (data['invisible'] == true) continue;
       final folderName = data['name'] as String? ?? '';
       final folderId = folderDoc.id;
-      // folderName match check removed — matching folders should NOT be skipped
+      if (folderName.toLowerCase().contains(q)) continue;
       final contentsSnap = await FirebaseService.firestore.collection('folders').doc(folderId).collection('contents').get();
       for (final contentDoc in contentsSnap.docs) {
-        final cData = contentDoc.data();
+        final cData = contentDoc.data() as Map<String, dynamic>;
         final contentName = cData['name'] as String? ?? cData['title'] as String? ?? '';
         if (contentName.toLowerCase().contains(q)) {
           final type = cData['type'] as String?;
@@ -509,10 +1254,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 )
               : null,
           filled: true, fillColor: fillColor,
-          contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: (isDark ? Colors.white : Colors.black87).withValues(alpha: 0.08))),
-          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: (isDark ? Colors.white : Colors.black87).withValues(alpha: 0.08))),
-          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Color(0xFF00B8D4), width: 1.5)),
+          contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
         ),
         onChanged: (val) => setState(() => _searchQuery = val.trim()),
         onTapOutside: (_) => FocusScope.of(context).unfocus(),
@@ -596,6 +1339,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           ListTile(leading: const Icon(Icons.link, color: Colors.orange), title: Text('Add URL', style: TextStyle(color: isDark ? Colors.white : Colors.black87)), onTap: () { Navigator.pop(ctx); _addMockTestUrl(folderId); }),
           const Divider(color: Colors.white12),
           ListTile(leading: const Icon(Icons.code, color: Colors.orange), title: Text('Paste a Code', style: TextStyle(color: isDark ? Colors.white : Colors.black87)), onTap: () { Navigator.pop(ctx); _addMockTestCode(folderId); }),
+          const Divider(color: Colors.white12),
+          ListTile(leading: const Icon(Icons.upload_file_rounded, color: Colors.orange), title: Text('Upload Mock Test File', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
+            subtitle: Text('Upload HTML or PDF file', style: TextStyle(color: isDark ? Colors.white38 : Colors.black54, fontSize: 12)),
+            onTap: () { Navigator.pop(ctx); _addMockTestFile(folderId); }),
         ])),
       ),
     );
@@ -653,6 +1400,87 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         }, style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade800), child: const Text('Save', style: TextStyle(color: Colors.white))),
       ],
     ));
+  }
+
+  void _addMockTestFile(String folderId) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: isDark ? const Color(0xFF1A0533) : Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (_) => SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Text('Upload Mock Test File', style: TextStyle(color: isDark ? Colors.white70 : Colors.black87, fontWeight: FontWeight.bold, fontSize: 15)),
+            const SizedBox(height: 20),
+            ListTile(
+              leading: const Icon(Icons.html, color: Colors.orange),
+              title: Text('HTML', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
+              subtitle: Text('Upload .html or .htm file', style: TextStyle(color: isDark ? Colors.white38 : Colors.black54, fontSize: 12)),
+              onTap: () { Navigator.pop(context); _pickMockTestFile(folderId, fileType: 'html'); },
+            ),
+            Divider(color: isDark ? Colors.white12 : Colors.black12),
+            ListTile(
+              leading: const Icon(Icons.picture_as_pdf_rounded, color: Colors.orange),
+              title: Text('PDF', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
+              subtitle: Text('Upload .pdf file', style: TextStyle(color: isDark ? Colors.white38 : Colors.black54, fontSize: 12)),
+              onTap: () { Navigator.pop(context); _pickMockTestFile(folderId, fileType: 'pdf'); },
+            ),
+            const SizedBox(height: 8),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  void _pickMockTestFile(String folderId, {required String fileType}) async {
+    try {
+      final allowedExtensions = fileType == 'html' ? ['html', 'htm'] : ['pdf'];
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: allowedExtensions,
+        allowMultiple: true,
+        withData: true,
+      );
+      if (result != null && result.files.isNotEmpty) {
+        int count = 0;
+        for (final file in result.files) {
+          final bytes = file.bytes;
+          if (bytes == null) continue;
+          if (bytes.length > 50 * 1024 * 1024) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: Text('${file.name} too large (${(bytes.length / 1024 / 1024).toStringAsFixed(1)}MB). Max: 50MB'),
+                backgroundColor: Colors.redAccent,
+              ));
+            }
+            continue;
+          }
+
+          final displayName = file.name.contains('.')
+              ? file.name.substring(0, file.name.lastIndexOf('.'))
+              : file.name;
+
+          final downloadUrl = await FirebaseService.uploadFile(bytes, file.name);
+          await FirebaseService.addFolderContent(folderId, {
+            'type': 'mocktest_file',
+            'name': displayName,
+            'url': downloadUrl,
+            'fileType': fileType,
+            'source': 'storage',
+          });
+          count++;
+        }
+        if (mounted && count > 0) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$count mock test file(s) uploaded!'), backgroundColor: Colors.green));
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Upload failed: $e'), backgroundColor: Colors.redAccent, duration: const Duration(seconds: 5)));
+      }
+    }
   }
 
   void _addUploadFile(BuildContext ctx, String folderId) {
@@ -788,6 +1616,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
+  void _addGroupLink(BuildContext ctx, String folderId) {
+    Navigator.pop(ctx);
+    showDialog(
+      context: context,
+      builder: (d) => GroupLinkDialog(
+        folderId: folderId,
+        parentContentId: 'root',
+      ),
+    );
+  }
+
   void _groupLinkForFolder(BuildContext ctx, String folderId) {
     showDialog(
       context: ctx,
@@ -903,7 +1742,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               builder: (context, snap) {
                 final unread = snap.hasData ? snap.data!.docs.where((d) => (d.data() as Map<String, dynamic>)['read'] == false).length : 0;
                 return IconButton(
-                  key: _bellKey,
                   icon: Stack(
                     clipBehavior: Clip.none,
                     children: [
@@ -947,6 +1785,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ),
           ]),
         ),
+        _buildAdminSearchBar(),
         if (widget.studentUid != null)
           Container(
             width: double.infinity,
@@ -963,20 +1802,26 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               ],
             ),
           ),
-        _buildAdminSearchBar(),
         const Divider(height: 1, color: Colors.white12),
         Expanded(
           child: StreamBuilder<QuerySnapshot>(
             stream: _folderStream,
-              builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) return Center(child: ProfessionalLoader());
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: ProfessionalLoader());
               if (snapshot.hasError) {
                 return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                   Icon(Icons.error_outline_rounded, size: 60, color: Colors.redAccent.withValues(alpha: 0.6)),
                   const SizedBox(height: 16),
                   const Text('Something went wrong', style: TextStyle(color: Colors.white38, fontSize: 16)),
                   const SizedBox(height: 8),
-                  const Text('Folders will reappear shortly', style: TextStyle(color: Colors.white24, fontSize: 13)),
+                  Text('${snapshot.error}', style: TextStyle(color: Colors.white24, fontSize: 11), textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: () => _refreshFolderStream(),
+                    icon: const Icon(Icons.refresh_rounded, size: 16),
+                    label: const Text('Retry'),
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple),
+                  ),
                 ]));
               }
               if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
@@ -1003,8 +1848,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               final colors = [Colors.purple, Colors.teal, Colors.blue, Colors.orange, Colors.pink, Colors.indigo];
               final filtered = _searchQuery.isNotEmpty
                   ? docs.where((d) {
-      final data = d.data();
-                      final name = (data != null && data is Map<String, dynamic> ? (data['name'] as String? ?? '') : '').toLowerCase();
+                      final data = d.data() as Map<String, dynamic>;
+                      final name = (data['name'] as String? ?? '').toLowerCase();
                       return name.contains(_searchQuery.toLowerCase());
                     }).toList()
                   : docs;
@@ -1041,7 +1886,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   final color = colors[index % colors.length];
                   return AnimatedPressable(
                     key: ValueKey(folderId),
-                    onTap: () => context.push('/folders/$folderId', extra: {'canEdit': true, 'canManage': true, 'isAdmin': true, if (widget.studentUid != null) 'targetStudentUid': widget.studentUid}),
+                  onTap: () => context.push('/folders/$folderId', extra: {'canEdit': true, 'canManage': true, 'isAdmin': true, if (widget.studentUid != null) 'targetStudentUid': widget.studentUid}),
                     child: GestureDetector(
                       onLongPress: () {
                         showModalBottomSheet(
@@ -1118,6 +1963,270 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           child: const Icon(Icons.create_new_folder_rounded, color: Colors.white),
         ),
       ]),
+    );
+  }
+
+  void _showSettings() {
+    final container = ProviderScope.containerOf(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    double price = 0;
+    bool paidAccess = false;
+    bool loadingSettings = true;
+    String accountTitle = '';
+    String accountNo = '';
+    String bankName = '';
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: isDark ? const Color(0xFF1A0533) : Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setLocal) {
+        if (loadingSettings) {
+          FirebaseService.getSettings().then((s) {
+            if (ctx.mounted) setLocal(() { price = (s['price'] as num?)?.toDouble() ?? 0; paidAccess = s['paidAccess'] as bool? ?? false; accountTitle = s['accountTitle'] as String? ?? ''; accountNo = s['accountNo'] as String? ?? ''; bankName = s['bankName'] as String? ?? ''; loadingSettings = false; });
+          });
+        }
+        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+        final baseColor = isDark ? Colors.white : Colors.black87;
+        final dimColor = isDark ? Colors.white38 : Colors.black54;
+        return Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [Icon(Icons.settings_outlined, color: baseColor, size: 22), SizedBox(width: 10), Text('Settings', style: TextStyle(color: baseColor, fontSize: 18, fontWeight: FontWeight.bold))]),
+            const SizedBox(height: 12),
+            Builder(builder: (ctx) {
+              final u = FirebaseService.currentUser;
+              return ListTile(
+                leading: CircleAvatar(child: Text((u?.displayName ?? 'A')[0].toUpperCase(), style: const TextStyle(color: Colors.white))),
+                title: Text(u?.displayName ?? 'Admin', style: TextStyle(color: baseColor, fontWeight: FontWeight.bold)),
+                subtitle: Text(u?.email ?? '', style: TextStyle(color: dimColor, fontSize: 12)),
+              );
+            }),
+            Divider(color: isDark ? Colors.white12 : Colors.black12),
+            const SizedBox(height: 8),
+            if (loadingSettings)
+              const Center(child: Padding(padding: EdgeInsets.all(20), child: ProfessionalLoader()))
+            else ...[
+              Divider(color: isDark ? Colors.white12 : Colors.black12, height: 24),
+            ],
+            ListTile(
+              leading: const Icon(Icons.info_outline_rounded, color: Colors.grey),
+              title: Text('Version', style: TextStyle(color: baseColor)),
+              subtitle: Text('PrePora v2.0.0', style: TextStyle(color: dimColor, fontSize: 12)),
+            ),
+            ListTile(
+              leading: const Icon(Icons.palette_outlined, color: Colors.amber),
+              title: Text('Theme', style: TextStyle(color: baseColor)),
+              subtitle: Text(() {
+                final tm = container.read(themeModeProvider);
+                return tm == ThemeMode.light ? 'Light' : (tm == ThemeMode.dark ? 'Dark' : 'System');
+              }(), style: TextStyle(color: dimColor, fontSize: 12)),
+              trailing: Icon(Icons.chevron_right, color: dimColor, size: 18),
+              onTap: () {
+                Navigator.pop(ctx);
+                _showThemeDialog(context);
+              },
+            ),
+            Divider(color: isDark ? Colors.white12 : Colors.black12, height: 24),
+            ListTile(
+              leading: const Icon(Icons.logout_rounded, color: Colors.redAccent),
+              title: const Text('Logout', style: TextStyle(color: Colors.redAccent)),
+              onTap: () {
+                Navigator.pop(ctx);
+                FirebaseService.signOut();
+                this.context.go('/auth/login');
+              },
+            ),
+          ]),
+        );
+      }),
+    );
+  }
+
+  void _showThemeDialog(BuildContext context) {
+    final container = ProviderScope.containerOf(context);
+    final themeMode = container.read(themeModeProvider.notifier);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showDialog(
+      context: context,
+      builder: (d) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1A0533) : Colors.white,
+        title: Text('Choose Theme', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(
+            leading: const Icon(Icons.light_mode_rounded, color: Colors.amber),
+            title: Text('Light', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
+            onTap: () { themeMode.set(ThemeMode.light); Navigator.pop(d); },
+          ),
+          ListTile(
+            leading: const Icon(Icons.dark_mode_rounded, color: Colors.blueGrey),
+            title: Text('Dark', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
+            onTap: () { themeMode.set(ThemeMode.dark); Navigator.pop(d); },
+          ),
+          ListTile(
+            leading: const Icon(Icons.settings_brightness_rounded, color: Colors.teal),
+            title: Text('System', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
+            subtitle: Text('Follow device theme', style: TextStyle(color: isDark ? Colors.white38 : Colors.black54, fontSize: 11)),
+            onTap: () { themeMode.set(ThemeMode.system); Navigator.pop(d); },
+          ),
+        ]),
+      ),
+    );
+  }
+
+  void _showBlockStudents(BuildContext parentCtx) {
+    showModalBottomSheet(
+      context: parentCtx,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setLocal) {
+        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+        return FutureBuilder<List<Map<String, dynamic>>>(
+          future: FirebaseService.getAllStudents(),
+          builder: (ctx, snap) {
+            if (!snap.hasData) {
+              return Padding(
+                padding: const EdgeInsets.all(40),
+                child: Center(child: ProfessionalLoader()),
+              );
+            }
+            final students = snap.data!;
+            return Container(
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1A0533) : Colors.white,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              padding: const EdgeInsets.all(24),
+              child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  const Icon(Icons.block_rounded, color: Colors.redAccent, size: 22),
+                  const SizedBox(width: 10),
+                  Text('Block Students (${students.length})', style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 18, fontWeight: FontWeight.bold)),
+                  const Spacer(),
+                  IconButton(icon: Icon(Icons.close, color: isDark ? Colors.white38 : Colors.black54), onPressed: () => Navigator.pop(ctx)),
+                ]),
+                const SizedBox(height: 16),
+                if (students.isEmpty)
+                  Center(child: Padding(padding: const EdgeInsets.all(20), child: Text('No students registered.', style: TextStyle(color: isDark ? Colors.white38 : Colors.black45))))
+                else
+                  ConstrainedBox(
+                    constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.5),
+                    child: ListView.separated(
+                      itemCount: students.length,
+                      separatorBuilder: (_, __) => Divider(color: isDark ? Colors.white12 : Colors.black12, height: 1),
+                      itemBuilder: (_, i) {
+                        final s = students[i];
+                        final uid = s['id'] as String? ?? '';
+                        final name = s['name'] as String? ?? 'Unknown';
+                        final email = s['email'] as String? ?? '';
+                        final isBlocked = s['blocked'] as bool? ?? false;
+                        final isVerified = s['verified'] as bool? ?? false;
+                        return Card(
+                          color: isDark ? const Color(0xFF0D0D2E) : Colors.grey.shade50,
+                          margin: const EdgeInsets.only(bottom: 6),
+                          child: Padding(
+                            padding: const EdgeInsets.all(10),
+                            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Row(children: [
+                                CircleAvatar(
+                                  backgroundColor: isBlocked ? Colors.redAccent.withValues(alpha: 0.3) : Colors.green.withValues(alpha: 0.3),
+                                  child: Icon(isBlocked ? Icons.block_rounded : Icons.check_circle_outline_rounded, color: isBlocked ? Colors.redAccent : Colors.green, size: 18),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                  Text(name, style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontWeight: FontWeight.bold, fontSize: 14)),
+                                  Text(email, style: TextStyle(color: isDark ? Colors.white38 : Colors.black45, fontSize: 11)),
+                                ])),
+                              ]),
+                              const SizedBox(height: 6),
+                              Row(children: [
+                                Expanded(
+                                  child: SizedBox(
+                                    height: 30,
+                                    child: TextButton(
+                                      onPressed: () async {
+                                        if (!debounce('block_$uid')) return;
+                                        await FirebaseService.toggleStudentBlocked(uid, !isBlocked);
+                                        if (ctx.mounted) setLocal(() { s['blocked'] = !isBlocked; });
+                                      },
+                                      style: TextButton.styleFrom(backgroundColor: isBlocked ? Colors.green : Colors.redAccent, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 6)),
+                                      child: Text(isBlocked ? 'Unblock' : 'Block', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: SizedBox(
+                                    height: 30,
+                                    child: TextButton(
+                                      onPressed: () async {
+                                        if (!debounce('verify_$uid')) return;
+                                        await FirebaseService.toggleStudentVerified(uid, !isVerified);
+                                        if (ctx.mounted) setLocal(() { s['verified'] = !isVerified; });
+                                      },
+                                      style: TextButton.styleFrom(backgroundColor: isVerified ? Colors.orange : Colors.blue, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 6)),
+                                      child: Text(isVerified ? 'Unverify' : 'Verify', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                                    ),
+                                  ),
+                                ),
+
+                              ]),
+                            ]),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+              ]),
+            );
+          },
+        );
+      }),
+    );
+  }
+
+  void _showAccountInfoDialog(BuildContext parentCtx, StateSetter setLocal, String currentTitle, String currentNo, String currentBank) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final baseColor = isDark ? Colors.white : Colors.black87;
+    final dimColor = isDark ? Colors.white38 : Colors.black54;
+    final fillColor = isDark ? Colors.white10 : Colors.black12;
+    final bgColor = isDark ? const Color(0xFF1A0533) : Colors.white;
+    final titleCtrl = TextEditingController(text: currentTitle);
+    final noCtrl = TextEditingController(text: currentNo);
+    final bankCtrl = TextEditingController(text: currentBank);
+    showDialog(
+      context: parentCtx,
+      builder: (d) => AlertDialog(
+        backgroundColor: bgColor,
+        title: Text('Account Info', style: TextStyle(color: baseColor)),
+        content: SingleChildScrollView(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextField(controller: titleCtrl, style: TextStyle(color: baseColor),
+              decoration: InputDecoration(labelText: 'Account Title', labelStyle: TextStyle(color: dimColor),
+                filled: true, fillColor: fillColor, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none))),
+            const SizedBox(height: 12),
+            TextField(controller: noCtrl, style: TextStyle(color: baseColor),
+              decoration: InputDecoration(labelText: 'Account No', labelStyle: TextStyle(color: dimColor),
+                filled: true, fillColor: fillColor, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none))),
+            const SizedBox(height: 12),
+            TextField(controller: bankCtrl, style: TextStyle(color: baseColor),
+              decoration: InputDecoration(labelText: 'Bank Name', labelStyle: TextStyle(color: dimColor),
+                filled: true, fillColor: fillColor, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none))),
+          ]),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(d), child: Text('Cancel', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54))),
+          ElevatedButton(onPressed: () async {
+            await FirebaseService.updateSetting('accountTitle', titleCtrl.text.trim());
+            await FirebaseService.updateSetting('accountNo', noCtrl.text.trim());
+            await FirebaseService.updateSetting('bankName', bankCtrl.text.trim());
+            if (parentCtx.mounted) {
+              setLocal(() { /* parent will refresh on next open */ });
+            }
+            Navigator.pop(d);
+          }, style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4A148C)), child: const Text('Save', style: TextStyle(color: Colors.white))),
+        ],
+      ),
     );
   }
 

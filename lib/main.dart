@@ -31,26 +31,28 @@ void _listenPdfIntent() {
     if (call.method == 'openPdf') {
       final uri = call.arguments as String?;
       if (uri != null && uri.isNotEmpty) {
-        await Future.delayed(const Duration(milliseconds: 500));
-        final ctx = rootNavigatorKey.currentContext;
-        if (ctx != null) {
-          ctx.go('/pdf_reader/view', extra: {'url': uri});
-        }
+        _navigateToPdf(uri);
       }
     }
   });
   _pdfChannel.invokeMethod<String>('getInitialPdfUri').then((uri) {
     if (uri != null && uri.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        Future.delayed(const Duration(seconds: 1), () {
-          final ctx = rootNavigatorKey.currentContext;
-          if (ctx != null) {
-            ctx.go('/pdf_reader/view', extra: {'url': uri});
-          }
-        });
+        _navigateToPdf(uri);
       });
     }
   }).catchError((_) {});
+}
+
+void _navigateToPdf(String uri) async {
+  for (int attempt = 0; attempt < 10; attempt++) {
+    await Future.delayed(Duration(milliseconds: attempt == 0 ? 500 : 1000));
+    final ctx = rootNavigatorKey.currentContext;
+    if (ctx != null) {
+      ctx.go('/pdf_reader/view', extra: {'url': uri});
+      return;
+    }
+  }
 }
 
 @pragma('vm:entry-point')
