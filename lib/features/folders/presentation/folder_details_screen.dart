@@ -644,7 +644,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
         final downloadUrl = await FirebaseService.uploadFile(bytes, item['name'], onProgress: (p) {
           if (mounted) setState(() {
             _uploadProgress[item['name']] = p;
-            item['uploadedBytes'] = (item['totalBytes'] as int * p).toInt();
+            item['uploadedBytes'] = ((item['totalBytes'] as int) * p).toInt();
           });
         });
         final provider = await FirebaseService.getStorageProvider();

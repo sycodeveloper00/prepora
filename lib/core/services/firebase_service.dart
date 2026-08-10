@@ -1694,6 +1694,19 @@ class _SupabaseStorageReference {
       throw Exception('Supabase delete failed ($fullPath): $body');
     }
   }
+  static Future<bool> getUserAutoDownload() async {
+    final user = currentUser;
+    if (user == null) return true;
+    final doc = await firestore.collection('users').doc(user.uid).get();
+    final data = doc.data();
+    return data?['autoDownload'] as bool? ?? true;
+  }
+
+  static Future<void> updateUserAutoDownload(bool value) async {
+    final user = currentUser;
+    if (user == null) return;
+    await firestore.collection('users').doc(user.uid).update({'autoDownload': value});
+  }
 }
 
 class SessionManager {

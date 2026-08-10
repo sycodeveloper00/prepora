@@ -114,7 +114,7 @@ class _AssistantDashboardScreenState extends State<AssistantDashboardScreen> {
                           ),
                       ]),
                       onPressed: () {
-                        FirebaseService.markNotificationsRead(FirebaseService.currentUser?.uid ?? '');
+                        FirebaseService.markStudentNotificationsRead(FirebaseService.currentUser?.uid ?? '');
                         NotificationService.clearBadge();
                         if (_notifOverlay != null) {
                           _notifOverlay!.remove();
@@ -139,7 +139,7 @@ class _AssistantDashboardScreenState extends State<AssistantDashboardScreen> {
                               child: NotificationBellBox(
                                 docs: docs,
                                 onClear: () {
-                                  FirebaseService.markNotificationsRead(FirebaseService.currentUser?.uid ?? '');
+                                  FirebaseService.markStudentNotificationsRead(FirebaseService.currentUser?.uid ?? '');
                                   NotificationService.clearBadge();
                                   _notifOverlay?.remove();
                                   _notifOverlay = null;

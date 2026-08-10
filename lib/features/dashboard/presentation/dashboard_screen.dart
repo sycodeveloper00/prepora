@@ -206,7 +206,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       return;
     }
     final uid = FirebaseService.currentUser?.uid ?? '';
-    FirebaseService.markNotificationsRead(uid);
+    FirebaseService.markStudentNotificationsRead(uid);
     NotificationService.clearBadge();
     _rebuildNotificationStream();
     final docs = _latestNotificationDocs;
@@ -228,7 +228,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           child: NotificationBellBox(
             docs: docs,
             onClear: () {
-              FirebaseService.markNotificationsRead(uid);
+              FirebaseService.markStudentNotificationsRead(uid);
               NotificationService.clearBadge();
               _notifOverlay?.remove();
               _notifOverlay = null;

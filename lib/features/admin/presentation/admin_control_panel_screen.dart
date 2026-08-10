@@ -473,7 +473,7 @@ class _AdminControlPanelScreenState extends State<AdminControlPanelScreen> {
           Divider(color: isDark ? Colors.white12 : Colors.black12, height: 1),
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseService.getAllAssistants(),
+              stream: FirebaseService.getAllAssistant(),
               builder: (context, snap) {
                 if (snap.connectionState == ConnectionState.waiting) return Center(child: ProfessionalLoader());
                 if (!snap.hasData || snap.data!.docs.isEmpty) {

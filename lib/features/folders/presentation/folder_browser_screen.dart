@@ -25,12 +25,14 @@ class FolderBrowserScreen extends StatefulWidget {
   final String sourceFolderId;
   final bool isMove;
   final List<String> selectedIds;
+  final String? parentContentId;
 
   const FolderBrowserScreen({
     super.key,
     required this.sourceFolderId,
     required this.isMove,
     required this.selectedIds,
+    this.parentContentId,
   });
 
   @override
