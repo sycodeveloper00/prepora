@@ -1217,6 +1217,7 @@ class FirebaseService {
         'lastActiveDate': todayStr,
         'streakCount': streak,
         'totalActiveDays': totalDays + 1,
+        'lastLogin': Timestamp.fromDate(today),
       });
     } catch (_) {}
   }

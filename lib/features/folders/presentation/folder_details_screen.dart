@@ -1287,7 +1287,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
         final fileType = data['fileType'] as String? ?? 'pdf';
         if (url.isNotEmpty) {
           if (fileType == 'pdf') {
-            context.push('/pdf_reader/view', extra: {'url': url, 'folderId': widget.folderId, 'parentContentId': widget.parentContentId}).then((_) {
+            context.push('/pdf_reader/view', extra: {'url': url, 'folderId': widget.folderId, 'parentContentId': widget.parentContentId, 'title': name}).then((_) {
               if (activityId != null) FirebaseService.endActivity(activityId!);
             });
           } else {
@@ -1336,7 +1336,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
         if (activityId != null) FirebaseService.endActivity(activityId);
       });
     } else if (ext == 'pdf') {
-      context.push('/pdf_reader/view', extra: {'url': url, 'folderId': widget.folderId, 'parentContentId': widget.parentContentId}).then((_) {
+      context.push('/pdf_reader/view', extra: {'url': url, 'folderId': widget.folderId, 'parentContentId': widget.parentContentId, 'title': name}).then((_) {
         if (activityId != null) FirebaseService.endActivity(activityId);
       });
     } else if (['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', 'webm'].contains(ext)) {

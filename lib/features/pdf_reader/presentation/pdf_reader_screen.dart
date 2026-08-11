@@ -19,7 +19,8 @@ class PdfReaderScreen extends StatefulWidget {
   final String documentId;
   final String? folderId;
   final String? parentContentId;
-  const PdfReaderScreen({super.key, required this.documentId, this.folderId, this.parentContentId});
+  final String? title;
+  const PdfReaderScreen({super.key, required this.documentId, this.folderId, this.parentContentId, this.title});
 
   @override
   State<PdfReaderScreen> createState() => _PdfReaderScreenState();
@@ -133,6 +134,12 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
 
       final rawName = url.split('/').last.split('?').first.split('#').first;
       _fileName = rawName.replaceAll(RegExp(r'[%&+:?/#\\]'), '_');
+      if (widget.title != null && widget.title!.isNotEmpty) {
+        _fileName = widget.title;
+      } else {
+        _fileName = _fileName!.replaceFirst(RegExp(r'^v\d+_'), '');
+        _fileName = _fileName!.replaceFirst(RegExp(r'^\d+_'), '');
+      }
 
       if (url.startsWith('http://') || url.startsWith('https://')) {
         final dir = await getApplicationDocumentsDirectory();
@@ -155,6 +162,12 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
           final response = await client.send(request).timeout(const Duration(seconds: 30));
 
           if (response.statusCode == 200) {
+            final contentType = response.headers['content-type'] ?? '';
+            if (contentType.contains('text/html') || contentType.contains('text/plain')) {
+              if (mounted) setState(() { _error = 'Failed to load PDF — server returned an error page'; _isLoading = false; });
+              client.close();
+              return;
+            }
             final contentLength = response.contentLength;
             final sink = localFile.openWrite();
             int received = 0;
@@ -273,7 +286,17 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
     final user = FirebaseService.currentUser;
 
     if (!_accessGranted && !_isLoading) {
-      return Scaffold(
+    return PopScope(
+      canPop: true,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        if (widget.parentContentId == null && widget.folderId == null) {
+          context.go('/dashboard');
+        } else {
+          Navigator.pop(context);
+        }
+      },
+      child: Scaffold(
         appBar: AppBar(title: const Text('Access Required')),
         body: Center(
           child: Padding(
@@ -351,7 +374,13 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                       children: [
                         IconButton(
                           icon: Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: isDark ? Colors.white : Colors.black87),
-                          onPressed: () => Navigator.pop(context),
+                          onPressed: () {
+                            if (widget.parentContentId == null && widget.folderId == null) {
+                              context.go('/dashboard');
+                            } else {
+                              Navigator.pop(context);
+                            }
+                          },
                         ),
                         Expanded(
                           child: Text(
@@ -403,6 +432,11 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                             tooltip: 'Exit',
                           ),
                         ] else ...[
+                          IconButton(
+                            icon: const Icon(Icons.note_add_rounded, size: 18, color: Colors.green),
+                            onPressed: _saveAnnotation,
+                            tooltip: 'Save to Notes',
+                          ),
                           IconButton(
                             icon: const Icon(Icons.edit_rounded, size: 18, color: Colors.cyan),
                             onPressed: () => setState(() => _isAnnotating = true),
@@ -570,6 +604,12 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                       initialZoomLevel: 1.0,
                       onDocumentLoaded: (details) {
                         if (mounted) setState(() => _totalPages = details.document.pages.count);
+                      },
+                      onDocumentLoadFailed: (details) {
+                        if (mounted) setState(() {
+                          _error = 'Failed to load PDF: ${details.description}';
+                          _isLoading = false;
+                        });
                       },
                     ),
                   ),
@@ -739,6 +779,7 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
               },
             )
           : null,
+    ),
     );
   }
 

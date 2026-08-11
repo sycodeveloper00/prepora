@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/widgets/glassmorphic_container.dart';
 import '../../../core/widgets/animated_pressable.dart';
 import '../../../core/services/firebase_service.dart';
@@ -1587,8 +1588,11 @@ class _DashboardScreenState extends State<DashboardScreen>
           actions: [
             if (_latestUpdateLink != null && _latestUpdateLink!.isNotEmpty)
               ElevatedButton(
-                onPressed: () {
-                  context.push('/webview', extra: {'url': _latestUpdateLink, 'title': 'Update v$_latestUpdateVersion'});
+                onPressed: () async {
+                  final uri = Uri.parse(_latestUpdateLink!);
+                  if (await canLaunchUrl(uri)) {
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  }
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF4A148C),

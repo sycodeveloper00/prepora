@@ -28,10 +28,6 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
   @override
   void initState() {
     super.initState();
-    _scannerController = MobileScannerController(
-      detectionSpeed: DetectionSpeed.normal,
-      facing: CameraFacing.back,
-    );
     _loadActiveSessions();
     _loadConnectionHistory();
   }
@@ -64,6 +60,8 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
           if (sessions.length >= _maxWebSessions && _showScanner) {
             _showScanner = false;
             _scannerController?.stop();
+            _scannerController?.dispose();
+            _scannerController = null;
           }
         });
       }
@@ -99,9 +97,15 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
     }
     setState(() => _showScanner = !_showScanner);
     if (_showScanner) {
+      _scannerController = MobileScannerController(
+        detectionSpeed: DetectionSpeed.normal,
+        facing: CameraFacing.back,
+      );
       _scannerController?.start();
     } else {
       _scannerController?.stop();
+      _scannerController?.dispose();
+      _scannerController = null;
     }
   }
 
@@ -192,6 +196,9 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
       if (sessionData['status'] == 'connected' && sessionData['uid'] == user.uid) {
         _showError('Already connected to this session.');
         setState(() { _isConnecting = false; _showScanner = false; });
+        _scannerController?.stop();
+        _scannerController?.dispose();
+        _scannerController = null;
         return;
       }
 
@@ -219,6 +226,8 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
         _showScanner = false;
       });
       _scannerController?.stop();
+      _scannerController?.dispose();
+      _scannerController = null;
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -311,6 +320,8 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
             if (_showScanner) {
               setState(() => _showScanner = false);
               _scannerController?.stop();
+              _scannerController?.dispose();
+              _scannerController = null;
             } else {
               context.pop();
             }

@@ -1045,7 +1045,7 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
   }
 
   // ─── Fee Details Dialog ─────────────────────────────────────────────────────
-  void _showFeeDetailsDialog() {
+  void _showFeeDetailsDialog() async {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     String? paymentMessage;
     for (final fb in _feedbacks) {
@@ -1055,19 +1055,42 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
         break;
       }
     }
-    if (paymentMessage == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: const Text('No payment details found'), backgroundColor: Colors.orange, behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-      );
+
+    final fields = <String, String>{};
+
+    if (paymentMessage != null) {
+      for (final line in paymentMessage.split('\n')) {
+        final idx = line.indexOf(':');
+        if (idx != -1) {
+          fields[line.substring(0, idx).trim()] = line.substring(idx + 1).trim();
+        }
+      }
+    } else {
+      try {
+        final settings = await FirebaseService.getSettings();
+        final price = (settings['price'] as num?)?.toDouble();
+        final accountTitle = settings['accountTitle'] as String? ?? '';
+        final accountNo = settings['accountNo'] as String? ?? '';
+        final bankName = settings['bankName'] as String? ?? '';
+        if (accountTitle.isNotEmpty || accountNo.isNotEmpty || bankName.isNotEmpty) {
+          if (price != null && price > 0) fields['Fee Amount'] = 'Rs. ${price.toStringAsFixed(0)}';
+          if (accountTitle.isNotEmpty) fields['Account Title'] = accountTitle;
+          if (accountNo.isNotEmpty) fields['Account No'] = accountNo;
+          if (bankName.isNotEmpty) fields['Bank Name'] = bankName;
+        }
+      } catch (_) {}
+    }
+
+    if (fields.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: const Text('No payment details found'), backgroundColor: Colors.orange, behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+        );
+      }
       return;
     }
-    final fields = <String, String>{};
-    for (final line in paymentMessage.split('\n')) {
-      final idx = line.indexOf(':');
-      if (idx != -1) {
-        fields[line.substring(0, idx).trim()] = line.substring(idx + 1).trim();
-      }
-    }
+
+    if (!mounted) return;
     showDialog(
       context: context,
       builder: (d) => AlertDialog(
