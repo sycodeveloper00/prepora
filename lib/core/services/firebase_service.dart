@@ -1628,6 +1628,20 @@ class FirebaseService {
   static Stream<QuerySnapshot> getAppUpdates() {
     return firestore.collection('app_updates').orderBy('createdAt', descending: true).snapshots();
   }
+
+  static Future<bool> getUserAutoDownload() async {
+    final user = FirebaseService.currentUser;
+    if (user == null) return true;
+    final doc = await FirebaseService.firestore.collection('users').doc(user.uid).get();
+    final data = doc.data();
+    return data?['autoDownload'] as bool? ?? true;
+  }
+
+  static Future<void> updateUserAutoDownload(bool value) async {
+    final user = FirebaseService.currentUser;
+    if (user == null) return;
+    await FirebaseService.firestore.collection('users').doc(user.uid).update({'autoDownload': value});
+  }
 }
 
 /// Minimal Supabase Storage compat class so existing code using `FirebaseService.storage.ref(...)` works.
@@ -1693,19 +1707,6 @@ class _SupabaseStorageReference {
       final body = await streamed.stream.bytesToString();
       throw Exception('Supabase delete failed ($fullPath): $body');
     }
-  }
-  static Future<bool> getUserAutoDownload() async {
-    final user = currentUser;
-    if (user == null) return true;
-    final doc = await firestore.collection('users').doc(user.uid).get();
-    final data = doc.data();
-    return data?['autoDownload'] as bool? ?? true;
-  }
-
-  static Future<void> updateUserAutoDownload(bool value) async {
-    final user = currentUser;
-    if (user == null) return;
-    await firestore.collection('users').doc(user.uid).update({'autoDownload': value});
   }
 }
 
