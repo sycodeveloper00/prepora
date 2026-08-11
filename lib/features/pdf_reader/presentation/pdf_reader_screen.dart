@@ -353,6 +353,7 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
             ),
           ),
         ),
+      ),
       );
     }
 
