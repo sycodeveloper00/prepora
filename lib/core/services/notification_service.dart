@@ -98,21 +98,8 @@ class NotificationService {
       final user = FirebaseService.currentUser;
       if (user == null) return;
 
-      final doc = await FirebaseService.firestore.collection('users').doc(user.uid).get();
-      if (!doc.exists) return;
-      final userData = doc.data();
+      await _plugin.cancel(id: _dailyStreakNotificationId);
 
-      final now = DateTime.now();
-      final todayMidnight = DateTime(now.year, now.month, now.day);
-      final lastLogin = (userData?['lastLogin'] as Timestamp?)?.toDate();
-
-      // If user already opened app today → cancel any pending notification (will reschedule tomorrow)
-      if (lastLogin != null && lastLogin.isAfter(todayMidnight)) {
-        await _plugin.cancel(id: _dailyStreakNotificationId);
-        return;
-      }
-
-      // User hasn't opened app today → schedule 9 AM reminder (even if past 9 AM, schedule tomorrow)
       final nowTz = tz.TZDateTime.now(tz.local);
       var scheduledDate = tz.TZDateTime(tz.local, nowTz.year, nowTz.month, nowTz.day, 9, 0, 0);
       if (scheduledDate.isBefore(nowTz)) {
@@ -261,9 +248,6 @@ class NotificationService {
       final user = FirebaseService.currentUser;
       if (user == null) return;
 
-      // User opened app → cancel any pending 9 AM scheduled notification (no longer needed)
-      await _plugin.cancel(id: _dailyStreakNotificationId);
-
       final doc = await FirebaseService.firestore.collection('users').doc(user.uid).get();
       if (!doc.exists) return;
 
@@ -277,30 +261,31 @@ class NotificationService {
           ? DateTime(lastStreakNotified.year, lastStreakNotified.month, lastStreakNotified.day)
           : null;
 
-      try {
-        await FirebaseService.firestore.collection('users').doc(user.uid).update({
-          'lastLogin': Timestamp.fromDate(now),
-        });
-      } catch (_) {}
+      // Always reschedule 9 AM daily reminder for next occurrence
+      await scheduleDailyStreakReminder();
 
       if (lastLogin == null) return;
 
       final lastLoginDate = DateTime(lastLogin.year, lastLogin.month, lastLogin.day);
       final daysSinceLogin = today.difference(lastLoginDate).inDays;
 
+      // Same day → no notification needed
       if (daysSinceLogin < 1) return;
+
+      // Already notified today → skip
       if (lastStreakDate != null && !lastStreakDate.isBefore(today)) return;
 
       final plugin = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
       final enabled = await plugin?.areNotificationsEnabled() ?? true;
       if (!enabled) return;
 
-      if (daysSinceLogin >= 3) {
+      // Duolingo style: 1 day gap = streak needs attention, 2+ days = streak reset
+      if (daysSinceLogin >= 2) {
         await _showStreakNotification(
-          'We miss you!',
-          'Your study streak needs you. Come back and keep learning!',
+          'Your streak was reset!',
+          'You missed a day. Start a new streak today — open PrePora now!',
         );
-      } else if (daysSinceLogin >= 1) {
+      } else {
         await _showStreakNotification(
           'Keep your streak alive!',
           'Don\'t let your progress slip away. Open PrePora today!',
@@ -310,6 +295,7 @@ class NotificationService {
       try {
         await FirebaseService.firestore.collection('users').doc(user.uid).update({
           'lastStreakNotified': Timestamp.fromDate(now),
+          'lastLogin': Timestamp.fromDate(now),
         });
       } catch (_) {}
     } catch (_) {}

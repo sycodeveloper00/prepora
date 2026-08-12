@@ -350,11 +350,10 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           // Scanner overlay
-          Offstage(
-            offstage: !_showScanner,
-            child: _buildScannerSection(cardColor, textColor, isDark),
-          ),
-          if (_showScanner) const SizedBox(height: 16),
+          if (_showScanner) ...[
+            _buildScannerSection(cardColor, textColor, isDark),
+            const SizedBox(height: 16),
+          ],
 
           // Active connection cards
           if (_activeSessions.isNotEmpty) ...[

@@ -88,7 +88,12 @@ class _AppLifecycleState extends State<_AppLifecycle> with WidgetsBindingObserve
       await NotificationService.requestNotificationPermission();
       await NotificationService.scheduleDailyStreakReminder();
       await NotificationService.checkAndNotify();
+      final user = FirebaseService.currentUser;
+      if (user != null) {
+        await FirebaseService.updateStreak(user.uid);
+      }
       _startSessionIfAdminOrAssistant();
+      await _checkSingleDeviceLogin();
     });
   }
 
@@ -102,12 +107,43 @@ class _AppLifecycleState extends State<_AppLifecycle> with WidgetsBindingObserve
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       NotificationService.clearBadge();
+      _checkSingleDeviceLogin();
+      _updateStreakAndNotify();
     }
+  }
+
+  Future<void> _updateStreakAndNotify() async {
+    try {
+      final user = FirebaseService.currentUser;
+      if (user == null) return;
+      await NotificationService.scheduleDailyStreakReminder();
+      await NotificationService.checkAndNotify();
+      await FirebaseService.updateStreak(user.uid);
+    } catch (_) {}
   }
 
   Future<void> _startSessionIfAdminOrAssistant() async {
     // SessionManager is intentionally NOT started on Android.
     // Firebase Auth persists by default — no auto-logout needed.
+  }
+
+  Future<void> _checkSingleDeviceLogin() async {
+    try {
+      final isSameDevice = await FirebaseService.checkSingleDeviceLogin();
+      if (!isSameDevice && mounted) {
+        await FirebaseService.signOut();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Logged in on another device. Please sign in again.'),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 4),
+            ),
+          );
+          context.go('/auth/login');
+        }
+      }
+    } catch (_) {}
   }
 
   @override

@@ -127,8 +127,12 @@ class FirebaseService {
         }
         await storeSession(cred.user!.uid);
         final deviceId = await getDeviceId();
+        await firestore.collection('users').doc(cred.user!.uid).update({
+          'currentDeviceId': deviceId,
+          'lastLoginAt': FieldValue.serverTimestamp(),
+        });
         await _trackLogin(cred.user!.uid, deviceId);
-        await _updateStreak(cred.user!.uid);
+        await updateStreak(cred.user!.uid);
         final label = userRole == 'admin' ? 'Admin' : (userRole == 'Assistant' ? 'Assistant' : 'Student');
         await addAdminNotification('login', '$label logged in: ${cred.user!.email}', relatedUid: cred.user!.uid);
       }
@@ -184,6 +188,22 @@ class FirebaseService {
     SessionManager.stop();
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('uid');
+  }
+
+  static Future<bool> checkSingleDeviceLogin() async {
+    try {
+      final user = fb_auth.FirebaseAuth.instance.currentUser;
+      if (user == null) return true;
+      final deviceId = await getDeviceId();
+      final doc = await firestore.collection('users').doc(user.uid).get();
+      if (!doc.exists) return true;
+      final data = doc.data() as Map<String, dynamic>?;
+      final currentDeviceId = data?['currentDeviceId'] as String? ?? '';
+      if (currentDeviceId.isEmpty) return true;
+      return currentDeviceId == deviceId;
+    } catch (_) {
+      return true;
+    }
   }
 
   static Future<void> storeSession(String uid) async {
@@ -1193,7 +1213,7 @@ class FirebaseService {
     return;
   }
 
-  static Future<void> _updateStreak(String uid) async {
+  static Future<void> updateStreak(String uid) async {
     try {
       final doc = await firestore.collection('users').doc(uid).get();
       if (!doc.exists) return;
@@ -1212,6 +1232,7 @@ class FirebaseService {
       } else {
         streak = 1;
       }
+
       final totalDays = data['totalActiveDays'] as int? ?? 0;
       await firestore.collection('users').doc(uid).update({
         'lastActiveDate': todayStr,
