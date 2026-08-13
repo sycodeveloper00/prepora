@@ -425,7 +425,7 @@ class _AdminControlPanelScreenState extends State<AdminControlPanelScreen> {
                                   child: TextButton(
                                     onPressed: () async {
                                       if (!debounce('ctrl_verify_$uid')) return;
-                                      await FirebaseService.firestore.collection('users').doc(uid).update({'verified': !verified});
+                                      await FirebaseService.toggleStudentVerified(uid, !verified);
                                       if (ctx.mounted) setLocal(() => s['verified'] = !verified);
                                     },
                                     style: TextButton.styleFrom(backgroundColor: verified ? Colors.orange : Colors.blue, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 8)),

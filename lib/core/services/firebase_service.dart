@@ -285,8 +285,10 @@ class FirebaseService {
     }
   }
 
-  static Future<void> toggleStudentVerified(String uid, bool verified) async {
-    await firestore.collection('users').doc(uid).update({'verified': verified});
+  static Future<void> toggleStudentVerified(String uid, bool verified, {double? paidAmount}) async {
+    final data = <String, dynamic>{'verified': verified};
+    if (paidAmount != null && paidAmount > 0) data['paidAmount'] = paidAmount;
+    await firestore.collection('users').doc(uid).update(data);
   }
 
   static Future<List<Map<String, dynamic>>> getAllStudents() async {

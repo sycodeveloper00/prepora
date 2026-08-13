@@ -19,6 +19,7 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
   bool _isBlocked = true;
   String _email = '';
   String _studentName = '';
+  double _paidAmount = 0;
   List<Map<String, dynamic>> _feedbacks = [];
   bool _loadingUser = true;
 
@@ -68,6 +69,7 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
           _isBlocked = userData?['blocked'] == true;
           _email = userData?['email'] as String? ?? '';
           _studentName = userData?['name'] as String? ?? '';
+          _paidAmount = (userData?['paidAmount'] as num?)?.toDouble() ?? 0;
           _feedbacks = feedbacks;
           _streakCount = streak['streakCount'] as int? ?? 0;
           _totalActiveDays = streak['totalActiveDays'] as int? ?? 0;
@@ -1099,7 +1101,20 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
         title: Row(children: [
           Container(width: 36, height: 36, decoration: BoxDecoration(color: Colors.green.withValues(alpha: 0.15), shape: BoxShape.circle), child: const Icon(Icons.verified_rounded, color: Colors.green, size: 20)),
           const SizedBox(width: 10),
-          Text('Fee Details', style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontWeight: FontWeight.bold, fontSize: 16)),
+          Expanded(
+            child: Text('Fee Details', style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontWeight: FontWeight.bold, fontSize: 16)),
+          ),
+          if (_paidAmount > 0)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: Colors.green.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.green.withValues(alpha: 0.4)),
+              ),
+              child: Text('Paid Rs. ${_paidAmount.toStringAsFixed(0)}/-',
+                style: const TextStyle(color: Colors.green, fontSize: 12, fontWeight: FontWeight.bold)),
+            ),
         ]),
         content: SingleChildScrollView(
           child: Column(mainAxisSize: MainAxisSize.min, children: [

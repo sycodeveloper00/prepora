@@ -100,11 +100,11 @@ class NotificationService {
 
       await _plugin.cancel(id: _dailyStreakNotificationId);
 
+      // User is opening the app right now, so today's 9 AM reminder is not needed.
+      // Always schedule the NEXT day at 9 AM (kept daily-repeating).
       final nowTz = tz.TZDateTime.now(tz.local);
-      var scheduledDate = tz.TZDateTime(tz.local, nowTz.year, nowTz.month, nowTz.day, 9, 0, 0);
-      if (scheduledDate.isBefore(nowTz)) {
-        scheduledDate = scheduledDate.add(const Duration(days: 1));
-      }
+      final tomorrow = nowTz.add(const Duration(days: 1));
+      final scheduledDate = tz.TZDateTime(tz.local, tomorrow.year, tomorrow.month, tomorrow.day, 9, 0, 0);
       const androidDetails = AndroidNotificationDetails(
         'streak_channel', 'Daily Streak',
         channelDescription: 'Daily streak reminders',
@@ -113,15 +113,46 @@ class NotificationService {
         icon: '@drawable/ic_notification',
       );
       const details = NotificationDetails(android: androidDetails, iOS: DarwinNotificationDetails());
-      await _plugin.zonedSchedule(
-        id: _dailyStreakNotificationId,
-        title: 'Time to study!',
-        body: 'Your learning journey is waiting. Open PrePora and continue where you left off.',
-        scheduledDate: scheduledDate,
-        notificationDetails: details,
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-        matchDateTimeComponents: DateTimeComponents.time,
-      );
+
+      final androidPlugin = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+      bool exactGranted = false;
+      try {
+        final canExact = await androidPlugin?.canScheduleExactNotifications();
+        exactGranted = canExact == true;
+      } catch (_) {}
+
+      if (exactGranted) {
+        await _plugin.zonedSchedule(
+          id: _dailyStreakNotificationId,
+          title: 'Time to study!',
+          body: 'Your learning journey is waiting. Open PrePora and continue where you left off.',
+          scheduledDate: scheduledDate,
+          notificationDetails: details,
+          androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+          matchDateTimeComponents: DateTimeComponents.time,
+        );
+      } else {
+        await _plugin.zonedSchedule(
+          id: _dailyStreakNotificationId,
+          title: 'Time to study!',
+          body: 'Your learning journey is waiting. Open PrePora and continue where you left off.',
+          scheduledDate: scheduledDate,
+          notificationDetails: details,
+          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+          matchDateTimeComponents: DateTimeComponents.time,
+        );
+      }
+    } catch (_) {}
+  }
+
+  static Future<void> ensureExactAlarmPermission() async {
+    if (kIsWeb) return;
+    try {
+      final androidPlugin = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+      final canExact = await androidPlugin?.canScheduleExactNotifications();
+      if (canExact == false) {
+        await androidPlugin?.requestExactAlarmsPermission();
+      }
     } catch (_) {}
   }
 

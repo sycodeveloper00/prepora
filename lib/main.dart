@@ -86,6 +86,7 @@ class _AppLifecycleState extends State<_AppLifecycle> with WidgetsBindingObserve
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await NotificationService.initialize();
       await NotificationService.requestNotificationPermission();
+      await NotificationService.ensureExactAlarmPermission();
       await NotificationService.scheduleDailyStreakReminder();
       await NotificationService.checkAndNotify();
       final user = FirebaseService.currentUser;

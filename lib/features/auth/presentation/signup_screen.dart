@@ -66,10 +66,10 @@ class _SignupScreenState extends State<SignupScreen> {
         onTap: () => setState(() => _selectedGender = value),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 14),
+          padding: const EdgeInsets.symmetric(vertical: 6),
           decoration: BoxDecoration(
             color: isSelected ? color.withValues(alpha: 0.2) : Colors.white10,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: isSelected ? color : Colors.white24,
               width: isSelected ? 2 : 1,
@@ -77,11 +77,11 @@ class _SignupScreenState extends State<SignupScreen> {
           ),
           child: Column(
             children: [
-              Icon(icon, color: isSelected ? color : Colors.white54, size: 28),
-              const SizedBox(height: 4),
+              Icon(icon, color: isSelected ? color : Colors.white54, size: 20),
+              const SizedBox(height: 2),
               Text(label, style: TextStyle(
                 color: isSelected ? color : Colors.white54,
-                fontSize: 12,
+                fontSize: 11,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               )),
             ],
