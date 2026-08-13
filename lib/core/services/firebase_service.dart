@@ -1212,7 +1212,30 @@ class FirebaseService {
   // ─── Login Tracking & Auto-Block ──────────────────────────────────────────────
 
   static Future<void> _trackLogin(String uid, String deviceId) async {
-    return;
+    try {
+      final now = DateTime.now();
+      final iso = now.toIso8601String();
+      var deviceModel = 'Android device';
+      try {
+        final info = await DeviceInfoPlugin().androidInfo;
+        deviceModel = '${info.manufacturer} ${info.model}';
+      } catch (_) {}
+      await firestore.collection('login_attempts').add({
+        'uid': uid,
+        'deviceId': deviceId,
+        'deviceModel': deviceModel,
+        'timestamp': iso,
+        'createdAt': Timestamp.fromDate(now),
+      });
+      try {
+        await firestore.collection('login_history').doc(uid).collection('logins').add({
+          'timestamp': Timestamp.fromDate(now),
+          'device': deviceModel,
+          'deviceId': deviceId,
+          'ip': '',
+        });
+      } catch (_) {}
+    } catch (_) {}
   }
 
   static Future<void> updateStreak(String uid) async {
