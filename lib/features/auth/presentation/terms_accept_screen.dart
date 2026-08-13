@@ -11,6 +11,7 @@ class TermsAcceptScreen extends StatefulWidget {
 
 class _TermsAcceptScreenState extends State<TermsAcceptScreen> {
   bool _agreed = false;
+  bool _saving = false;
 
   final _terms = [
     ('Acceptance', 'By creating an account, you agree to these Terms & Conditions. If you do not agree, do not use the app.'),
@@ -121,10 +122,15 @@ class _TermsAcceptScreenState extends State<TermsAcceptScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: _agreed ? () async {
-                          await FirebaseService.firestore.collection('users').doc(FirebaseService.currentUser?.uid)
-                              .set({'termsAccepted': true, 'termsAcceptedAt': FieldValue.serverTimestamp()}, SetOptions(merge: true));
-                          if (context.mounted) context.go('/dashboard');
+                        onPressed: _agreed && !_saving ? () async {
+                          setState(() => _saving = true);
+                          try {
+                            await FirebaseService.firestore.collection('users').doc(FirebaseService.currentUser?.uid)
+                                .set({'termsAccepted': true, 'termsAcceptedAt': FieldValue.serverTimestamp()}, SetOptions(merge: true));
+                            if (context.mounted) context.go('/dashboard');
+                          } finally {
+                            if (mounted) setState(() => _saving = false);
+                          }
                         } : null,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: isDark ? const Color(0xFF4A148C) : const Color(0xFF4A148C),
@@ -132,7 +138,9 @@ class _TermsAcceptScreenState extends State<TermsAcceptScreen> {
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           disabledBackgroundColor: isDark ? Colors.white12 : Colors.black12,
                         ),
-                        child: const Text('Continue', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                        child: _saving
+                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                            : const Text('Continue', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
                       ),
                     ),
                   ],

@@ -206,7 +206,7 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
       final userData = userDoc.data();
 
       final deviceModel = _getDeviceModel();
-      final deviceId = _getDeviceId();
+      final deviceId = await FirebaseService.getDeviceId();
 
       await sessionDoc.set({
         'uid': user.uid,

@@ -19,6 +19,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> with WidgetsB
   bool _autoDownload = true;
   bool _notificationsEnabled = true;
   bool _loading = true;
+  bool _loggingOut = false;
   String _appVersion = '2.0.0';
 
   @override
@@ -156,10 +157,20 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> with WidgetsB
                     Divider(height: 1, color: isDark ? Colors.white12 : Colors.black12),
                     ListTile(
                       leading: const Icon(Icons.logout_rounded, color: Colors.redAccent),
-                      title: const Text('Logout', style: TextStyle(color: Colors.redAccent)),
+                      title: Text(_loggingOut ? 'Logging out...' : 'Logout', style: TextStyle(color: Colors.redAccent)),
+                      enabled: !_loggingOut,
+                      trailing: _loggingOut
+                          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.redAccent))
+                          : null,
                       onTap: () async {
-                        await FirebaseService.signOut();
-                        if (mounted) context.go('/auth/login');
+                        if (_loggingOut) return;
+                        setState(() => _loggingOut = true);
+                        try {
+                          await FirebaseService.signOut();
+                          if (mounted) context.go('/auth/login');
+                        } finally {
+                          if (mounted) setState(() => _loggingOut = false);
+                        }
                       },
                     ),
                   ]),

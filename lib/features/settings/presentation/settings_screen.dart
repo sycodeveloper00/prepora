@@ -18,6 +18,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObserver {
   bool _autoDownload = true;
   bool _notificationsEnabled = true;
+  bool _loggingOut = false;
 
   @override
   void initState() {
@@ -192,10 +193,20 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
               Divider(height: 1, color: isDark ? Colors.white12 : Colors.black12),
               ListTile(
                 leading: const Icon(Icons.logout_rounded, color: Colors.redAccent),
-                title: const Text('Logout', style: TextStyle(color: Colors.redAccent)),
+                title: Text(_loggingOut ? 'Logging out...' : 'Logout', style: TextStyle(color: Colors.redAccent)),
+                enabled: !_loggingOut,
+                trailing: _loggingOut
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.redAccent))
+                    : null,
                 onTap: () async {
-                  await FirebaseService.signOut();
-                  if (mounted) context.go('/auth/login');
+                  if (_loggingOut) return;
+                  setState(() => _loggingOut = true);
+                  try {
+                    await FirebaseService.signOut();
+                    if (mounted) context.go('/auth/login');
+                  } finally {
+                    if (mounted) setState(() => _loggingOut = false);
+                  }
                 },
               ),
             ]),

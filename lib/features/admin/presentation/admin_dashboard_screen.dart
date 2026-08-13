@@ -25,6 +25,7 @@ class AdminDashboardScreen extends StatefulWidget {
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   final _folderNameController = TextEditingController();
   int _pendingFeedbackCount = 0;
+  bool _loggingOut = false;
   StreamSubscription? _feedbackSub;
   Timer? _feedbackDebounce;
   Timer? _tokenRefreshTimer;
@@ -2030,11 +2031,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             Divider(color: isDark ? Colors.white12 : Colors.black12, height: 24),
             ListTile(
               leading: const Icon(Icons.logout_rounded, color: Colors.redAccent),
-              title: const Text('Logout', style: TextStyle(color: Colors.redAccent)),
-              onTap: () {
+              title: Text(_loggingOut ? 'Logging out...' : 'Logout', style: TextStyle(color: Colors.redAccent)),
+              enabled: !_loggingOut,
+              trailing: _loggingOut
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.redAccent))
+                  : null,
+              onTap: () async {
+                if (_loggingOut) return;
+                setState(() => _loggingOut = true);
                 Navigator.pop(ctx);
-                FirebaseService.signOut();
-                this.context.go('/auth/login');
+                try {
+                  await FirebaseService.signOut();
+                  this.context.go('/auth/login');
+                } finally {
+                  if (mounted) setState(() => _loggingOut = false);
+                }
               },
             ),
           ]),

@@ -1082,7 +1082,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 border: Border.all(color: (isDark ? Colors.white : Colors.black87).withValues(alpha: 0.1)),
               ),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('After payment, submit feedback with:', style: TextStyle(color: (isDark ? Colors.white : Colors.black87).withValues(alpha: 0.7), fontSize: 13, fontWeight: FontWeight.bold)),
+                Text('After payment, submit Fee Detail with:', style: TextStyle(color: (isDark ? Colors.white : Colors.black87).withValues(alpha: 0.7), fontSize: 13, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 14),
                 _bannerField('Your Name', '______', Icons.badge_rounded, Colors.greenAccent),
                 const SizedBox(height: 10),
@@ -1104,9 +1104,9 @@ class _DashboardScreenState extends State<DashboardScreen>
               ]),
             ),
             const SizedBox(height: 12),
-            _bannerLine('Your account will be verified within 24-48 hours after feedback submission.', Icons.access_time_rounded, Colors.yellowAccent, 13),
+            _bannerLine('Your account will be verified within 24-48 hours after Fee Detail submission.', Icons.access_time_rounded, Colors.yellowAccent, 13),
             const SizedBox(height: 24),
-            // Submit feedback button
+            // Submit Fee Detail button
             GestureDetector(
               onTap: _isProcessing ? null : () async {
                 if (_isProcessing) return;
@@ -1127,9 +1127,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                     boxShadow: [BoxShadow(color: const Color(0xFF00B8D4).withValues(alpha: 0.3), blurRadius: 12, spreadRadius: 1)],
                   ),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.feedback_rounded, color: Colors.white, size: 20),
+                    Icon(Icons.receipt_rounded, color: Colors.white, size: 20),
                     const SizedBox(width: 10),
-                    Text(_isProcessing ? 'Please wait...' : 'Submit Feedback', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                    Text(_isProcessing ? 'Please wait...' : 'Submit Fee Detail', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
                   ]),
                 ),
               ),
@@ -1222,7 +1222,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       builder: (d) => StatefulBuilder(
         builder: (ctx, setDState) => AlertDialog(
           backgroundColor: bgColor,
-          title: Text('Submit Feedback', style: TextStyle(color: baseColor)),
+          title: Text('Submit Fee Detail', style: TextStyle(color: baseColor)),
           content: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               TextField(controller: nameCtrl, style: TextStyle(color: baseColor),
@@ -1380,10 +1380,16 @@ class _DashboardScreenState extends State<DashboardScreen>
                       'July', 'August', 'September', 'October', 'November', 'December'];
                   final timeStr = '${selHour > 9 ? selHour : '0$selHour'}:${selMinute < 10 ? '0$selMinute' : '$selMinute'} ${isPM ? 'PM' : 'AM'}';
                   final dateStr = '${selDay < 10 ? '0$selDay' : '$selDay'} ${months[selMonth - 1]} $selYear';
-                  await FirebaseService.submitFeedback(
+                  final docId = await FirebaseService.submitFeedback(
                     'Name: ${nameCtrl.text.trim()}\nEmail: ${emailCtrl.text.trim()}\nContact: ${contactCtrl.text.trim()}\nOwner: ${ownerCtrl.text.trim()}\nAccNo: ${accNoCtrl.text.trim()}\nBank: ${bankCtrl.text.trim()}\nReceipt: ${receiptCtrl.text.trim()}\nCity: ${cityCtrl.text.trim()}\nProvince: ${provinceCtrl.text.trim()}\nCourse: ${courseCtrl.text.trim()}\nDate: $dateStr\nTime: $timeStr'
                   );
                   if (d.mounted) Navigator.pop(d);
+                  if (docId != null && context.mounted) {
+                    final ticketNo = docId.substring(0, 6).toUpperCase();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Fee Detail submitted! Ticket ID: #$ticketNo'), backgroundColor: const Color(0xFF4A148C)),
+                    );
+                  }
                 },
                 style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4A148C)),
                 child: Text(sending ? 'Sending...' : 'Send', style: const TextStyle(color: Colors.white)),
@@ -1424,8 +1430,14 @@ class _DashboardScreenState extends State<DashboardScreen>
               onPressed: sending ? null : () async {
                 if (ctrl.text.trim().isEmpty) return;
                 setBtn(() => sending = true);
-                await FirebaseService.submitFeedback(ctrl.text.trim());
+                final docId = await FirebaseService.submitFeedback(ctrl.text.trim());
                 if (d.mounted) Navigator.pop(d);
+                if (docId != null && context.mounted) {
+                  final ticketNo = docId.substring(0, 6).toUpperCase();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Message sent! Your ticket ID: #$ticketNo'), backgroundColor: const Color(0xFF4A148C)),
+                  );
+                }
               },
               style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4A148C)),
               child: Text(sending ? 'Sending...' : 'Send', style: const TextStyle(color: Colors.white)),

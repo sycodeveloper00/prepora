@@ -692,9 +692,11 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
     final fillColor = isDark ? Colors.white10 : Colors.black12;
     final nameCtrl = TextEditingController();
     final urlCtrl = TextEditingController();
+    var saving = false;
     showDialog(
       context: context,
-      builder: (d) => AlertDialog(
+      builder: (d) => StatefulBuilder(
+        builder: (d, setDialogState) => AlertDialog(
         backgroundColor: isDark ? const Color(0xFF1A0533) : Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(children: [const Icon(Icons.cloud_upload_rounded, color: Colors.amber), const SizedBox(width: 8), Text('Google Drive', style: TextStyle(color: baseColor))]),
@@ -706,22 +708,32 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
             decoration: InputDecoration(hintText: 'Paste Drive link...', hintStyle: TextStyle(color: dimColor), prefixIcon: const Icon(Icons.cloud, color: Colors.amber), filled: true, fillColor: fillColor, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none))),
         ])),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(d), child: Text('Cancel', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54))),
+          TextButton(onPressed: saving ? null : () => Navigator.pop(d), child: Text('Cancel', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54))),
           ElevatedButton(
-            onPressed: () async {
+            onPressed: saving
+                ? null
+                : () async {
               if (nameCtrl.text.trim().isEmpty) return;
-              Navigator.pop(d);
-              final data = {'type': 'file', 'name': nameCtrl.text.trim(), 'url': urlCtrl.text.trim(), 'source': 'google_drive'};
-              if (widget.parentContentId != null) data['parentContentId'] = widget.parentContentId!;
-              final newId = await FirebaseService.addFolderContent(widget.folderId, data);
-              if (newId != null && !widget.isAdmin) { _assistantAccess.add(newId); _pendingOptimistic.add(newId); }
-              await _sendScopedNotification('Uploaded from Drive: ${nameCtrl.text.trim()}', parentContentId: widget.parentContentId);
-              _refreshAssistantAccess();
+              setDialogState(() => saving = true);
+              try {
+                final data = {'type': 'file', 'name': nameCtrl.text.trim(), 'url': urlCtrl.text.trim(), 'source': 'google_drive'};
+                if (widget.parentContentId != null) data['parentContentId'] = widget.parentContentId!;
+                final newId = await FirebaseService.addFolderContent(widget.folderId, data);
+                if (newId != null && !widget.isAdmin) { _assistantAccess.add(newId); _pendingOptimistic.add(newId); }
+                await _sendScopedNotification('Uploaded from Drive: ${nameCtrl.text.trim()}', parentContentId: widget.parentContentId);
+                _refreshAssistantAccess();
+                if (d.mounted) Navigator.pop(d);
+              } finally {
+                if (d.mounted) setDialogState(() => saving = false);
+              }
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.amber.shade800),
-            child: const Text('Save', style: TextStyle(color: Colors.white)),
+            child: saving
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Text('Save', style: TextStyle(color: Colors.white)),
           ),
         ],
+      ),
       ),
     );
   }
@@ -733,9 +745,11 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
     final fillColor = isDark ? Colors.white10 : Colors.black12;
     final nameCtrl = TextEditingController();
     final linkCtrl = TextEditingController();
+    var saving = false;
     showDialog(
       context: context,
-      builder: (d) => AlertDialog(
+      builder: (d) => StatefulBuilder(
+        builder: (d, setDialogState) => AlertDialog(
         backgroundColor: isDark ? const Color(0xFF1A0533) : Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(children: [const Icon(Icons.link, color: Colors.teal), const SizedBox(width: 8), Text('Paste URL', style: TextStyle(color: baseColor))]),
@@ -747,22 +761,32 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
             decoration: InputDecoration(hintText: 'File URL or link...', hintStyle: TextStyle(color: dimColor), prefixIcon: const Icon(Icons.link, color: Colors.teal), filled: true, fillColor: fillColor, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none))),
         ])),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(d), child: Text('Cancel', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54))),
+          TextButton(onPressed: saving ? null : () => Navigator.pop(d), child: Text('Cancel', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54))),
           ElevatedButton(
-            onPressed: () async {
+            onPressed: saving
+                ? null
+                : () async {
               if (nameCtrl.text.trim().isEmpty) return;
-              Navigator.pop(d);
-              final data = {'type': 'file', 'name': nameCtrl.text.trim(), 'url': linkCtrl.text.trim(), 'source': 'url'};
-              if (widget.parentContentId != null) data['parentContentId'] = widget.parentContentId!;
-              final newId = await FirebaseService.addFolderContent(widget.folderId, data);
-              if (newId != null && !widget.isAdmin) { _assistantAccess.add(newId); _pendingOptimistic.add(newId); }
-              await _sendScopedNotification('Uploaded file: ${nameCtrl.text.trim()}', parentContentId: widget.parentContentId);
-              _refreshAssistantAccess();
+              setDialogState(() => saving = true);
+              try {
+                final data = {'type': 'file', 'name': nameCtrl.text.trim(), 'url': linkCtrl.text.trim(), 'source': 'url'};
+                if (widget.parentContentId != null) data['parentContentId'] = widget.parentContentId!;
+                final newId = await FirebaseService.addFolderContent(widget.folderId, data);
+                if (newId != null && !widget.isAdmin) { _assistantAccess.add(newId); _pendingOptimistic.add(newId); }
+                await _sendScopedNotification('Uploaded file: ${nameCtrl.text.trim()}', parentContentId: widget.parentContentId);
+                _refreshAssistantAccess();
+                if (d.mounted) Navigator.pop(d);
+              } finally {
+                if (d.mounted) setDialogState(() => saving = false);
+              }
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700),
-            child: const Text('Save', style: TextStyle(color: Colors.white)),
+            child: saving
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Text('Save', style: TextStyle(color: Colors.white)),
           ),
         ],
+      ),
       ),
     );
   }
@@ -774,9 +798,11 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
     final fillColor = isDark ? Colors.white10 : Colors.black12;
     final nameCtrl = TextEditingController(text: 'Mock Test');
     final urlCtrl = TextEditingController();
+    var saving = false;
     showDialog(
       context: context,
-      builder: (d) => AlertDialog(
+      builder: (d) => StatefulBuilder(
+        builder: (d, setDialogState) => AlertDialog(
         backgroundColor: isDark ? const Color(0xFF1A0533) : Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(children: [const Icon(Icons.link, color: Colors.orange), const SizedBox(width: 8), Text('Mock Test URL', style: TextStyle(color: baseColor))]),
@@ -788,22 +814,32 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
             decoration: InputDecoration(hintText: 'Paste URL...', hintStyle: TextStyle(color: dimColor), prefixIcon: const Icon(Icons.link, color: Colors.orange), filled: true, fillColor: fillColor, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none))),
         ])),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(d), child: Text('Cancel', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54))),
+          TextButton(onPressed: saving ? null : () => Navigator.pop(d), child: Text('Cancel', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54))),
           ElevatedButton(
-            onPressed: () async {
+            onPressed: saving
+                ? null
+                : () async {
               if (nameCtrl.text.trim().isEmpty || urlCtrl.text.trim().isEmpty) return;
-              Navigator.pop(d);
-              final data = {'type': 'mocktest_url', 'name': nameCtrl.text.trim(), 'url': urlCtrl.text.trim()};
-              if (widget.parentContentId != null) data['parentContentId'] = widget.parentContentId!;
-              final newId = await FirebaseService.addFolderContent(widget.folderId, data);
-              if (newId != null && !widget.isAdmin) { _assistantAccess.add(newId); _pendingOptimistic.add(newId); }
-              await _sendScopedNotification('Added Mock Test URL: ${nameCtrl.text.trim()}', parentContentId: widget.parentContentId);
-              _refreshAssistantAccess();
+              setDialogState(() => saving = true);
+              try {
+                final data = {'type': 'mocktest_url', 'name': nameCtrl.text.trim(), 'url': urlCtrl.text.trim()};
+                if (widget.parentContentId != null) data['parentContentId'] = widget.parentContentId!;
+                final newId = await FirebaseService.addFolderContent(widget.folderId, data);
+                if (newId != null && !widget.isAdmin) { _assistantAccess.add(newId); _pendingOptimistic.add(newId); }
+                await _sendScopedNotification('Added Mock Test URL: ${nameCtrl.text.trim()}', parentContentId: widget.parentContentId);
+                _refreshAssistantAccess();
+                if (d.mounted) Navigator.pop(d);
+              } finally {
+                if (d.mounted) setDialogState(() => saving = false);
+              }
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade800),
-            child: const Text('Save', style: TextStyle(color: Colors.white)),
+            child: saving
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Text('Save', style: TextStyle(color: Colors.white)),
           ),
         ],
+      ),
       ),
     );
   }
@@ -815,9 +851,11 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
     final fillColor = isDark ? Colors.white10 : Colors.black12;
     final nameCtrl = TextEditingController(text: 'Mock Test');
     final codeCtrl = TextEditingController();
+    var saving = false;
     showDialog(
       context: context,
-      builder: (d) => AlertDialog(
+      builder: (d) => StatefulBuilder(
+        builder: (d, setDialogState) => AlertDialog(
         backgroundColor: isDark ? const Color(0xFF1A0533) : Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(children: [const Icon(Icons.code, color: Colors.orange), const SizedBox(width: 8), Text('Mock Test Code', style: TextStyle(color: baseColor))]),
@@ -829,22 +867,32 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
             decoration: InputDecoration(hintText: 'Paste your code here...', hintStyle: TextStyle(color: dimColor), filled: true, fillColor: fillColor, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none))),
         ])),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(d), child: Text('Cancel', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54))),
+          TextButton(onPressed: saving ? null : () => Navigator.pop(d), child: Text('Cancel', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54))),
           ElevatedButton(
-            onPressed: () async {
+            onPressed: saving
+                ? null
+                : () async {
               if (nameCtrl.text.trim().isEmpty || codeCtrl.text.trim().isEmpty) return;
-              Navigator.pop(d);
-              final data = {'type': 'mocktest_code', 'name': nameCtrl.text.trim(), 'code': codeCtrl.text.trim()};
-              if (widget.parentContentId != null) data['parentContentId'] = widget.parentContentId!;
-              final newId = await FirebaseService.addFolderContent(widget.folderId, data);
-              if (newId != null && !widget.isAdmin) { _assistantAccess.add(newId); _pendingOptimistic.add(newId); }
-              await _sendScopedNotification('Added Mock Test Code: ${nameCtrl.text.trim()}', parentContentId: widget.parentContentId);
-              _refreshAssistantAccess();
+              setDialogState(() => saving = true);
+              try {
+                final data = {'type': 'mocktest_code', 'name': nameCtrl.text.trim(), 'code': codeCtrl.text.trim()};
+                if (widget.parentContentId != null) data['parentContentId'] = widget.parentContentId!;
+                final newId = await FirebaseService.addFolderContent(widget.folderId, data);
+                if (newId != null && !widget.isAdmin) { _assistantAccess.add(newId); _pendingOptimistic.add(newId); }
+                await _sendScopedNotification('Added Mock Test Code: ${nameCtrl.text.trim()}', parentContentId: widget.parentContentId);
+                _refreshAssistantAccess();
+                if (d.mounted) Navigator.pop(d);
+              } finally {
+                if (d.mounted) setDialogState(() => saving = false);
+              }
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade800),
-            child: const Text('Save', style: TextStyle(color: Colors.white)),
+            child: saving
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Text('Save', style: TextStyle(color: Colors.white)),
           ),
         ],
+      ),
       ),
     );
   }

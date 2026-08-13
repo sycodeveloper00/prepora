@@ -1230,6 +1230,11 @@ class _AdminDeviceHistoryPage extends StatelessWidget {
                   if (bT == null) return -1;
                   return bT.compareTo(aT);
                 });
+                sessions = sessions.where((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final devId = data['androidDeviceId'] as String? ?? '';
+                  return devId == deviceId;
+                }).toList();
                 if (sessions.isEmpty) {
                   return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                     Icon(Icons.language_rounded, size: 48, color: dimColor.withValues(alpha: 0.3)),

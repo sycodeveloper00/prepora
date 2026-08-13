@@ -19,6 +19,7 @@ class AssistantDashboardScreen extends StatefulWidget {
 class _AssistantDashboardScreenState extends State<AssistantDashboardScreen> {
   Map<String, List<String>> _contentAccess = {};
   bool _loadingAccess = true;
+  bool _loggingOut = false;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   final GlobalKey _bellKey = GlobalKey();
@@ -159,9 +160,23 @@ class _AssistantDashboardScreenState extends State<AssistantDashboardScreen> {
                   onPressed: () => context.push('/settings'),
                 ),
                 const SizedBox(width: 8),
-                IconButton(
+                _loggingOut
+                    ? const Padding(
+                        padding: EdgeInsets.all(8),
+                        child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+                      )
+                    : IconButton(
                   icon: Icon(Icons.logout, color: isDark ? Colors.white70 : Colors.black54, size: 22),
-                  onPressed: () async { await FirebaseService.signOut(); if (mounted) context.go('/auth/login'); },
+                  onPressed: () async {
+                    if (_loggingOut) return;
+                    setState(() => _loggingOut = true);
+                    try {
+                      await FirebaseService.signOut();
+                      if (mounted) context.go('/auth/login');
+                    } finally {
+                      if (mounted) setState(() => _loggingOut = false);
+                    }
+                  },
                 ),
               ]),
             ),

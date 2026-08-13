@@ -132,6 +132,16 @@ class FirebaseService {
           'lastLoginAt': FieldValue.serverTimestamp(),
         });
         await _trackLogin(cred.user!.uid, deviceId);
+        if (userRole != 'admin' && userRole != 'Assistant') {
+          final violation = await isMultiDeviceViolation(cred.user!.uid, deviceId);
+          if (violation) {
+            try {
+              await firestore.collection('users').doc(cred.user!.uid).update({'blocked': true});
+            } catch (_) {}
+            await fb_auth.FirebaseAuth.instance.signOut();
+            throw Exception('BLOCKED');
+          }
+        }
         await updateStreak(cred.user!.uid);
         final label = userRole == 'admin' ? 'Admin' : (userRole == 'Assistant' ? 'Assistant' : 'Student');
         await addAdminNotification('login', '$label logged in: ${cred.user!.email}', relatedUid: cred.user!.uid);
@@ -1210,6 +1220,41 @@ class FirebaseService {
   }
 
   // ─── Login Tracking & Auto-Block ──────────────────────────────────────────────
+
+  static Future<bool> isMultiDeviceViolation(String uid, String currentDeviceId) async {
+    try {
+      final snap = await firestore
+          .collection('login_attempts')
+          .where('uid', isEqualTo: uid)
+          .get();
+      final docs = snap.docs.toList();
+      if (docs.isEmpty || currentDeviceId.isEmpty) return false;
+      final cutoff = DateTime.now().subtract(const Duration(hours: 24));
+      String? primaryDeviceId;
+      for (final d in docs) {
+        final devId = (d.data() as Map<String, dynamic>)['deviceId'] as String?;
+        if (devId == null || devId.isEmpty) continue;
+        primaryDeviceId ??= devId;
+      }
+      if (primaryDeviceId == null || currentDeviceId == primaryDeviceId) return false;
+      for (final d in docs) {
+        final data = d.data() as Map<String, dynamic>;
+        final devId = data['deviceId'] as String? ?? '';
+        if (devId.isEmpty || devId == primaryDeviceId) continue;
+        final ts = data['createdAt'];
+        DateTime at;
+        if (ts is Timestamp) {
+          at = ts.toDate();
+        } else {
+          at = DateTime.tryParse(data['timestamp'] as String? ?? '') ?? DateTime.now();
+        }
+        if (!at.isBefore(cutoff)) return true;
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
 
   static Future<void> _trackLogin(String uid, String deviceId) async {
     try {
