@@ -9,10 +9,11 @@ import '../../notepad/presentation/notepad_view.dart';
 class VideoPlayerScreen extends StatefulWidget {
   final String videoId;
   final String lectureName;
+  final String? subFolderName;
   final String? folderId;
   final String? parentContentId;
 
-  const VideoPlayerScreen({super.key, required this.videoId, required this.lectureName, this.folderId, this.parentContentId});
+  const VideoPlayerScreen({super.key, required this.videoId, required this.lectureName, this.subFolderName, this.folderId, this.parentContentId});
 
   @override
   State<VideoPlayerScreen> createState() => _VideoPlayerScreenState();
@@ -81,7 +82,12 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       appBar: _isNotepadFullScreen
           ? null
           : AppBar(
-              title: Text(widget.lectureName, style: const TextStyle(fontWeight: FontWeight.bold)),
+              title: Text(
+                (widget.subFolderName != null && widget.subFolderName!.isNotEmpty)
+                    ? widget.subFolderName!
+                    : widget.lectureName,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
               leading: IconButton(
                 icon: const Icon(Icons.arrow_back_ios_new_rounded),
                 onPressed: () => Navigator.pop(context),

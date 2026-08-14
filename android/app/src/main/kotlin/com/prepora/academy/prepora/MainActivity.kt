@@ -26,7 +26,18 @@ class MainActivity : FlutterActivity() {
                     try {
                         val uriString = call.arguments as String
                         val uri = android.net.Uri.parse(uriString)
-                        val fileName = URLUtil.guessFileName(uriString, null, null)
+                        try {
+                            contentResolver.takePersistableUriPermission(
+                                uri,
+                                Intent.FLAG_GRANT_READ_URI_PERMISSION
+                            )
+                        } catch (e: Exception) {
+                            // Not all URIs support persistable permission; ignore
+                        }
+                        var fileName = URLUtil.guessFileName(uriString, null, null)
+                        if (fileName.isNullOrBlank() || !fileName.contains(".")) {
+                            fileName = "prepora_${System.currentTimeMillis()}.pdf"
+                        }
                         val tempFile = File(cacheDir, "pdf_cache/$fileName")
                         tempFile.parentFile?.mkdirs()
                         contentResolver.openInputStream(uri)?.use { input ->

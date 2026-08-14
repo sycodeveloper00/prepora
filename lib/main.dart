@@ -18,12 +18,14 @@ const _pdfChannel = MethodChannel('com.prepora.academy.prepora/pdf_intent');
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   if (!kIsWeb) {
-    HomeWidget.registerBackgroundCallback(backgroundCallback);
+    try {
+      HomeWidget.registerBackgroundCallback(backgroundCallback);
+    } catch (_) {}
     _listenPdfIntent();
   }
-  runApp(const ProviderScope(child: PrePoraApp()));
   await FirebaseService.initialize();
-  _initStorage();
+  await _initStorage();
+  runApp(const ProviderScope(child: PrePoraApp()));
 }
 
 void _listenPdfIntent() {

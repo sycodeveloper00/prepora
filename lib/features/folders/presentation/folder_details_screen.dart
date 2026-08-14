@@ -1319,7 +1319,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
   }
 
   Future<void> _openContent(Map<String, dynamic> data, {String? folderName}) async {
-    folderName ??= _folderName;
+    folderName ??= _subfolderName.isNotEmpty ? _subfolderName : _folderName;
     final type = data['type'] as String? ?? 'file';
     final name = FirebaseService.cleanTitle(data['name'] as String? ?? '');
     final locked = data['locked'] as bool? ?? false;

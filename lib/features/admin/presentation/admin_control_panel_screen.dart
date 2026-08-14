@@ -949,10 +949,12 @@ class _StudentDevicePageState extends State<_StudentDevicePage> with SingleTicke
         return StreamBuilder<QuerySnapshot>(
           stream: FirebaseService.firestore.collection('web_sessions')
               .where('uid', isEqualTo: widget.uid)
-              .where('status', isEqualTo: 'connected')
               .snapshots(),
           builder: (ctx, webSnap) {
-            final activeWebSessions = webSnap.hasData ? webSnap.data!.docs : [];
+            final allWebSessions = webSnap.hasData ? webSnap.data!.docs : [];
+            final activeWebSessions = allWebSessions
+                .where((doc) => (doc.data() as Map<String, dynamic>)['status'] == 'connected')
+                .toList();
             return ListView.separated(
               padding: const EdgeInsets.all(16),
               itemCount: loginLogs.length,

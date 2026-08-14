@@ -75,16 +75,23 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
     _historySub = FirebaseService.firestore
         .collection('web_sessions')
         .where('uid', isEqualTo: user.uid)
-        .orderBy('connectedAt', descending: true)
-        .limit(20)
         .snapshots()
         .listen((snap) {
       if (mounted) {
+        final sessions = snap.docs.map((d) => {
+          ...d.data(),
+          'sessionId': d.id,
+        }).toList();
+        sessions.sort((a, b) {
+          final aT = (a['connectedAt'] as Timestamp?)?.toDate();
+          final bT = (b['connectedAt'] as Timestamp?)?.toDate();
+          if (aT == null && bT == null) return 0;
+          if (aT == null) return 1;
+          if (bT == null) return -1;
+          return bT.compareTo(aT);
+        });
         setState(() {
-          _connectionHistory = snap.docs.map((d) => {
-            ...d.data(),
-            'sessionId': d.id,
-          }).toList();
+          _connectionHistory = sessions.take(20).toList();
         });
       }
     });
@@ -101,7 +108,9 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
         detectionSpeed: DetectionSpeed.normal,
         facing: CameraFacing.back,
       );
-      _scannerController?.start();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scannerController?.start();
+      });
     } else {
       _scannerController?.stop();
       _scannerController?.dispose();
@@ -538,6 +547,7 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
                 child: Stack(
                   children: [
                     MobileScanner(
+                      key: ValueKey(_scannerController),
                       controller: _scannerController,
                       onDetect: _onQRDetected,
                       fit: BoxFit.cover,

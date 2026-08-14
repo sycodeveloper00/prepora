@@ -11,7 +11,7 @@ import com.prepora.academy.prepora.R
 class PreporaWidgetProvider : AppWidgetProvider() {
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
-        val prefs: SharedPreferences = context.getSharedPreferences("home_widget_preferences", Context.MODE_PRIVATE)
+        val prefs: SharedPreferences = context.getSharedPreferences("HomeWidgetPreferences", Context.MODE_PRIVATE)
         for (appWidgetId in appWidgetIds) {
             val streak = prefs.getString("home_widget_streak", "0") ?: "0"
             val totalDays = prefs.getString("home_widget_total", "0") ?: "0"
@@ -25,7 +25,7 @@ class PreporaWidgetProvider : AppWidgetProvider() {
     }
 
     override fun onAppWidgetOptionsChanged(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int, newOptions: Bundle) {
-        val prefs: SharedPreferences = context.getSharedPreferences("home_widget_preferences", Context.MODE_PRIVATE)
+        val prefs: SharedPreferences = context.getSharedPreferences("HomeWidgetPreferences", Context.MODE_PRIVATE)
         val streak = prefs.getString("home_widget_streak", "0") ?: "0"
         val totalDays = prefs.getString("home_widget_total", "0") ?: "0"
         val minWidth = newOptions.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 110)

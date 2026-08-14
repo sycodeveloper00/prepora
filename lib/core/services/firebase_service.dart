@@ -1223,24 +1223,19 @@ class FirebaseService {
 
   static Future<bool> isMultiDeviceViolation(String uid, String currentDeviceId) async {
     try {
+      if (currentDeviceId.isEmpty) return false;
       final snap = await firestore
           .collection('login_attempts')
           .where('uid', isEqualTo: uid)
           .get();
       final docs = snap.docs.toList();
-      if (docs.isEmpty || currentDeviceId.isEmpty) return false;
+      if (docs.isEmpty) return false;
       final cutoff = DateTime.now().subtract(const Duration(hours: 24));
-      String? primaryDeviceId;
-      for (final d in docs) {
-        final devId = (d.data() as Map<String, dynamic>)['deviceId'] as String?;
-        if (devId == null || devId.isEmpty) continue;
-        primaryDeviceId ??= devId;
-      }
-      if (primaryDeviceId == null || currentDeviceId == primaryDeviceId) return false;
+      final devicesIn24h = <String>{};
       for (final d in docs) {
         final data = d.data() as Map<String, dynamic>;
         final devId = data['deviceId'] as String? ?? '';
-        if (devId.isEmpty || devId == primaryDeviceId) continue;
+        if (devId.isEmpty) continue;
         final ts = data['createdAt'];
         DateTime at;
         if (ts is Timestamp) {
@@ -1248,8 +1243,11 @@ class FirebaseService {
         } else {
           at = DateTime.tryParse(data['timestamp'] as String? ?? '') ?? DateTime.now();
         }
-        if (!at.isBefore(cutoff)) return true;
+        if (!at.isBefore(cutoff)) {
+          devicesIn24h.add(devId);
+        }
       }
+      if (devicesIn24h.length > 1) return true;
       return false;
     } catch (_) {
       return false;

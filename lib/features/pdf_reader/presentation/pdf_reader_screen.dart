@@ -198,20 +198,16 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
           client.close();
         }
       } else if (url.startsWith('content://')) {
-        final dir = await getApplicationDocumentsDirectory();
-        final cacheDir = Directory('${dir.path}/pdf_cache');
-        if (!await cacheDir.exists()) await cacheDir.create(recursive: true);
-        final safeName = _fileName!.replaceAll(RegExp(r'[^\w\.\-]'), '_');
-        final localFile = File('${cacheDir.path}/$safeName');
         try {
-          final uri = Uri.parse(url);
-          final bytes = await _readContentUri(uri);
-          if (bytes != null) {
-            await localFile.writeAsBytes(bytes);
-            if (mounted) setState(() { _localPath = localFile.path; _isLoading = false; });
-          } else {
-            if (mounted) setState(() { _error = 'Failed to read PDF from device'; _isLoading = false; });
+          final filePath = await _pdfChannel.invokeMethod<String>('copyContentUriToTemp', url);
+          if (filePath != null) {
+            final tempFile = File(filePath);
+            if (await tempFile.exists() && await tempFile.length() > 0) {
+              if (mounted) setState(() { _localPath = filePath; _isLoading = false; });
+              return;
+            }
           }
+          if (mounted) setState(() { _error = 'Failed to read PDF from device'; _isLoading = false; });
         } catch (_) {
           if (mounted) setState(() { _error = 'Failed to open PDF from device'; _isLoading = false; });
         }
@@ -235,19 +231,6 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
         setState(() { _error = 'Error: $e'; _isLoading = false; });
       }
     }
-  }
-
-  Future<Uint8List?> _readContentUri(Uri uri) async {
-    try {
-      final filePath = await _pdfChannel.invokeMethod<String>('copyContentUriToTemp', uri.toString());
-      if (filePath != null) {
-        final file = File(filePath);
-        if (await file.exists()) {
-          return await file.readAsBytes();
-        }
-      }
-    } catch (_) {}
-    return null;
   }
 
   Future<void> _saveAnnotation() async {
@@ -374,7 +357,13 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                     child: Row(
                       children: [
                         IconButton(
-                          icon: Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: isDark ? Colors.white : Colors.black87),
+                          icon: Icon(
+                            widget.parentContentId == null && widget.folderId == null
+                                ? Icons.close_rounded
+                                : Icons.arrow_back_ios_new_rounded,
+                            size: 20,
+                            color: isDark ? Colors.white : Colors.black87,
+                          ),
                           onPressed: () {
                             if (widget.parentContentId == null && widget.folderId == null) {
                               context.go('/dashboard');

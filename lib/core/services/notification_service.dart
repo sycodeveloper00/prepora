@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest_all.dart' as tz_data;
@@ -21,6 +22,14 @@ class NotificationService {
     if (kIsWeb) return;
     try {
       tz_data.initializeTimeZones();
+      try {
+        final timezoneName = await FlutterTimezone.getLocalTimezone();
+        if (timezoneName != null && timezoneName.isNotEmpty) {
+          tz.setLocalLocation(tz.getLocation(timezoneName));
+        }
+      } catch (_) {
+        tz.setLocalLocation(tz.getLocation('UTC'));
+      }
       const androidSettings = AndroidInitializationSettings('@drawable/ic_notification');
       const iosSettings = DarwinInitializationSettings();
       await _plugin.initialize(settings: const InitializationSettings(android: androidSettings, iOS: iosSettings));
