@@ -64,6 +64,7 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   // Real-time listener for user verification/blocked status
   StreamSubscription? _userStatusSub;
+  StreamSubscription? _settingsSub;
   Stream<QuerySnapshot>? _notificationStream;
   int _streakCount = 0;
   int _totalActiveDays = 0;
@@ -73,6 +74,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     super.initState();
     _checkStatus();
     _listenUserStatus();
+    _listenSettings();
     _startTypingAnimation();
     _checkForUpdates();
     _rebuildNotificationStream();
@@ -174,6 +176,27 @@ class _DashboardScreenState extends State<DashboardScreen>
     });
   }
 
+  /// Listens to the global `settings/general` document in real-time so that when
+  /// the admin toggles `paidAccess` (or changes price/account info), unverified
+  /// student panels reflect the change immediately WITHOUT restarting the app.
+  void _listenSettings() {
+    _settingsSub = FirebaseService.firestore
+        .collection('settings')
+        .doc('general')
+        .snapshots()
+        .listen((snap) {
+      if (!snap.exists || !mounted) return;
+      final data = snap.data() as Map<String, dynamic>;
+      setState(() {
+        _isPaidAccess = data['paidAccess'] as bool? ?? false;
+        _price = (data['price'] as num?)?.toDouble() ?? 0;
+        _accountTitle = data['accountTitle'] as String? ?? '';
+        _accountNo = data['accountNo'] as String? ?? '';
+        _bankName = data['bankName'] as String? ?? '';
+      });
+    });
+  }
+
   void _startTypingAnimation() {
     _typingTimer?.cancel();
     _typingTimer = Timer.periodic(const Duration(milliseconds: 85), (timer) {
@@ -211,6 +234,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   void dispose() {
     _typingTimer?.cancel();
     _userStatusSub?.cancel();
+    _settingsSub?.cancel();
     _floatController.dispose();
     _colorFlowController.dispose();
     _searchController.dispose();
