@@ -203,55 +203,100 @@ class _AdminControlPanelScreenState extends State<AdminControlPanelScreen> {
     final baseColor = isDark ? Colors.white : Colors.black87;
     final fillColor = isDark ? Colors.white10 : Colors.black12;
     final bgColor = isDark ? const Color(0xFF1A0533) : Colors.white;
-    final daysCtrl = TextEditingController(text: '3');
-    final hoursCtrl = TextEditingController(text: '0');
     bool hasActiveTrial = _trialEnd != null && _trialEnd!.isAfter(DateTime.now());
-    showDialog(context: context, builder: (d) => AlertDialog(
-      backgroundColor: bgColor,
-      title: Text('Free Trial', style: TextStyle(color: baseColor)),
-      content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        if (hasActiveTrial) ...[
-          Text('Free trial is active for unverified students.', style: TextStyle(color: dimColor, fontSize: 12)),
-          const SizedBox(height: 8),
-          Text('Ends: ${_formatTrialEndDate(_trialEnd!)}', style: TextStyle(color: Colors.orange, fontSize: 14, fontWeight: FontWeight.w600)),
+    DateTime selectedEnd = DateTime.now().add(const Duration(days: 3));
+
+    Future<void> _pickDateTime() async {
+      final date = await showDatePicker(
+        context: context,
+        initialDate: selectedEnd,
+        firstDate: DateTime.now(),
+        lastDate: DateTime.now().add(const Duration(days: 365)),
+        builder: (ctx, child) => Theme(data: Theme.of(ctx).copyWith(
+          colorScheme: ColorScheme.dark(primary: Colors.orange, surface: bgColor, onSurface: baseColor),
+          dialogBackgroundColor: bgColor,
+        ), child: child!),
+      );
+      if (date == null) return;
+      final time = await showTimePicker(
+        context: context,
+        initialTime: TimeOfDay.fromDateTime(selectedEnd),
+        builder: (ctx, child) => Theme(data: Theme.of(ctx).copyWith(
+          colorScheme: ColorScheme.dark(primary: Colors.orange, surface: bgColor, onSurface: baseColor),
+          dialogBackgroundColor: bgColor,
+        ), child: child!),
+      );
+      if (time != null) {
+        selectedEnd = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+      }
+    }
+
+    showDialog(context: context, builder: (d) => StatefulBuilder(builder: (ctx, setDialog) {
+      return AlertDialog(
+        backgroundColor: bgColor,
+        title: Text('Free Trial', style: TextStyle(color: baseColor)),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          if (hasActiveTrial) ...[
+            Text('Free trial is active for unverified students.', style: TextStyle(color: dimColor, fontSize: 12)),
+            const SizedBox(height: 8),
+            Text('Ends: ${_formatTrialEndDate(_trialEnd!)}', style: TextStyle(color: Colors.orange, fontSize: 14, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 16),
+            const Divider(),
+            const SizedBox(height: 8),
+          ],
+          Text(hasActiveTrial
+              ? 'Extend the current trial by selecting a new end date/time below.'
+              : 'Give unverified students free access until the selected date/time. When the trial ends, Paid Access turns ON automatically.',
+              style: TextStyle(color: dimColor, fontSize: 12)),
           const SizedBox(height: 16),
-          const Divider(),
-          const SizedBox(height: 8),
-        ],
-        Text(hasActiveTrial
-            ? 'Extend the current trial by entering new days/hours below.'
-            : 'Give unverified students free access for a limited time. When the trial ends, Paid Access turns ON automatically.',
-            style: TextStyle(color: dimColor, fontSize: 12)),
-        const SizedBox(height: 16),
-        TextField(controller: daysCtrl, keyboardType: TextInputType.number, style: TextStyle(color: baseColor), decoration: InputDecoration(labelText: 'Days', labelStyle: TextStyle(color: dimColor), filled: true, fillColor: fillColor, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
-        const SizedBox(height: 12),
-        TextField(controller: hoursCtrl, keyboardType: TextInputType.number, style: TextStyle(color: baseColor), decoration: InputDecoration(labelText: 'Hours', labelStyle: TextStyle(color: dimColor), filled: true, fillColor: fillColor, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
-      ]),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(d), child: Text('Close', style: TextStyle(color: dimColor))),
-        ElevatedButton(onPressed: () async {
-          final days = int.tryParse(daysCtrl.text.trim()) ?? 0;
-          final hours = int.tryParse(hoursCtrl.text.trim()) ?? 0;
-          if (days == 0 && hours == 0) {
+          InkWell(
+            onTap: () async {
+              await _pickDateTime();
+              setDialog(() {});
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: fillColor,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: isDark ? Colors.white24 : Colors.black12),
+              ),
+              child: Row(children: [
+                Icon(Icons.calendar_today_rounded, color: Colors.orange, size: 20),
+                const SizedBox(width: 12),
+                Expanded(child: Text('End: ${_formatTrialEndDate(selectedEnd)}', style: TextStyle(color: baseColor, fontSize: 14, fontWeight: FontWeight.w500))),
+                Icon(Icons.edit_rounded, color: dimColor, size: 18),
+              ]),
+            ),
+          ),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(d), child: Text('Close', style: TextStyle(color: dimColor))),
+          ElevatedButton(onPressed: () async {
+            final now = DateTime.now();
+            if (!selectedEnd.isAfter(now)) {
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('End date/time must be in the future'), backgroundColor: Colors.orange));
+              return;
+            }
+            final diff = selectedEnd.difference(now);
+            final days = diff.inDays;
+            final hours = diff.inHours % 24;
+            // Auto-set Paid Access OFF when trial starts
+            await FirebaseService.updateSetting('paidAccess', false);
+            if (mounted) setState(() => _paidAccess = false);
+            final count = await FirebaseService.startFreeTrialForAll(days: days, hours: hours);
             if (d.mounted) Navigator.pop(d);
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter at least 1 hour'), backgroundColor: Colors.orange));
-            return;
-          }
-          // Auto-set Paid Access OFF when trial starts
-          await FirebaseService.updateSetting('paidAccess', false);
-          if (mounted) setState(() => _paidAccess = false);
-          final count = await FirebaseService.startFreeTrialForAll(days: days, hours: hours);
-          if (d.mounted) Navigator.pop(d);
-          await _loadTrial();
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: Text(count > 0 ? 'Free trial started for $count student(s) — Paid Access turned OFF' : 'No unverified students found'),
-              backgroundColor: Colors.green,
-            ));
-          }
-        }, child: Text(hasActiveTrial ? 'Extend Trial' : 'Start Trial')),
-      ],
-    ));
+            await _loadTrial();
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: Text(count > 0 ? 'Free trial started for $count student(s) — Paid Access turned OFF' : 'No unverified students found'),
+                backgroundColor: Colors.green,
+              ));
+            }
+          }, child: Text(hasActiveTrial ? 'Extend Trial' : 'Start Trial')),
+        ],
+      );
+    }));
   }
 
   String _formatTrialEndDate(DateTime dt) {
