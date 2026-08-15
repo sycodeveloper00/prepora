@@ -31,7 +31,7 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
                 padding: const EdgeInsets.only(right: 8),
                 child: TextButton(
                   onPressed: () => _markAllRead(context),
-                  child: Text('Mark all read', style: TextStyle(color: Colors.cyanAccent, fontSize: 12)),
+                  child: const Text('Mark all read', style: TextStyle(color: Colors.cyanAccent, fontSize: 12)),
                 ),
               );
             },

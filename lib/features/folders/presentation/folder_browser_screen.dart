@@ -386,7 +386,7 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
             ),
           Expanded(
             child: _loading
-                ? Center(child: ProfessionalLoader())
+                ? const Center(child: ProfessionalLoader())
                 : _currentNodes.isEmpty
                     ? Center(child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,

@@ -21,10 +21,12 @@ class _AdminStorageScreenState extends State<AdminStorageScreen> {
 
   Future<void> _load() async {
     final supabaseAccounts = await FirebaseService.getSupabaseAccounts();
-    if (mounted) setState(() {
+    if (mounted) {
+      setState(() {
       _supabaseAccounts = supabaseAccounts;
       _loading = false;
     });
+    }
   }
 
   @override
@@ -196,7 +198,7 @@ class _AdminStorageScreenState extends State<AdminStorageScreen> {
           ]),
         ),
         const SizedBox(width: 8),
-        Switch(value: isActive, activeColor: Colors.green, onChanged: (_) => onToggle()),
+        Switch(value: isActive, activeThumbColor: Colors.green, onChanged: (_) => onToggle()),
         PopupMenuButton<String>(
           icon: Icon(Icons.more_vert_rounded, size: 18, color: hintColor),
           onSelected: (v) { if (v == 'edit') onEdit(); if (v == 'delete') onDelete(); },
@@ -337,7 +339,7 @@ class _AdminStorageScreenState extends State<AdminStorageScreen> {
     final dimColor = isDark ? Colors.white38 : Colors.black54;
     final bgColor = isDark ? const Color(0xFF1A0533) : Colors.white;
 
-    final sql = """-- Create buckets
+    const sql = """-- Create buckets
 INSERT INTO storage.buckets (id, name, public) VALUES ('folder_files', 'folder_files', true) ON CONFLICT (id) DO NOTHING;
 INSERT INTO storage.buckets (id, name, public) VALUES ('notices', 'notices', true) ON CONFLICT (id) DO NOTHING;
 
@@ -375,7 +377,7 @@ CREATE POLICY "notices_delete" ON storage.objects FOR DELETE USING (bucket_id = 
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: Colors.white12),
               ),
-              child: SelectableText(sql, style: const TextStyle(color: Colors.greenAccent, fontSize: 11, fontFamily: 'monospace', height: 1.5)),
+              child: const SelectableText(sql, style: TextStyle(color: Colors.greenAccent, fontSize: 11, fontFamily: 'monospace', height: 1.5)),
             ),
           ],
         ),
@@ -384,7 +386,7 @@ CREATE POLICY "notices_delete" ON storage.objects FOR DELETE USING (bucket_id = 
         TextButton(onPressed: () => Navigator.pop(d), child: Text('Close', style: TextStyle(color: dimColor))),
         ElevatedButton.icon(
           onPressed: () {
-            Clipboard.setData(ClipboardData(text: sql));
+            Clipboard.setData(const ClipboardData(text: sql));
             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('SQL copied to clipboard!'), backgroundColor: Colors.green));
           },
           icon: const Icon(Icons.copy_rounded, size: 16),

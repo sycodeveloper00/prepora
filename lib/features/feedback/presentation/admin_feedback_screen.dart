@@ -251,7 +251,7 @@ class _AdminFeedbackScreenState extends State<AdminFeedbackScreen> {
             },
           ),
         );
-      }).toList(),
+      }),
     ]);
   }
 
@@ -304,7 +304,7 @@ class _AdminFeedbackScreenState extends State<AdminFeedbackScreen> {
             border: Border.all(color: isUpdating ? Colors.grey : (isSelected ? color : color)),
           ),
           child: isUpdating
-              ? SizedBox(width: 14, height: 14, child: ProfessionalLoader(size: 14))
+              ? const SizedBox(width: 14, height: 14, child: ProfessionalLoader(size: 14))
               : Text(label, style: TextStyle(color: isSelected ? Colors.white : color, fontSize: 12, fontWeight: isSelected ? FontWeight.bold : null)),
         ),
       ),
@@ -320,7 +320,7 @@ class _AdminFeedbackScreenState extends State<AdminFeedbackScreen> {
         leading: IconButton(icon: const Icon(Icons.arrow_back_ios_new_rounded), onPressed: () => context.pop()),
       ),
       body: _loading
-          ? Center(child: ProfessionalLoader())
+          ? const Center(child: ProfessionalLoader())
           : _students == null || _students!.isEmpty
               ? Center(child: Text('No students', style: TextStyle(color: isDark ? Colors.white38 : Colors.black54)))
               : ListView.builder(

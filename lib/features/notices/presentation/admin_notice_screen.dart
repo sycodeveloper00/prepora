@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:go_router/go_router.dart';
@@ -110,7 +109,7 @@ class _AdminNoticeScreenState extends State<AdminNoticeScreen> {
             color: isDark ? const Color(0xFF1A0533) : const Color(0xFFFFF8E1),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: isDark ? Colors.white12 : Colors.amber.withValues(alpha: 0.5)),
-            boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 16, offset: const Offset(0, 6))],
+            boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 16, offset: Offset(0, 6))],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -375,7 +374,7 @@ class _AdminNoticeScreenState extends State<AdminNoticeScreen> {
   }
 
   Future<void> _pickFile() async {
-    final maxSize = 50 * 1024 * 1024;
+    const maxSize = 50 * 1024 * 1024;
     final result = await FilePicker.platform.pickFiles(type: FileType.any, allowMultiple: true);
     if (result != null && result.files.isNotEmpty) {
       int count = 0;
@@ -384,9 +383,11 @@ class _AdminNoticeScreenState extends State<AdminNoticeScreen> {
         if (path == null) continue;
         final bytes = await File(path).readAsBytes();
         if (bytes.length > maxSize) {
-          if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('${file.name} too large (${(bytes.length / 1024 / 1024).toStringAsFixed(1)}MB). Max: 50MB'), backgroundColor: Colors.redAccent),
           );
+          }
           continue;
         }
         try {
@@ -397,9 +398,11 @@ class _AdminNoticeScreenState extends State<AdminNoticeScreen> {
           await FirebaseService.addNotice(file.name, downloadUrl, 'file');
           count++;
         } catch (e) {
-          if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('${file.name} failed: $e'), backgroundColor: Colors.redAccent),
           );
+          }
         }
       }
       if (mounted && count > 0) {

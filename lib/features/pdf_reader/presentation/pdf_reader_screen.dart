@@ -401,9 +401,9 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                             icon: Icon(Icons.line_weight_rounded, size: 18, color: isDark ? Colors.white70 : Colors.black54),
                             onSelected: (w) => setState(() => _strokeWidth = w),
                             itemBuilder: (_) => [
-                              PopupMenuItem(value: 2.0, child: const Text('Thin')),
-                              PopupMenuItem(value: 5.0, child: const Text('Medium')),
-                              PopupMenuItem(value: 10.0, child: const Text('Thick')),
+                              const PopupMenuItem(value: 2.0, child: Text('Thin')),
+                              const PopupMenuItem(value: 5.0, child: Text('Medium')),
+                              const PopupMenuItem(value: 10.0, child: Text('Thick')),
                             ],
                           ),
                           IconButton(
@@ -596,10 +596,12 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                         if (mounted) setState(() => _totalPages = details.document.pages.count);
                       },
                       onDocumentLoadFailed: (details) {
-                        if (mounted) setState(() {
+                        if (mounted) {
+                          setState(() {
                           _error = 'Failed to load PDF: ${details.description}';
                           _isLoading = false;
                         });
+                        }
                       },
                     ),
                   ),

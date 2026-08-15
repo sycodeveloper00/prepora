@@ -205,13 +205,13 @@ class _AssistantDashboardScreenState extends State<AssistantDashboardScreen> {
                 child: (accessibleIds.isEmpty && extraFolderIds.isEmpty)
                     ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                         Icon(Icons.folder_off_rounded, size: 60, color: isDark ? Colors.white12 : Colors.black12),
-                        SizedBox(height: 16),
+                        const SizedBox(height: 16),
                         Text('No folders assigned', style: TextStyle(color: isDark ? Colors.white38 : Colors.black54, fontSize: 16)),
-                        SizedBox(height: 8),
+                        const SizedBox(height: 8),
                         Text('Contact admin for folder access', style: TextStyle(color: isDark ? Colors.white24 : Colors.black38, fontSize: 13)),
                       ]))
                     : _loadingAccess
-                        ? Center(child: ProfessionalLoader())
+                        ? const Center(child: ProfessionalLoader())
                         : _buildFolderList(accessibleIds, extraFolderIds),
               ),
             ]
@@ -252,8 +252,11 @@ class _AssistantDashboardScreenState extends State<AssistantDashboardScreen> {
           ),
           onChanged: (val) {
             setState(() => _searchQuery = val.trim());
-            if (_searchQuery.length >= 2) _performSearch();
-            else setState(() => _searchResults = null);
+            if (_searchQuery.length >= 2) {
+              _performSearch();
+            } else {
+              setState(() => _searchResults = null);
+            }
           },
         ),
         if (_searchResults != null)
@@ -368,7 +371,7 @@ class _AssistantDashboardScreenState extends State<AssistantDashboardScreen> {
       future: Future.wait(allIds.map((id) => FirebaseService.firestore.collection('folders').doc(id).get())),
       builder: (context, snapshot) {
         final isDark = Theme.of(context).brightness == Brightness.dark;
-        if (snapshot.connectionState == ConnectionState.waiting) return Center(child: ProfessionalLoader());
+        if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: ProfessionalLoader());
         if (!snapshot.hasData) return Center(child: Text('Error loading folders', style: TextStyle(color: isDark ? Colors.white38 : Colors.black54)));
         final docs = snapshot.data!.where((d) => d.exists).toList();
         final filtered = _searchQuery.isNotEmpty

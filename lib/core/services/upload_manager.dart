@@ -152,7 +152,7 @@ class UploadManager extends ChangeNotifier {
         }
 
         try {
-          await onContentSaved?.call(folderId, name, downloadUrl!, parentContentId);
+          await onContentSaved?.call(folderId, name, downloadUrl, parentContentId);
         } catch (_) {}
       }
     } finally {

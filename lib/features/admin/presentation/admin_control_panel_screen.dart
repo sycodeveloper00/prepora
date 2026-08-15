@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -20,17 +21,48 @@ class _AdminControlPanelScreenState extends State<AdminControlPanelScreen> {
   String _accountTitle = '';
   String _accountNo = '';
   String _bankName = '';
+  DateTime? _trialEnd;
+  bool _trialLoading = true;
+  Timer? _trialTimer;
+  Duration _remaining = Duration.zero;
 
   @override
   void initState() {
     super.initState();
     _load();
+    _loadTrial();
+    _trialTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      setState(() {
+        if (_trialEnd != null) {
+          _remaining = _trialEnd!.difference(DateTime.now());
+          if (_remaining.isNegative) _remaining = Duration.zero;
+        }
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _trialTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _loadTrial() async {
+    final end = await FirebaseService.getActiveTrialEndTime();
+    if (mounted) {
+      setState(() {
+      _trialEnd = end;
+      _trialLoading = false;
+    });
+    }
   }
 
   Future<void> _load() async {
     try {
       final settings = await FirebaseService.getSettings();
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _price = (settings['price'] as num?)?.toDouble() ?? 0;
         _paidAccess = settings['paidAccess'] as bool? ?? false;
         _accountTitle = settings['accountTitle'] as String? ?? '';
@@ -38,9 +70,19 @@ class _AdminControlPanelScreenState extends State<AdminControlPanelScreen> {
         _bankName = settings['bankName'] as String? ?? '';
         _loading = false;
       });
+      }
     } catch (e) {
       if (mounted) setState(() { _loading = false; });
     }
+  }
+
+  String _trialSubtitle() {
+    if (_paidAccess) return 'Turn OFF Paid Access to enable';
+    if (_trialLoading) return 'Checking trial status...';
+    final end = _trialEnd;
+    if (end == null) return 'Give unverified students free trial';
+    if (!end.isAfter(DateTime.now())) return 'Trial ended - Give free trial';
+    return 'Active - Ends: ${_formatTrialEndDate(end)}';
   }
 
   @override
@@ -51,15 +93,16 @@ class _AdminControlPanelScreenState extends State<AdminControlPanelScreen> {
         leading: IconButton(icon: const Icon(Icons.arrow_back_ios_new_rounded), onPressed: () => context.pop()),
       ),
       body: _loading
-          ? Center(child: ProfessionalLoader())
+          ? const Center(child: ProfessionalLoader())
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [
                 _ctrlSection(context, 'Paid Access', [
                   _ctrlTile(context, Icons.verified_user_rounded, Colors.blue, 'Student Paid Access', _paidAccess ? 'ON - Manual verification' : 'OFF - Auto verify', trailing: Switch(
-                    value: _paidAccess, activeColor: Colors.blue,
+                    value: _paidAccess, activeThumbColor: Colors.blue,
                     onChanged: (v) async { await FirebaseService.updateSetting('paidAccess', v); if (mounted) setState(() => _paidAccess = v); },
                   )),
+                  _ctrlTile(context, Icons.timer_rounded, Colors.orange, 'Free Trial', _trialSubtitle(), onTap: _paidAccess || _trialLoading ? null : () => _showFreeTrialDialog(context)),
                   _ctrlTile(context, Icons.attach_money_rounded, Colors.green, 'Set Price', 'Current: Rs.${_price.toStringAsFixed(0)}', onTap: () => _showSetPriceDialog(context)),
                   _ctrlTile(context, Icons.account_balance_rounded, Colors.teal, 'Account Info', _accountTitle.isNotEmpty ? '$_accountTitle - $_bankName' : 'Add bank details', onTap: () => _showAccountInfoDialog(context)),
                 ]),
@@ -152,6 +195,77 @@ class _AdminControlPanelScreenState extends State<AdminControlPanelScreen> {
     ));
   }
 
+  // ─── Free Trial Dialog ────────────────────────────────────────────────
+
+  void _showFreeTrialDialog(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final dimColor = isDark ? Colors.white38 : Colors.black54;
+    final baseColor = isDark ? Colors.white : Colors.black87;
+    final fillColor = isDark ? Colors.white10 : Colors.black12;
+    final bgColor = isDark ? const Color(0xFF1A0533) : Colors.white;
+    final daysCtrl = TextEditingController(text: '3');
+    final hoursCtrl = TextEditingController(text: '0');
+    bool hasActiveTrial = _trialEnd != null && _trialEnd!.isAfter(DateTime.now());
+    showDialog(context: context, builder: (d) => AlertDialog(
+      backgroundColor: bgColor,
+      title: Text('Free Trial', style: TextStyle(color: baseColor)),
+      content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        if (hasActiveTrial) ...[
+          Text('Free trial is active for unverified students.', style: TextStyle(color: dimColor, fontSize: 12)),
+          const SizedBox(height: 8),
+          Text('Ends: ${_formatTrialEndDate(_trialEnd!)}', style: TextStyle(color: Colors.orange, fontSize: 14, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 16),
+          const Divider(),
+          const SizedBox(height: 8),
+        ],
+        Text(hasActiveTrial
+            ? 'Extend the current trial by entering new days/hours below.'
+            : 'Give unverified students free access for a limited time. When the trial ends, Paid Access turns ON automatically.',
+            style: TextStyle(color: dimColor, fontSize: 12)),
+        const SizedBox(height: 16),
+        TextField(controller: daysCtrl, keyboardType: TextInputType.number, style: TextStyle(color: baseColor), decoration: InputDecoration(labelText: 'Days', labelStyle: TextStyle(color: dimColor), filled: true, fillColor: fillColor, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
+        const SizedBox(height: 12),
+        TextField(controller: hoursCtrl, keyboardType: TextInputType.number, style: TextStyle(color: baseColor), decoration: InputDecoration(labelText: 'Hours', labelStyle: TextStyle(color: dimColor), filled: true, fillColor: fillColor, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
+      ]),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(d), child: Text('Close', style: TextStyle(color: dimColor))),
+        ElevatedButton(onPressed: () async {
+          final days = int.tryParse(daysCtrl.text.trim()) ?? 0;
+          final hours = int.tryParse(hoursCtrl.text.trim()) ?? 0;
+          if (days == 0 && hours == 0) {
+            if (d.mounted) Navigator.pop(d);
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter at least 1 hour'), backgroundColor: Colors.orange));
+            return;
+          }
+          // Auto-set Paid Access OFF when trial starts
+          await FirebaseService.updateSetting('paidAccess', false);
+          if (mounted) setState(() => _paidAccess = false);
+          final count = await FirebaseService.startFreeTrialForAll(days: days, hours: hours);
+          if (d.mounted) Navigator.pop(d);
+          await _loadTrial();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text(count > 0 ? 'Free trial started for $count student(s) — Paid Access turned OFF' : 'No unverified students found'),
+              backgroundColor: Colors.green,
+            ));
+          }
+        }, child: Text(hasActiveTrial ? 'Extend Trial' : 'Start Trial')),
+      ],
+    ));
+  }
+
+  String _formatTrialEndDate(DateTime dt) {
+    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final month = months[dt.month - 1];
+    final day = dt.day;
+    final year = dt.year;
+    final hour = dt.hour;
+    final minute = dt.minute.toString().padLeft(2, '0');
+    final period = hour >= 12 ? 'PM' : 'AM';
+    final hour12 = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
+    return '$day $month $year, $hour12:$minute $period';
+  }
+
   // ─── Account Info Dialog ──────────────────────────────────────────────
 
   void _showAccountInfoDialog(BuildContext context) {
@@ -199,7 +313,7 @@ class _AdminControlPanelScreenState extends State<AdminControlPanelScreen> {
       builder: (ctx) => FutureBuilder<List<Map<String, dynamic>>>(
         future: FirebaseService.getAllStudents(),
         builder: (context, snap) {
-          if (snap.connectionState == ConnectionState.waiting) return SizedBox(height: 300, child: Center(child: ProfessionalLoader(size: 20)));
+          if (snap.connectionState == ConnectionState.waiting) return const SizedBox(height: 300, child: Center(child: ProfessionalLoader(size: 20)));
           final students = snap.data ?? [];
           return StatefulBuilder(builder: (ctx, setLocal) {
             if (students.isEmpty) return SizedBox(height: 200, child: Center(child: Text('No students registered', style: TextStyle(color: dimColor))));
@@ -277,7 +391,7 @@ class _AdminControlPanelScreenState extends State<AdminControlPanelScreen> {
       builder: (ctx) => FutureBuilder<List<Map<String, dynamic>>>(
         future: FirebaseService.getAllStudents(),
         builder: (context, snap) {
-          if (snap.connectionState == ConnectionState.waiting) return SizedBox(height: 300, child: Center(child: ProfessionalLoader(size: 20)));
+          if (snap.connectionState == ConnectionState.waiting) return const SizedBox(height: 300, child: Center(child: ProfessionalLoader(size: 20)));
           final students = snap.data ?? [];
           return StatefulBuilder(builder: (ctx, setLocal) {
             if (students.isEmpty) return SizedBox(height: 200, child: Center(child: Text('No students registered', style: TextStyle(color: dimColor))));
@@ -287,7 +401,7 @@ class _AdminControlPanelScreenState extends State<AdminControlPanelScreen> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
                   child: Row(children: [
-                    Icon(Icons.school_rounded, color: Colors.blue, size: 22),
+                    const Icon(Icons.school_rounded, color: Colors.blue, size: 22),
                     const SizedBox(width: 8),
                     Text('All Students (${students.length})', style: TextStyle(color: baseColor, fontWeight: FontWeight.bold, fontSize: 16)),
                     const Spacer(),
@@ -315,30 +429,40 @@ class _AdminControlPanelScreenState extends State<AdminControlPanelScreen> {
                             if (!verified) ...[const SizedBox(width: 4), Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: Colors.orange, borderRadius: BorderRadius.circular(4)), child: const Text('UNVERIFIED', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold)))],
                           ]),
                           subtitle: Text(email, style: TextStyle(color: dimColor, fontSize: 12)),
-                          trailing: IconButton(
-                            icon: Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 20),
-                            onPressed: () async {
-                              final uid = s['id'] as String? ?? '';
-                              final confirm = await showDialog<bool>(
-                                context: ctx,
-                                builder: (d) => AlertDialog(
-                                  backgroundColor: isDark ? const Color(0xFF1A0533) : Colors.white,
-                                  title: Text('Delete Student?', style: TextStyle(color: baseColor)),
-                                  content: Text('Delete "$name"? This cannot be undone.', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
-                                  actions: [
-                                    TextButton(onPressed: () => Navigator.pop(d, false), child: Text('Cancel', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54))),
-                                    ElevatedButton(onPressed: () => Navigator.pop(d, true), style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent), child: const Text('Delete', style: TextStyle(color: Colors.white))),
-                                  ],
-                                ),
-                              );
-                              if (confirm == true && uid.isNotEmpty) {
+                          trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                            IconButton(
+                              icon: const Icon(Icons.password_rounded, color: Colors.cyan, size: 20),
+                              tooltip: 'Change Password',
+                              onPressed: () {
+                                final uid = s['id'] as String? ?? '';
+                                _showChangePasswordDialog(ctx, uid, name);
+                              },
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 20),
+                              onPressed: () async {
+                                final uid = s['id'] as String? ?? '';
+                                final confirm = await showDialog<bool>(
+                                  context: ctx,
+                                  builder: (d) => AlertDialog(
+                                    backgroundColor: isDark ? const Color(0xFF1A0533) : Colors.white,
+                                    title: Text('Delete Student?', style: TextStyle(color: baseColor)),
+                                    content: Text('Delete "$name"? This cannot be undone.', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
+                                    actions: [
+                                      TextButton(onPressed: () => Navigator.pop(d, false), child: Text('Cancel', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54))),
+                                      ElevatedButton(onPressed: () => Navigator.pop(d, true), style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent), child: const Text('Delete', style: TextStyle(color: Colors.white))),
+                                    ],
+                                  ),
+                                );
+                                if (confirm == true && uid.isNotEmpty) {
                                 await FirebaseService.firestore.collection('users').doc(uid).delete();
                                 await FirebaseService.deleteUserFromAuth(uid);
                                 if (ctx.mounted) Navigator.pop(ctx);
                               }
                             },
                           ),
-                        ),
+                            ]),
+                          ),
                       );
                     },
                   ),
@@ -365,7 +489,7 @@ class _AdminControlPanelScreenState extends State<AdminControlPanelScreen> {
       builder: (ctx) => FutureBuilder<List<Map<String, dynamic>>>(
         future: FirebaseService.getAllStudents(),
         builder: (context, snap) {
-          if (snap.connectionState == ConnectionState.waiting) return SizedBox(height: 300, child: Center(child: ProfessionalLoader(size: 20)));
+          if (snap.connectionState == ConnectionState.waiting) return const SizedBox(height: 300, child: Center(child: ProfessionalLoader(size: 20)));
           final allStudents = snap.data ?? [];
           return StatefulBuilder(builder: (ctx, setLocal) {
             final students = allStudents.where((s) => s['blocked'] == true || s['blocked'] == null || s['blocked'] == false).toList();
@@ -475,7 +599,7 @@ class _AdminControlPanelScreenState extends State<AdminControlPanelScreen> {
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseService.getAllAssistant(),
               builder: (context, snap) {
-                if (snap.connectionState == ConnectionState.waiting) return Center(child: ProfessionalLoader());
+                if (snap.connectionState == ConnectionState.waiting) return const Center(child: ProfessionalLoader());
                 if (!snap.hasData || snap.data!.docs.isEmpty) {
                   return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                     Icon(Icons.person_off_rounded, size: 50, color: isDark ? Colors.white12 : Colors.black12),
@@ -509,6 +633,11 @@ class _AdminControlPanelScreenState extends State<AdminControlPanelScreen> {
                           const SizedBox(height: 2),
                           Text(email, style: const TextStyle(color: Colors.teal, fontSize: 12)),
                         ])),
+                        IconButton(
+                          icon: const Icon(Icons.password_rounded, color: Colors.cyan, size: 20),
+                          tooltip: 'Change Password',
+                          onPressed: () => _showChangePasswordDialog(context, docs[i].id, name),
+                        ),
                         IconButton(
                           icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 20),
                           onPressed: () async {
@@ -699,6 +828,77 @@ class _AdminControlPanelScreenState extends State<AdminControlPanelScreen> {
       ],
     ));
   }
+
+  void _showChangePasswordDialog(BuildContext ctx, String uid, String name) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final baseColor = isDark ? Colors.white : Colors.black87;
+    final dimColor = isDark ? Colors.white38 : Colors.black54;
+    final fillColor = isDark ? Colors.white10 : Colors.black12;
+    final bgColor = isDark ? const Color(0xFF1A0533) : Colors.white;
+    final ctrl = TextEditingController();
+    bool saving = false;
+    String? error;
+    showDialog(
+      context: ctx,
+      builder: (d) => StatefulBuilder(builder: (d, setLocal) {
+        Future<void> prefill() async {
+          final old = await FirebaseService.getUserStoredPassword(uid);
+          if (old.isNotEmpty && ctrl.text.isEmpty && d.mounted) {
+            setLocal(() => ctrl.text = old);
+          }
+        }
+        prefill();
+        return AlertDialog(
+          backgroundColor: bgColor,
+          title: Text('Change Password - $name', style: TextStyle(color: baseColor)),
+          content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            if (error != null) ...[
+              Text(error!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
+              const SizedBox(height: 8),
+            ],
+            TextField(
+              controller: ctrl, obscureText: true,
+              style: TextStyle(color: baseColor),
+              decoration: InputDecoration(
+                labelText: 'Old Password (overtype to change)', labelStyle: TextStyle(color: dimColor),
+                hintText: ctrl.text.isEmpty ? 'No stored password - enter new' : null,
+                hintStyle: TextStyle(color: dimColor),
+                filled: true, fillColor: fillColor, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ]),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(d), child: Text('Cancel', style: TextStyle(color: dimColor))),
+            ElevatedButton(
+              onPressed: saving
+                  ? null
+                  : () async {
+                      final pwd = ctrl.text.trim();
+                      if (pwd.length < 6) {
+                        setLocal(() => error = 'Password must be at least 6 characters');
+                        return;
+                      }
+                      setLocal(() { saving = true; error = null; });
+                      final ok = await FirebaseService.updateUserPassword(uid, pwd);
+                      if (!d.mounted) return;
+                      setLocal(() => saving = false);
+                      if (ok) {
+                        Navigator.pop(d);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password updated'), backgroundColor: Colors.green));
+                        }
+                      } else {
+                        setLocal(() => error = 'Failed to update password. Try again.');
+                      }
+                    },
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.cyan),
+              child: const Text('Save', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      }),
+    );
+  }
 }
 
 class StudentActivityPage extends StatefulWidget {
@@ -745,6 +945,13 @@ class _StudentActivityPageState extends State<StudentActivityPage> {
           const SizedBox(width: 8),
           Text('Student Activity', style: TextStyle(color: widget.baseColor, fontWeight: FontWeight.bold, fontSize: 16)),
         ]),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.campaign_rounded, color: Colors.orange),
+            tooltip: 'Send Notification to All Students',
+            onPressed: () => _showSendToAllDialog(context),
+          ),
+        ],
       ),
       body: Column(
       children: [
@@ -752,9 +959,9 @@ class _StudentActivityPageState extends State<StudentActivityPage> {
         Expanded(
           child: _error != null
               ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Icon(Icons.error_outline_rounded, size: 48, color: Colors.redAccent),
+                  const Icon(Icons.error_outline_rounded, size: 48, color: Colors.redAccent),
                   const SizedBox(height: 12),
-                  Text('Error loading activity', style: TextStyle(color: Colors.redAccent, fontSize: 16)),
+                  const Text('Error loading activity', style: TextStyle(color: Colors.redAccent, fontSize: 16)),
                   const SizedBox(height: 4),
                   Text(_error!, style: TextStyle(color: widget.dimColor, fontSize: 12), textAlign: TextAlign.center),
                 ]))
@@ -799,7 +1006,7 @@ class _StudentActivityPageState extends State<StudentActivityPage> {
                                     ));
                                   },
                                 ),
-                                Icon(Icons.chevron_right, color: Colors.lime, size: 20),
+                                const Icon(Icons.chevron_right, color: Colors.lime, size: 20),
                               ],
                             ),
                             onTap: () => _showStudentLoginHistory(uid, name),
@@ -828,6 +1035,48 @@ class _StudentActivityPageState extends State<StudentActivityPage> {
       ),
     ));
   }
+
+  void _showSendToAllDialog(BuildContext context) {
+    final msgCtrl = TextEditingController();
+    final baseColor = widget.baseColor;
+    final dimColor = widget.dimColor;
+    final fillColor = widget.isDark ? Colors.white10 : Colors.black12;
+    showDialog(
+      context: context,
+      builder: (d) => AlertDialog(
+        backgroundColor: widget.bgColor,
+        title: Text('Notify All Students', style: TextStyle(color: baseColor, fontSize: 16)),
+        content: TextField(
+          controller: msgCtrl, maxLines: 3,
+          style: TextStyle(color: baseColor),
+          decoration: InputDecoration(
+            hintText: 'Type your notification message...', hintStyle: TextStyle(color: dimColor),
+            filled: true, fillColor: fillColor, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(d), child: Text('Cancel', style: TextStyle(color: dimColor))),
+          ElevatedButton(
+            onPressed: () async {
+              final msg = msgCtrl.text.trim();
+              if (msg.isEmpty) return;
+              final count = await FirebaseService.addNotificationToAllStudents(msg);
+              if (d.mounted) Navigator.pop(d);
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text('Notification sent to $count student(s)'),
+                  backgroundColor: Colors.green,
+                ));
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+            child: const Text('Send to All', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
 }
 
 class _StudentDevicePage extends StatefulWidget {
@@ -917,9 +1166,9 @@ class _StudentDevicePageState extends State<_StudentDevicePage> with SingleTicke
           .snapshots(),
       builder: (ctx, loginSnap) {
         if (loginSnap.hasError) {
-          return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          return const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
             Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 32),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Text('Could not load devices', style: TextStyle(color: Colors.redAccent, fontSize: 13)),
           ]));
         }
@@ -1060,9 +1309,9 @@ class _StudentDevicePageState extends State<_StudentDevicePage> with SingleTicke
           .snapshots(),
       builder: (ctx, snap) {
         if (snap.hasError) {
-          return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          return const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
             Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 32),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Text('Could not load notifications', style: TextStyle(color: Colors.redAccent, fontSize: 13)),
           ]));
         }
@@ -1105,7 +1354,7 @@ class _StudentDevicePageState extends State<_StudentDevicePage> with SingleTicke
               ),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [
-                  Icon(Icons.notifications_rounded, color: Colors.orange, size: 16),
+                  const Icon(Icons.notifications_rounded, color: Colors.orange, size: 16),
                   const SizedBox(width: 6),
                   Expanded(child: Text(message, style: TextStyle(color: widget.baseColor, fontSize: 13))),
                 ]),
@@ -1176,7 +1425,7 @@ class _AdminDeviceHistoryPage extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
         title: Row(children: [
-          Icon(Icons.phone_android_rounded, color: Colors.lime, size: 20),
+          const Icon(Icons.phone_android_rounded, color: Colors.lime, size: 20),
           const SizedBox(width: 8),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(deviceName, style: TextStyle(color: baseColor, fontWeight: FontWeight.bold, fontSize: 14)),
@@ -1214,9 +1463,9 @@ class _AdminDeviceHistoryPage extends StatelessWidget {
                   .snapshots(),
               builder: (ctx, snap) {
                 if (snap.hasError) {
-                  return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  return const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                     Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 32),
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8),
                     Text('Could not load history', style: TextStyle(color: Colors.redAccent, fontSize: 13)),
                   ]));
                 }

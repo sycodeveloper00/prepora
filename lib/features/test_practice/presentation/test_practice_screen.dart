@@ -16,8 +16,8 @@ class _TestPracticeScreenState extends State<TestPracticeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Practice Test'),
-        actions: [
-          const Center(
+        actions: const [
+          Center(
             child: Padding(
               padding: EdgeInsets.symmetric(horizontal: 16.0),
               child: Text(

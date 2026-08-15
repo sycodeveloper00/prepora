@@ -95,7 +95,7 @@ class AppTheme {
         filled: true,
         fillColor: const Color(0xFFF0E6FF),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-        hintStyle: TextStyle(color: Colors.black38),
+        hintStyle: const TextStyle(color: Colors.black38),
       ),
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith((states) {

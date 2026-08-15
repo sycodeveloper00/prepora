@@ -6,7 +6,6 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../../../core/services/firebase_service.dart';
-import '../../../core/services/notification_service.dart';
 import '../../../core/theme/theme_provider.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -101,7 +100,7 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
                 title: Text('Auto Download Files', style: TextStyle(color: textColor)),
                 subtitle: Text('Files open offline after first download', style: TextStyle(color: hintColor, fontSize: 12)),
                 value: _autoDownload,
-                activeColor: const Color(0xFF4A148C),
+                activeThumbColor: const Color(0xFF4A148C),
                 onChanged: (val) async {
                   setState(() => _autoDownload = val);
                   await FirebaseService.updateUserAutoDownload(val);
@@ -125,7 +124,7 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
               title: Text('Notifications', style: TextStyle(color: textColor)),
               subtitle: Text(_notificationsEnabled ? 'System notifications ON' : 'System notifications OFF', style: TextStyle(color: hintColor, fontSize: 12)),
               value: _notificationsEnabled,
-              activeColor: const Color(0xFF4A148C),
+              activeThumbColor: const Color(0xFF4A148C),
               onChanged: (val) async {
                 if (!kIsWeb) {
                   await _openSystemNotificationSettings();
@@ -193,7 +192,7 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
               Divider(height: 1, color: isDark ? Colors.white12 : Colors.black12),
               ListTile(
                 leading: const Icon(Icons.logout_rounded, color: Colors.redAccent),
-                title: Text(_loggingOut ? 'Logging out...' : 'Logout', style: TextStyle(color: Colors.redAccent)),
+                title: Text(_loggingOut ? 'Logging out...' : 'Logout', style: const TextStyle(color: Colors.redAccent)),
                 enabled: !_loggingOut,
                 trailing: _loggingOut
                     ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.redAccent))

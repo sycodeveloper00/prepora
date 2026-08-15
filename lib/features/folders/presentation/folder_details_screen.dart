@@ -6,7 +6,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:http/http.dart' as http;
 import '../../../core/widgets/glassmorphic_container.dart';
 import '../../../core/widgets/professional_loader.dart';
 import '../../../core/services/firebase_service.dart';
@@ -42,10 +41,11 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
   String _folderName = '';
   String _subfolderName = '';
   Set<String> _assistantAccess = {};
-  Set<String> _pendingOptimistic = {};
+  final Set<String> _pendingOptimistic = {};
   bool _isBlocked = false;
   bool _isVerified = true;
   bool _isPaidAccess = false;
+  bool _isFreeTrialActive = false;
   final Map<String, int> _localOrderMap = {};
   bool _hasLocalOrder = false;
   Set<String> _selectedIds = {};
@@ -138,12 +138,21 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
       final blocked = await FirebaseService.isStudentBlocked(uid);
       final settings = await FirebaseService.getSettings();
       final paidAccess = settings['paidAccess'] as bool? ?? false;
-      final verified = paidAccess ? await FirebaseService.isStudentVerified(uid) : true;
-      if (mounted) setState(() {
+      final verified = await FirebaseService.isStudentVerified(uid);
+      final trial = await FirebaseService.getFreeTrial(uid);
+      final trialEnd = trial['endsAt'] as DateTime?;
+      final trialActive = trial['active'] == true;
+      if (trialActive && trialEnd != null && !trialEnd.isAfter(DateTime.now())) {
+        await FirebaseService.expireFreeTrial(uid);
+      }
+      if (mounted) {
+        setState(() {
         _isBlocked = blocked;
         _isVerified = verified;
         _isPaidAccess = paidAccess;
+        _isFreeTrialActive = trialActive && (trialEnd?.isAfter(DateTime.now()) ?? false);
       });
+      }
     }
   }
 
@@ -177,7 +186,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
     try {
       final doc = await FirebaseService.firestore.collection('folders').doc(widget.folderId).get();
       if (doc.exists && mounted) {
-        final data = doc.data() as Map<String, dynamic>?;
+        final data = doc.data();
         final sortModes = data?['sortModes'] as Map<String, dynamic>?;
         if (sortModes != null && sortModes.containsKey(_sortKey)) {
           setState(() { _sortMode = sortModes[_sortKey] as String? ?? 'custom'; });
@@ -603,7 +612,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
 
   bool _descExceedsLines(String text, BuildContext context) {
     final tp = TextPainter(
-      text: TextSpan(text: text, style: TextStyle(fontSize: 12, height: 1.4)),
+      text: TextSpan(text: text, style: const TextStyle(fontSize: 12, height: 1.4)),
       maxLines: 6,
       textDirection: Directionality.of(context),
     )..layout(maxWidth: 260);
@@ -1761,7 +1770,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
                   onPressed: () => _showUploadOptions(context),
                   child: const Icon(Icons.add, color: Colors.white),
                 )
-              : (_isBlocked || (_isPaidAccess && !_isVerified))
+              : (_isBlocked || (_isPaidAccess && !_isVerified && !_isFreeTrialActive))
                   ? const SizedBox.shrink()
                   : FutureBuilder<String?>(
                       future: FirebaseService.getGroupLinkForLevel(widget.folderId, parentContentId: widget.parentContentId ?? 'root'),
@@ -2078,7 +2087,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
       case 'completed': return const Icon(Icons.check_circle_rounded, color: Colors.green, size: 14);
       case 'failed': return const Icon(Icons.error_rounded, color: Colors.redAccent, size: 14);
       case 'cancelled': return Icon(Icons.cancel_rounded, color: Colors.orange.withValues(alpha: 0.6), size: 14);
-      default: return Icon(Icons.hourglass_empty_rounded, color: Colors.white24, size: 14);
+      default: return const Icon(Icons.hourglass_empty_rounded, color: Colors.white24, size: 14);
     }
   }
 
@@ -2826,12 +2835,12 @@ class _GroupLinkDialogState extends State<GroupLinkDialog> {
       if (mounted) {
         _linkCtrl.text = link ?? '';
       }
-      if (widget.parentContentId != null && widget.parentContentId != 'root') {
+      if (widget.parentContentId != 'root') {
         final doc = await FirebaseService.firestore
             .collection('folders').doc(widget.folderId)
             .collection('contents').doc(widget.parentContentId).get();
         if (doc.exists) {
-          final data = doc.data() as Map<String, dynamic>?;
+          final data = doc.data();
           final inherit = data?['inherit_group'] as bool?;
           if (inherit != null) {
             _inheritGroup = inherit;
@@ -2840,7 +2849,7 @@ class _GroupLinkDialogState extends State<GroupLinkDialog> {
       } else {
         final folderDoc = await FirebaseService.firestore.collection('folders').doc(widget.folderId).get();
         if (folderDoc.exists) {
-          final data = folderDoc.data() as Map<String, dynamic>?;
+          final data = folderDoc.data();
           final inherit = data?['inherit_group'] as bool?;
           if (inherit != null) {
             _inheritGroup = inherit;
@@ -2937,21 +2946,21 @@ class _GroupLinkDialogState extends State<GroupLinkDialog> {
                   ),
                   child: Row(
                     children: [
-                      Expanded(
+                      const Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text('Inherit to sub-folders',
-                              style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500)),
+                              style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500)),
                             Text('ON = all sub-folders get this link',
-                              style: const TextStyle(color: Colors.white38, fontSize: 10)),
+                              style: TextStyle(color: Colors.white38, fontSize: 10)),
                           ],
                         ),
                       ),
                       Switch(
                         value: _inheritGroup,
                         onChanged: (v) => setState(() => _inheritGroup = v),
-                        activeColor: Colors.amber,
+                        activeThumbColor: Colors.amber,
                       ),
                     ],
                   ),

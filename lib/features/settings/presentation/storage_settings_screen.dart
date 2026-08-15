@@ -26,11 +26,13 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
     final supAccounts = await FirebaseService.getSupabaseAccounts();
     final assistantSup = await FirebaseService.getAssistantSupabaseAccounts();
     await FirebaseService.setStorageProvider('supabase');
-    if (mounted) setState(() {
+    if (mounted) {
+      setState(() {
       _adminSupabaseCount = supAccounts.length;
       _assistantSupabaseCount = assistantSup.length;
       _loading = false;
     });
+    }
   }
 
   @override

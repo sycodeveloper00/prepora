@@ -25,7 +25,7 @@ class ImageViewerScreen extends StatelessWidget {
           child: CachedNetworkImage(
             imageUrl: url,
             fit: BoxFit.contain,
-            placeholder: (_, __) => Center(child: ProfessionalLoader()),
+            placeholder: (_, __) => const Center(child: ProfessionalLoader()),
             errorWidget: (_, url, error) {
               final isNetworkError = error.toString().toLowerCase().contains('socket') ||
                   error.toString().toLowerCase().contains('host lookup') ||

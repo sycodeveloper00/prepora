@@ -87,8 +87,8 @@ class _MediaPlayerScreenState extends State<MediaPlayerScreen> {
     final h = d.inHours;
     final m = d.inMinutes.remainder(60);
     final s = d.inSeconds.remainder(60);
-    if (h > 0) return '${h}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
-    return '${m}:${s.toString().padLeft(2, '0')}';
+    if (h > 0) return '$h:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+    return '$m:${s.toString().padLeft(2, '0')}';
   }
 
   @override
@@ -182,7 +182,7 @@ class _MediaPlayerScreenState extends State<MediaPlayerScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  ProfessionalLoader(),
+                  const ProfessionalLoader(),
                   const SizedBox(height: 16),
                   Text(widget.isAudio ? 'Loading audio...' : 'Loading video...', style: const TextStyle(color: Colors.white54)),
                 ],

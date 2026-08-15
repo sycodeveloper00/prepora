@@ -153,7 +153,7 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(d),
-            child: Text('OK', style: TextStyle(color: Colors.orange)),
+            child: const Text('OK', style: TextStyle(color: Colors.orange)),
           ),
         ],
       ),

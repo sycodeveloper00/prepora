@@ -56,10 +56,12 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> with WidgetsB
             ?.areNotificationsEnabled();
         _notificationsEnabled = enabled ?? true;
       }
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _appVersion = info.version;
         _loading = false;
       });
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -120,7 +122,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> with WidgetsB
                     title: Text('Auto Download Files', style: TextStyle(color: textColor)),
                     subtitle: Text('Auto-download files on first open', style: TextStyle(color: hintColor, fontSize: 12)),
                     value: _autoDownload,
-                    activeColor: const Color(0xFF4A148C),
+                    activeThumbColor: const Color(0xFF4A148C),
                     onChanged: (val) async {
                       setState(() => _autoDownload = val);
                       await FirebaseService.updateUserAutoDownload(val);
@@ -135,11 +137,11 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> with WidgetsB
                     title: Text('Notifications', style: TextStyle(color: textColor)),
                     subtitle: Text(_notificationsEnabled ? 'System notifications ON' : 'System notifications OFF', style: TextStyle(color: hintColor, fontSize: 12)),
                     value: _notificationsEnabled,
-                    activeColor: const Color(0xFF4A148C),
+                    activeThumbColor: const Color(0xFF4A148C),
                     onChanged: (val) async {
                       if (!kIsWeb) {
                         try {
-                          await MethodChannel('com.prepora.academy.prepora/pdf_intent').invokeMethod('openNotificationSettings');
+                          await const MethodChannel('com.prepora.academy.prepora/pdf_intent').invokeMethod('openNotificationSettings');
                         } catch (_) {}
                       }
                     },
@@ -157,7 +159,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> with WidgetsB
                     Divider(height: 1, color: isDark ? Colors.white12 : Colors.black12),
                     ListTile(
                       leading: const Icon(Icons.logout_rounded, color: Colors.redAccent),
-                      title: Text(_loggingOut ? 'Logging out...' : 'Logout', style: TextStyle(color: Colors.redAccent)),
+                      title: Text(_loggingOut ? 'Logging out...' : 'Logout', style: const TextStyle(color: Colors.redAccent)),
                       enabled: !_loggingOut,
                       trailing: _loggingOut
                           ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.redAccent))

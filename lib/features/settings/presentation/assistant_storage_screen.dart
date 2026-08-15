@@ -5,7 +5,9 @@ import '../../../core/services/firebase_service.dart';
 import '../../../core/widgets/professional_loader.dart';
 
 class AssistantStorageScreen extends StatefulWidget {
-  const AssistantStorageScreen({super.key});
+  final String? assistantUid;
+  final String? assistantName;
+  const AssistantStorageScreen({super.key, this.assistantUid, this.assistantName});
   @override
   State<AssistantStorageScreen> createState() => _AssistantStorageScreenState();
 }
@@ -13,6 +15,9 @@ class AssistantStorageScreen extends StatefulWidget {
 class _AssistantStorageScreenState extends State<AssistantStorageScreen> {
   bool _loading = true;
   List<Map<String, dynamic>> _supabaseAccounts = [];
+  List<Map<String, dynamic>> _assistants = [];
+
+  bool get _isScoped => widget.assistantUid != null;
 
   @override
   void initState() {
@@ -21,11 +26,26 @@ class _AssistantStorageScreenState extends State<AssistantStorageScreen> {
   }
 
   Future<void> _load() async {
-    final supAccounts = await FirebaseService.getAssistantSupabaseAccounts();
-    if (mounted) setState(() {
-      _supabaseAccounts = supAccounts;
-      _loading = false;
-    });
+    final all = await FirebaseService.getAssistantSupabaseAccounts();
+    if (_isScoped) {
+      final scoped = all.where((a) => a['assistantUid'] == widget.assistantUid).toList();
+      if (mounted) {
+        setState(() {
+        _supabaseAccounts = scoped;
+        _loading = false;
+      });
+      }
+    } else {
+      final snap = await FirebaseService.getAllAssistant().first;
+      final assistants = snap.docs.map((e) => {'id': e.id, ...(e.data() as Map<String, dynamic>)}).toList();
+      if (mounted) {
+        setState(() {
+        _assistants = assistants;
+        _supabaseAccounts = all;
+        _loading = false;
+      });
+      }
+    }
   }
 
   @override
@@ -36,7 +56,10 @@ class _AssistantStorageScreenState extends State<AssistantStorageScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Assistant Storage', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(
+          _isScoped ? (widget.assistantName ?? 'Assistant Storage') : 'Assistant Storage',
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.code_rounded, color: Colors.cyan),
@@ -47,80 +70,161 @@ class _AssistantStorageScreenState extends State<AssistantStorageScreen> {
       ),
       body: _loading
           ? const Center(child: ProfessionalLoader())
-          : ListView(
-              padding: const EdgeInsets.all(16),
+          : _isScoped
+              ? _buildAccountsView(isDark, textColor, hintColor)
+              : _buildAssistantsList(isDark, textColor, hintColor),
+    );
+  }
+
+  Widget _buildAssistantsList(bool isDark, Color textColor, Color hintColor) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(children: [
+              const Icon(Icons.people_rounded, color: Colors.orange),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Assistants', style: TextStyle(color: textColor, fontWeight: FontWeight.w600)),
+                    Text('Tap an assistant to manage their Supabase accounts', style: TextStyle(color: hintColor, fontSize: 12)),
+                  ],
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.add_circle_rounded, color: Colors.orange, size: 28),
+                tooltip: 'Add Supabase account',
+                onPressed: _showAddAssistantSupabaseDialog,
+              ),
+            ]),
+          ),
+        ),
+        const SizedBox(height: 8),
+        if (_assistants.isEmpty)
+          _emptyState('No assistants found', 'Create assistants from the admin panel', Icons.person_off_rounded, isDark, hintColor)
+        else
+          ...List.generate(_assistants.length, (i) {
+            final assistant = _assistants[i];
+            final uid = assistant['id'] as String;
+            final name = assistant['name'] as String? ?? 'Unknown';
+            final accounts = _supabaseAccounts.where((a) => a['assistantUid'] == uid).toList();
+            final active = accounts.where((a) => a['isActive'] == true).toList();
+            final activeUrl = active.isNotEmpty ? (active.first['projectUrl'] as String? ?? '') : '';
+            final displayUrl = activeUrl.replaceFirst('https://', '');
+            final statusText = accounts.isEmpty
+                ? 'No storage assigned'
+                : (activeUrl.isNotEmpty ? displayUrl : '${accounts.length} account(s), none active');
+            return InkWell(
+              onTap: () async {
+                await Navigator.push(context, MaterialPageRoute(builder: (_) => AssistantStorageScreen(assistantUid: uid, assistantName: name)));
+                _load();
+              },
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: (isDark ? Colors.white : Colors.black87).withValues(alpha: isDark ? 0.05 : 0.03),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: (isDark ? Colors.white : Colors.black87).withValues(alpha: isDark ? 0.1 : 0.08)),
+                ),
+                child: Row(children: [
+                  CircleAvatar(backgroundColor: Colors.orange.withValues(alpha: isDark ? 0.2 : 0.1), child: const Icon(Icons.person, color: Colors.orange, size: 20)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(name, style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 14)),
+                      const SizedBox(height: 2),
+                      Text(statusText, style: TextStyle(color: activeUrl.isNotEmpty ? Colors.teal : hintColor, fontSize: 12), overflow: TextOverflow.ellipsis),
+                    ]),
+                  ),
+                  Icon(Icons.chevron_right_rounded, color: hintColor, size: 22),
+                ]),
+              ),
+            );
+          }),
+      ],
+    );
+  }
+
+  Widget _buildAccountsView(bool isDark, Color textColor, Color hintColor) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
+                Row(children: [
+                  const Icon(Icons.storage_rounded, color: Colors.teal),
+                  const SizedBox(width: 12),
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(children: [
-                          const Icon(Icons.storage_rounded, color: Colors.teal),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('Supabase Accounts', style: TextStyle(color: textColor, fontWeight: FontWeight.w600)),
-                                Text('Per-assistant Supabase storage', style: TextStyle(color: hintColor, fontSize: 12)),
-                              ],
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.add_circle_rounded, color: Colors.teal, size: 28),
-                            onPressed: () => _showAddAssistantSupabaseDialog(),
-                          ),
-                        ]),
-                        const SizedBox(height: 8),
-                        if (_supabaseAccounts.isEmpty)
-                          _emptyState('No assistant Supabase accounts', 'Assign Supabase accounts to assistants', Icons.person_add_rounded, isDark, hintColor)
-                        else
-                          ...List.generate(_supabaseAccounts.length, (i) {
-                            final acc = _supabaseAccounts[i];
-                            final isActive = acc['isActive'] as bool? ?? false;
-                            final bucketStatus = acc['bucketStatus'] as String? ?? 'pending';
-                            final failedBuckets = (acc['failedBuckets'] as List?)?.cast<String>() ?? [];
-                            final assistantName = acc['assistantName'] as String? ?? 'Unknown';
-                            return _supabaseAccountTile(
-                              acc: acc, isActive: isActive, bucketStatus: bucketStatus,
-                              failedBuckets: failedBuckets, assistantName: assistantName,
-                              textColor: textColor, hintColor: hintColor, isDark: isDark,
-                              onToggle: () async {
-                                if (isActive) return;
-                                setState(() {
-                                  for (final a in _supabaseAccounts) {
-                                    if (a['assistantUid'] == acc['assistantUid']) {
-                                      a['isActive'] = (a['id'] == acc['id']);
-                                    }
-                                  }
-                                });
-                                try {
-                                  await FirebaseService.updateAssistantSupabaseAccount(acc['id'], isActive: true);
-                                } catch (_) {}
-                              },
-                              onRetry: () async {
-                                final result = await FirebaseService.retryAssistantSupabaseBuckets(acc['id']);
-                                _load();
-                                if (mounted) {
-                                  final status = result['status'] as String? ?? 'failed';
-                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                                    content: Text(status == 'ready' ? 'All buckets ready!' : 'Some buckets still failed. Create them manually.'),
-                                    backgroundColor: status == 'ready' ? Colors.green : Colors.orange,
-                                  ));
-                                }
-                              },
-                              onEdit: () => _showEditAssistantSupabaseDialog(acc),
-                              onDelete: () => _showDeleteAssistantSupabaseDialog(acc),
-                            );
-                          }),
+                        Text('Supabase Accounts', style: TextStyle(color: textColor, fontWeight: FontWeight.w600)),
+                        Text(widget.assistantName == null ? 'Per-assistant Supabase storage' : 'Accounts for ${widget.assistantName}', style: TextStyle(color: hintColor, fontSize: 12)),
                       ],
                     ),
                   ),
-                ),
+                  IconButton(
+                    icon: const Icon(Icons.add_circle_rounded, color: Colors.teal, size: 28),
+                    onPressed: () => _showAddAssistantSupabaseDialog(),
+                  ),
+                ]),
+                const SizedBox(height: 8),
+                if (_supabaseAccounts.isEmpty)
+                  _emptyState('No assistant Supabase accounts', 'Assign Supabase accounts to assistants', Icons.person_add_rounded, isDark, hintColor)
+                else
+                  ...List.generate(_supabaseAccounts.length, (i) {
+                    final acc = _supabaseAccounts[i];
+                    final isActive = acc['isActive'] as bool? ?? false;
+                    final bucketStatus = acc['bucketStatus'] as String? ?? 'pending';
+                    final failedBuckets = (acc['failedBuckets'] as List?)?.cast<String>() ?? [];
+                    final assistantName = acc['assistantName'] as String? ?? 'Unknown';
+                    return _supabaseAccountTile(
+                      acc: acc, isActive: isActive, bucketStatus: bucketStatus,
+                      failedBuckets: failedBuckets, assistantName: assistantName,
+                      textColor: textColor, hintColor: hintColor, isDark: isDark,
+                      onToggle: () async {
+                        if (isActive) return;
+                        setState(() {
+                          for (final a in _supabaseAccounts) {
+                            if (a['assistantUid'] == acc['assistantUid']) {
+                              a['isActive'] = (a['id'] == acc['id']);
+                            }
+                          }
+                        });
+                        try {
+                          await FirebaseService.updateAssistantSupabaseAccount(acc['id'], isActive: true);
+                        } catch (_) {}
+                      },
+                      onRetry: () async {
+                        final result = await FirebaseService.retryAssistantSupabaseBuckets(acc['id']);
+                        _load();
+                        if (mounted) {
+                          final status = result['status'] as String? ?? 'failed';
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                            content: Text(status == 'ready' ? 'All buckets ready!' : 'Some buckets still failed. Create them manually.'),
+                            backgroundColor: status == 'ready' ? Colors.green : Colors.orange,
+                          ));
+                        }
+                      },
+                      onEdit: () => _showEditAssistantSupabaseDialog(acc),
+                      onDelete: () => _showDeleteAssistantSupabaseDialog(acc),
+                    );
+                  }),
               ],
             ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -172,15 +276,15 @@ class _AssistantStorageScreenState extends State<AssistantStorageScreen> {
               Text(isActive ? 'Active' : 'Inactive', style: TextStyle(color: isActive ? Colors.green : Colors.redAccent, fontSize: 11)),
               if (hasFailed) ...[
                 const SizedBox(width: 8),
-                Icon(Icons.warning_amber_rounded, size: 12, color: Colors.orange),
+                const Icon(Icons.warning_amber_rounded, size: 12, color: Colors.orange),
                 const SizedBox(width: 4),
-                Text('Bucket issues', style: TextStyle(color: Colors.orange, fontSize: 11)),
+                const Text('Bucket issues', style: TextStyle(color: Colors.orange, fontSize: 11)),
               ],
             ]),
           ]),
         ),
         const SizedBox(width: 8),
-        Switch(value: isActive, activeColor: Colors.teal, onChanged: (_) => onToggle()),
+        Switch(value: isActive, activeThumbColor: Colors.teal, onChanged: (_) => onToggle()),
         PopupMenuButton<String>(
           icon: Icon(Icons.more_vert_rounded, size: 18, color: hintColor),
           onSelected: (v) { if (v == 'edit') onEdit(); if (v == 'delete') onDelete(); },
@@ -249,7 +353,7 @@ class _AssistantStorageScreenState extends State<AssistantStorageScreen> {
                 if (docs.isEmpty) return Text('No assistants found', style: TextStyle(color: dimColor));
                 final assistants = docs.map((e) => {'id': e.id, ...(e.data() as Map<String, dynamic>)}).toList();
                 return DropdownButtonFormField<String>(
-                  isExpanded: true, value: selectedUid,
+                  isExpanded: true, initialValue: selectedUid,
                   dropdownColor: isDark ? const Color(0xFF2A2A2A) : Colors.white,
                   style: TextStyle(color: baseColor),
                   decoration: InputDecoration(labelText: 'Select Assistant', labelStyle: TextStyle(color: dimColor), filled: true, fillColor: fillColor, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
@@ -364,7 +468,7 @@ class _AssistantStorageScreenState extends State<AssistantStorageScreen> {
     final dimColor = isDark ? Colors.white38 : Colors.black54;
     final bgColor = isDark ? const Color(0xFF1A0533) : Colors.white;
 
-    final sql = """-- Create buckets
+    const sql = """-- Create buckets
 INSERT INTO storage.buckets (id, name, public) VALUES ('folder_files', 'folder_files', true) ON CONFLICT (id) DO NOTHING;
 INSERT INTO storage.buckets (id, name, public) VALUES ('notices', 'notices', true) ON CONFLICT (id) DO NOTHING;
 
@@ -402,7 +506,7 @@ CREATE POLICY "notices_delete" ON storage.objects FOR DELETE USING (bucket_id = 
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: Colors.white12),
               ),
-              child: SelectableText(sql, style: const TextStyle(color: Colors.greenAccent, fontSize: 11, fontFamily: 'monospace', height: 1.5)),
+              child: const SelectableText(sql, style: TextStyle(color: Colors.greenAccent, fontSize: 11, fontFamily: 'monospace', height: 1.5)),
             ),
           ],
         ),
@@ -411,7 +515,7 @@ CREATE POLICY "notices_delete" ON storage.objects FOR DELETE USING (bucket_id = 
         TextButton(onPressed: () => Navigator.pop(d), child: Text('Close', style: TextStyle(color: dimColor))),
         ElevatedButton.icon(
           onPressed: () {
-            Clipboard.setData(ClipboardData(text: sql));
+            Clipboard.setData(const ClipboardData(text: sql));
             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('SQL copied to clipboard!'), backgroundColor: Colors.green));
           },
           icon: const Icon(Icons.copy_rounded, size: 16),

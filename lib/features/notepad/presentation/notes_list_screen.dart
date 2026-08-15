@@ -59,7 +59,7 @@ class _NotesListScreenState extends State<NotesListScreen> {
         leading: IconButton(icon: const Icon(Icons.arrow_back_ios_new_rounded), onPressed: () => context.pop()),
       ),
       body: _loading
-          ? Center(child: ProfessionalLoader())
+          ? const Center(child: ProfessionalLoader())
           : _notes == null || _notes!.isEmpty
               ? Center(child: Text('No notes yet', style: TextStyle(color: isDark ? Colors.white38 : Colors.black38)))
               : ListView.builder(

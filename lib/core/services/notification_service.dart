@@ -24,7 +24,7 @@ class NotificationService {
       tz_data.initializeTimeZones();
       try {
         final timezoneName = await FlutterTimezone.getLocalTimezone();
-        if (timezoneName != null && timezoneName.isNotEmpty) {
+        if (timezoneName.isNotEmpty) {
           tz.setLocalLocation(tz.getLocation(timezoneName));
         }
       } catch (_) {
@@ -83,7 +83,7 @@ class NotificationService {
     } catch (_) {}
   }
 
-  // ─── Notification Permission (Android 13+) ────────────────────────────────
+  // ΓöÇΓöÇΓöÇ Notification Permission (Android 13+) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
   static Future<void> requestNotificationPermission() async {
     if (kIsWeb) return;
@@ -99,7 +99,7 @@ class NotificationService {
     } catch (_) {}
   }
 
-  // ─── Daily Streak Reminder Scheduling ─────────────────────────────────────
+  // ΓöÇΓöÇΓöÇ Daily Streak Reminder Scheduling ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
   static Future<void> scheduleDailyStreakReminder() async {
     if (kIsWeb) return;
@@ -170,7 +170,7 @@ class NotificationService {
     await _plugin.cancel(id: _dailyStreakNotificationId);
   }
 
-  // ─── Student Notification Listener (badge + mobile panel) ──────────────────
+  // ΓöÇΓöÇΓöÇ Student Notification Listener (badge + mobile panel) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
   static void startStudentNotificationListener(String uid, DateTime userCreatedAt) {
     if (kIsWeb) return;
@@ -223,7 +223,7 @@ class NotificationService {
     );
   }
 
-  // ─── Admin Notification Listener (badge + mobile panel) ────────────────────
+  // ΓöÇΓöÇΓöÇ Admin Notification Listener (badge + mobile panel) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
   static void startAdminNotificationListener() {
     if (kIsWeb) return;
@@ -280,7 +280,7 @@ class NotificationService {
     );
   }
 
-  // ─── Streak Reminders ──────────────────────────────────────────────────────
+  // ΓöÇΓöÇΓöÇ Streak Reminders ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
   static Future<void> checkAndNotify() async {
     if (kIsWeb) return;
@@ -309,10 +309,10 @@ class NotificationService {
       final lastLoginDate = DateTime(lastLogin.year, lastLogin.month, lastLogin.day);
       final daysSinceLogin = today.difference(lastLoginDate).inDays;
 
-      // Same day → no notification needed
+      // Same day ΓåÆ no notification needed
       if (daysSinceLogin < 1) return;
 
-      // Already notified today → skip
+      // Already notified today ΓåÆ skip
       if (lastStreakDate != null && !lastStreakDate.isBefore(today)) return;
 
       final plugin = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
@@ -323,7 +323,7 @@ class NotificationService {
       if (daysSinceLogin >= 2) {
         await _showStreakNotification(
           'Your streak was reset!',
-          'You missed a day. Start a new streak today — open PrePora now!',
+          'You missed a day. Start a new streak today ΓÇö open PrePora now!',
         );
       } else {
         await _showStreakNotification(
@@ -357,7 +357,7 @@ class NotificationService {
     await _plugin.show(id: DateTime.now().millisecondsSinceEpoch ~/ 1000, title: 'New Feedback from $studentName', body: message, notificationDetails: details);
   }
 
-  // ─── Badge Count ───────────────────────────────────────────────────────────
+  // ΓöÇΓöÇΓöÇ Badge Count ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
   static Future<void> setBadgeCount(int count) async {
     if (kIsWeb) return;

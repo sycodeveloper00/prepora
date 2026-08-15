@@ -46,7 +46,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
       body: _uid == null
           ? Center(child: Text('Not logged in', style: TextStyle(color: isDark ? Colors.white38 : Colors.black54)))
           : _loading
-              ? Center(child: ProfessionalLoader())
+              ? const Center(child: ProfessionalLoader())
               : _feedbacks == null || _feedbacks!.isEmpty
                   ? Center(child: Text('No feedbacks', style: TextStyle(color: isDark ? Colors.white38 : Colors.black54)))
                   : ListView.builder(

@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../../../core/services/firebase_service.dart';
 import '../../../core/widgets/professional_loader.dart';
 
@@ -111,7 +111,7 @@ class _NotepadViewState extends State<NotepadView> {
             ),
           ),
           if (_isSaving)
-            SizedBox(height: 18, width: 18, child: ProfessionalLoader(size: 18))
+            const SizedBox(height: 18, width: 18, child: ProfessionalLoader(size: 18))
           else
             IconButton(
               icon: const Icon(Icons.save_rounded, color: Colors.blue, size: 20),

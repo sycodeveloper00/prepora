@@ -67,7 +67,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 border: Border.all(color: const Color(0xFF7B2FF7).withValues(alpha: 0.3)),
               ),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.info_outline_rounded, color: const Color(0xFFC084FC), size: 16),
+                const Icon(Icons.info_outline_rounded, color: Color(0xFFC084FC), size: 16),
                 const SizedBox(width: 8),
                 Text('Admin can change your password from\nthe Control Panel.',
                     style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 12)),

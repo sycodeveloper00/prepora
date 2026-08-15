@@ -86,7 +86,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         .snapshots()
         .listen((snap) {
       final all = snap.docs.where((d) {
-        final data = d.data() as Map<String, dynamic>;
+        final data = d.data();
         return data['viewed'] != true;
       }).toList();
       final count = all.length;
@@ -274,7 +274,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       builder: (ctx) => FutureBuilder<List<Map<String, dynamic>>>(
         future: FirebaseService.getAllStudents(),
         builder: (context, snap) {
-          if (snap.connectionState == ConnectionState.waiting) return SizedBox(height: 300, child: Center(child: ProfessionalLoader()));
+          if (snap.connectionState == ConnectionState.waiting) return const SizedBox(height: 300, child: Center(child: ProfessionalLoader()));
           final students = snap.data ?? [];
           return StatefulBuilder(builder: (ctx, setLocal) {
             if (students.isEmpty) return SizedBox(height: 200, child: Center(child: Text('No students registered', style: TextStyle(color: dimColor))));
@@ -407,7 +407,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 child: ListView(children: [
                   _ctrlSection('Paid Access', [
                     _ctrlTile(Icons.verified_user_rounded, Colors.blue, 'Student Paid Access', paidAccess ? 'ON - Manual verification' : 'OFF - Auto verify', trailing: Switch(
-                      value: paidAccess, activeColor: Colors.blue,
+                      value: paidAccess, activeThumbColor: Colors.blue,
                       onChanged: (v) async { await FirebaseService.updateSetting('paidAccess', v); if (ctx.mounted) setLocal(() => paidAccess = v); },
                     )),
                     _ctrlTile(Icons.attach_money_rounded, Colors.green, 'Set Price', 'Current: Rs.${price.toStringAsFixed(0)}', onTap: () async {
@@ -456,7 +456,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       builder: (ctx) => FutureBuilder<List<Map<String, dynamic>>>(
         future: FirebaseService.getAllStudents(),
         builder: (context, snap) {
-          if (snap.connectionState == ConnectionState.waiting) return SizedBox(height: 300, child: Center(child: ProfessionalLoader()));
+          if (snap.connectionState == ConnectionState.waiting) return const SizedBox(height: 300, child: Center(child: ProfessionalLoader()));
           final students = snap.data ?? [];
           return StatefulBuilder(builder: (ctx, setLocal) {
             if (students.isEmpty) return SizedBox(height: 200, child: Center(child: Text('No students registered', style: TextStyle(color: dimColor))));
@@ -563,7 +563,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       builder: (ctx) => FutureBuilder<List<Map<String, dynamic>>>(
         future: FirebaseService.getAllStudents(),
         builder: (context, snap) {
-          if (snap.connectionState == ConnectionState.waiting) return SizedBox(height: 300, child: Center(child: ProfessionalLoader()));
+          if (snap.connectionState == ConnectionState.waiting) return const SizedBox(height: 300, child: Center(child: ProfessionalLoader()));
           final students = snap.data ?? [];
           return StatefulBuilder(builder: (ctx, setLocal) {
             if (students.isEmpty) return SizedBox(height: 200, child: Center(child: Text('No students registered', style: TextStyle(color: dimColor))));
@@ -1156,14 +1156,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     final results = <Map<String, dynamic>>[];
     final foldersSnap = await FirebaseService.firestore.collection('folders').get();
     for (final folderDoc in foldersSnap.docs) {
-      final data = folderDoc.data() as Map<String, dynamic>;
+      final data = folderDoc.data();
       if (data['invisible'] == true) continue;
       final folderName = data['name'] as String? ?? '';
       final folderId = folderDoc.id;
       if (folderName.toLowerCase().contains(q)) continue;
       final contentsSnap = await FirebaseService.firestore.collection('folders').doc(folderId).collection('contents').get();
       for (final contentDoc in contentsSnap.docs) {
-        final cData = contentDoc.data() as Map<String, dynamic>;
+        final cData = contentDoc.data();
         final contentName = cData['name'] as String? ?? cData['title'] as String? ?? '';
         if (contentName.toLowerCase().contains(q)) {
           final type = cData['type'] as String?;
@@ -1183,10 +1183,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         final contentMatches = snap.data ?? [];
         final totalItems = filteredFolders.length + contentMatches.length;
         if (totalItems == 0) {
-          return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          return const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
             Icon(Icons.search_off_rounded, size: 60, color: Colors.white12),
-            const SizedBox(height: 16),
-            const Text('No results found', style: TextStyle(color: Colors.white38, fontSize: 16)),
+            SizedBox(height: 16),
+            Text('No results found', style: TextStyle(color: Colors.white38, fontSize: 16)),
           ]));
         }
         return ListView.builder(
@@ -1276,7 +1276,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           Text(title, style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontWeight: FontWeight.bold, fontSize: 14)),
           Text(subtitle, style: TextStyle(color: isDark ? Colors.white38 : Colors.black54, fontSize: 11)),
         ])),
-        Switch(value: value, onChanged: onChanged, activeColor: color),
+        Switch(value: value, onChanged: onChanged, activeThumbColor: color),
       ]),
     );
   }
@@ -1770,10 +1770,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               onOpened: () { _loadPendingCount(); _markAllFeedbacksViewed(); },
               itemBuilder: (_) => [
-                PopupMenuItem(value: 'notices', child: Row(children: [Icon(Icons.campaign_rounded, size: 18, color: Colors.amber), SizedBox(width: 10), Text('Notice Board', style: TextStyle(color: isDark ? Colors.white : Colors.black87))])),
-                PopupMenuItem(value: 'control_panel', child: Row(children: [Icon(Icons.admin_panel_settings_rounded, size: 18, color: Colors.cyan), SizedBox(width: 10), Text('Control Panel', style: TextStyle(color: isDark ? Colors.white : Colors.black87))])),
-                    PopupMenuItem(value: 'feedbacks', child: Row(children: [Icon(Icons.support_agent_rounded, size: 18, color: Colors.orange), SizedBox(width: 10), Text('Contact Support', style: TextStyle(color: isDark ? Colors.white : Colors.black87))])),
-                PopupMenuItem(value: 'settings', child: Row(children: [Icon(Icons.settings_outlined, size: 18, color: isDark ? Colors.white70 : Colors.black87), SizedBox(width: 10), Text('Settings', style: TextStyle(color: isDark ? Colors.white : Colors.black87))])),
+                PopupMenuItem(value: 'notices', child: Row(children: [const Icon(Icons.campaign_rounded, size: 18, color: Colors.amber), const SizedBox(width: 10), Text('Notice Board', style: TextStyle(color: isDark ? Colors.white : Colors.black87))])),
+                PopupMenuItem(value: 'control_panel', child: Row(children: [const Icon(Icons.admin_panel_settings_rounded, size: 18, color: Colors.cyan), const SizedBox(width: 10), Text('Control Panel', style: TextStyle(color: isDark ? Colors.white : Colors.black87))])),
+                    PopupMenuItem(value: 'feedbacks', child: Row(children: [const Icon(Icons.support_agent_rounded, size: 18, color: Colors.orange), const SizedBox(width: 10), Text('Contact Support', style: TextStyle(color: isDark ? Colors.white : Colors.black87))])),
+                PopupMenuItem(value: 'settings', child: Row(children: [Icon(Icons.settings_outlined, size: 18, color: isDark ? Colors.white70 : Colors.black87), const SizedBox(width: 10), Text('Settings', style: TextStyle(color: isDark ? Colors.white : Colors.black87))])),
               ],
               onSelected: (val) {
                 switch (val) {
@@ -1815,7 +1815,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   const SizedBox(height: 16),
                   const Text('Something went wrong', style: TextStyle(color: Colors.white38, fontSize: 16)),
                   const SizedBox(height: 8),
-                  Text('${snapshot.error}', style: TextStyle(color: Colors.white24, fontSize: 11), textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis),
+                  Text('${snapshot.error}', style: const TextStyle(color: Colors.white24, fontSize: 11), textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 16),
                   ElevatedButton.icon(
                     onPressed: () => _refreshFolderStream(),
@@ -1826,12 +1826,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 ]));
               }
               if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                return const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                   Icon(Icons.folder_open_rounded, size: 80, color: Colors.white12),
-                  const SizedBox(height: 16),
-                  const Text('No folders yet', style: TextStyle(color: Colors.white38, fontSize: 16)),
-                  const SizedBox(height: 8),
-                  const Text('Tap + to create your first folder', style: TextStyle(color: Colors.white24, fontSize: 13)),
+                  SizedBox(height: 16),
+                  Text('No folders yet', style: TextStyle(color: Colors.white38, fontSize: 16)),
+                  SizedBox(height: 8),
+                  Text('Tap + to create your first folder', style: TextStyle(color: Colors.white24, fontSize: 13)),
                 ]));
               }
               // Use optimistic local state if available, else sort from snapshot
@@ -1993,7 +1993,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         return Padding(
           padding: const EdgeInsets.all(24),
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [Icon(Icons.settings_outlined, color: baseColor, size: 22), SizedBox(width: 10), Text('Settings', style: TextStyle(color: baseColor, fontSize: 18, fontWeight: FontWeight.bold))]),
+            Row(children: [Icon(Icons.settings_outlined, color: baseColor, size: 22), const SizedBox(width: 10), Text('Settings', style: TextStyle(color: baseColor, fontSize: 18, fontWeight: FontWeight.bold))]),
             const SizedBox(height: 12),
             Builder(builder: (ctx) {
               final u = FirebaseService.currentUser;
@@ -2031,7 +2031,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             Divider(color: isDark ? Colors.white12 : Colors.black12, height: 24),
             ListTile(
               leading: const Icon(Icons.logout_rounded, color: Colors.redAccent),
-              title: Text(_loggingOut ? 'Logging out...' : 'Logout', style: TextStyle(color: Colors.redAccent)),
+              title: Text(_loggingOut ? 'Logging out...' : 'Logout', style: const TextStyle(color: Colors.redAccent)),
               enabled: !_loggingOut,
               trailing: _loggingOut
                   ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.redAccent))
@@ -2042,7 +2042,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 Navigator.pop(ctx);
                 try {
                   await FirebaseService.signOut();
-                  this.context.go('/auth/login');
+                  context.go('/auth/login');
                 } finally {
                   if (mounted) setState(() => _loggingOut = false);
                 }
@@ -2096,8 +2096,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           future: FirebaseService.getAllStudents(),
           builder: (ctx, snap) {
             if (!snap.hasData) {
-              return Padding(
-                padding: const EdgeInsets.all(40),
+              return const Padding(
+                padding: EdgeInsets.all(40),
                 child: Center(child: ProfessionalLoader()),
               );
             }

@@ -55,6 +55,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   bool _isBlocked = false;
   bool _isVerified = true;
   bool _isPaidAccess = false;
+  bool _isFreeTrialActive = false;
   bool _isProcessing = false;
   double _price = 0;
   String _accountTitle = '';
@@ -103,15 +104,23 @@ class _DashboardScreenState extends State<DashboardScreen>
     final blocked = results[0] as bool;
     final settings = results[1] as Map<String, dynamic>;
     final paidAccess = settings['paidAccess'] as bool? ?? false;
-    final verified = paidAccess ? await FirebaseService.isStudentVerified(uid) : true;
+    final verified = await FirebaseService.isStudentVerified(uid);
+    final trial = await FirebaseService.getFreeTrial(uid);
+    final trialActive = trial['active'] == true;
+    final trialEnd = trial['endsAt'] as DateTime?;
+    if (trialActive && trialEnd != null && !trialEnd.isAfter(DateTime.now())) {
+      await FirebaseService.expireFreeTrial(uid);
+    }
     final user = FirebaseService.currentUser;
     final userDoc = results[2] as dynamic;
     final createdAt = (userDoc?.data() as Map<String, dynamic>?)?['createdAt'] as Timestamp?;
     final streakData = await FirebaseService.getStreak(uid);
-    if (mounted) setState(() {
+    if (mounted) {
+      setState(() {
       _isBlocked = blocked;
       _isVerified = verified;
       _isPaidAccess = paidAccess;
+      _isFreeTrialActive = trialActive && (trialEnd?.isAfter(DateTime.now()) ?? false);
       _price = (settings['price'] as num?)?.toDouble() ?? 0;
       _accountTitle = settings['accountTitle'] as String? ?? '';
       _accountNo = settings['accountNo'] as String? ?? '';
@@ -122,6 +131,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       _totalActiveDays = streakData['totalActiveDays'] as int? ?? 0;
       _rebuildNotificationStream();
     });
+    }
     WidgetService.updateStreakWidget(_streakCount, _totalActiveDays);
   }
 
@@ -146,12 +156,21 @@ class _DashboardScreenState extends State<DashboardScreen>
       final blocked = data['blocked'] as bool? ?? false;
       final settings = await FirebaseService.getSettings();
       final paidAccess = settings['paidAccess'] as bool? ?? false;
-      final verified = paidAccess ? (data['verified'] as bool? ?? false) : true;
-      if (mounted) setState(() {
+      final verified = data['verified'] as bool? ?? false;
+      final trialActive = data['freeTrialActive'] == true;
+      final endsAt = data['freeTrialEndsAt'];
+      final trialEnd = endsAt is Timestamp ? endsAt.toDate() : null;
+      if (trialActive && trialEnd != null && !trialEnd.isAfter(DateTime.now())) {
+        await FirebaseService.expireFreeTrial(uid);
+      }
+      if (mounted) {
+        setState(() {
         _isBlocked = blocked;
         _isVerified = verified;
         _isPaidAccess = paidAccess;
+        _isFreeTrialActive = trialActive && (trialEnd?.isAfter(DateTime.now()) ?? false);
       });
+      }
     });
   }
 
@@ -301,7 +320,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                         return ShaderMask(
                           shaderCallback: (bounds) => LinearGradient(
                             colors: const [Color(0xFFFF4081), Color(0xFFE040FB), Color(0xFF7C4DFF), Color(0xFF00E5FF), Color(0xFFFF4081)],
-                            stops: [0.0, 0.25, 0.5, 0.75, 1.0],
+                            stops: const [0.0, 0.25, 0.5, 0.75, 1.0],
                             begin: Alignment(-1.0 + 2.0 * _colorFlowController.value, 0),
                             end: Alignment(1.0 - 2.0 * _colorFlowController.value, 0),
                           ).createShader(bounds),
@@ -461,8 +480,8 @@ class _DashboardScreenState extends State<DashboardScreen>
               mainAxisAlignment: MainAxisAlignment.start,
               children: [
                 const SizedBox(width: 24),
-                Text("Let's Continue",
-                    style: const TextStyle(
+                const Text("Let's Continue",
+                    style: TextStyle(
                       color: Colors.white,
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -606,12 +625,12 @@ class _DashboardScreenState extends State<DashboardScreen>
                           ),
                         ],
                       ])),
-                      PopupMenuItem(value: 'notes', child: Row(children: [Icon(Icons.note_rounded, size: 18, color: Color(0xFF00B8D4)), SizedBox(width: 10), Text('Notes', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87))])), PopupMenuItem(value: 'progress', child: Row(children: [Icon(Icons.insights_rounded, size: 18, color: Color(0xFF4A148C)), SizedBox(width: 10), Text('Progress', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87))])),
-                      PopupMenuItem(value: 'link_web', child: Row(children: [Icon(Icons.qr_code_scanner_rounded, size: 18, color: Color(0xFF00E676)), SizedBox(width: 10), Text('Link with Web Version', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87))])),
-                      PopupMenuItem(value: 'settings', child: Row(children: [Icon(Icons.settings_outlined, size: 18, color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black87), SizedBox(width: 10), Text('Settings', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87))])),
+                      PopupMenuItem(value: 'notes', child: Row(children: [const Icon(Icons.note_rounded, size: 18, color: Color(0xFF00B8D4)), const SizedBox(width: 10), Text('Notes', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87))])), PopupMenuItem(value: 'progress', child: Row(children: [const Icon(Icons.insights_rounded, size: 18, color: Color(0xFF4A148C)), const SizedBox(width: 10), Text('Progress', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87))])),
+                      PopupMenuItem(value: 'link_web', child: Row(children: [const Icon(Icons.qr_code_scanner_rounded, size: 18, color: Color(0xFF00E676)), const SizedBox(width: 10), Text('Link with Web Version', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87))])),
+                      PopupMenuItem(value: 'settings', child: Row(children: [Icon(Icons.settings_outlined, size: 18, color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black87), const SizedBox(width: 10), Text('Settings', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87))])),
                     ]
                   : [
-                      PopupMenuItem(value: 'contact_support', child: Row(children: [Icon(Icons.support_agent_rounded, size: 18, color: Colors.orange), SizedBox(width: 10), Text('Contact Support', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87))])),
+                      PopupMenuItem(value: 'contact_support', child: Row(children: [const Icon(Icons.support_agent_rounded, size: 18, color: Colors.orange), const SizedBox(width: 10), Text('Contact Support', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87))])),
                       const PopupMenuItem(value: 'logout', child: Row(children: [Icon(Icons.logout, size: 18, color: Colors.redAccent), SizedBox(width: 10), Text('Logout', style: TextStyle(color: Colors.redAccent))])),
                     ],
               onSelected: (val) async {
@@ -1127,9 +1146,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                     boxShadow: [BoxShadow(color: const Color(0xFF00B8D4).withValues(alpha: 0.3), blurRadius: 12, spreadRadius: 1)],
                   ),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.receipt_rounded, color: Colors.white, size: 20),
+                    const Icon(Icons.receipt_rounded, color: Colors.white, size: 20),
                     const SizedBox(width: 10),
-                    Text(_isProcessing ? 'Please wait...' : 'Submit Fee Detail', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                    Text(_isProcessing ? 'Please wait...' : 'Submit Fee Detail', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
                   ]),
                 ),
               ),
@@ -1172,10 +1191,17 @@ class _DashboardScreenState extends State<DashboardScreen>
     showDialog(context: context, builder: (_) => const Center(child: ProfessionalLoader()), barrierDismissible: false);
     try {
       final isVerified = await FirebaseService.isStudentVerified(uid);
+      final trial = await FirebaseService.getFreeTrial(uid);
+      final trialEnd = trial['endsAt'] as DateTime?;
+      final inTrial = trial['active'] == true && (trialEnd?.isAfter(DateTime.now()) ?? false);
       if (!mounted) return;
       if (context.mounted) Navigator.pop(context);
       if (!mounted) return;
       if (isVerified) {
+        _showFeedbackListDialog(context, uid);
+        return;
+      }
+      if (inTrial) {
         _showFeedbackListDialog(context, uid);
         return;
       }
@@ -1279,7 +1305,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               const SizedBox(height: 6),
               Row(children: [
                 Expanded(child: DropdownButtonFormField<int>(
-                  value: selDay, dropdownColor: bgColor, isExpanded: true,
+                  initialValue: selDay, dropdownColor: bgColor, isExpanded: true,
                   style: TextStyle(color: baseColor),
                   decoration: InputDecoration(labelText: 'Day', labelStyle: TextStyle(color: labelColor),
                     filled: true, fillColor: fillColor, contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12), isDense: true,
@@ -1289,7 +1315,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 )),
                 const SizedBox(width: 6),
                 Expanded(child: DropdownButtonFormField<int>(
-                  value: selMonth, dropdownColor: bgColor, isExpanded: true,
+                  initialValue: selMonth, dropdownColor: bgColor, isExpanded: true,
                   style: TextStyle(color: baseColor),
                   decoration: InputDecoration(labelText: 'Month', labelStyle: TextStyle(color: labelColor),
                     filled: true, fillColor: fillColor, contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12), isDense: true,
@@ -1305,7 +1331,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 )),
                 const SizedBox(width: 6),
                 Expanded(child: DropdownButtonFormField<int>(
-                  value: selYear, dropdownColor: bgColor, isExpanded: true,
+                  initialValue: selYear, dropdownColor: bgColor, isExpanded: true,
                   style: TextStyle(color: baseColor),
                   decoration: InputDecoration(labelText: 'Year', labelStyle: TextStyle(color: labelColor),
                     filled: true, fillColor: fillColor, contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12), isDense: true,
@@ -1319,7 +1345,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               const SizedBox(height: 6),
               Row(children: [
                 Expanded(child: DropdownButtonFormField<int>(
-                  value: selHour, dropdownColor: bgColor, isExpanded: true,
+                  initialValue: selHour, dropdownColor: bgColor, isExpanded: true,
                   style: TextStyle(color: baseColor),
                   decoration: InputDecoration(labelText: 'Hour', labelStyle: TextStyle(color: labelColor),
                     filled: true, fillColor: fillColor, contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12), isDense: true,
@@ -1329,7 +1355,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 )),
                 const SizedBox(width: 6),
                 Expanded(child: DropdownButtonFormField<int>(
-                  value: selMinute, dropdownColor: bgColor, isExpanded: true,
+                  initialValue: selMinute, dropdownColor: bgColor, isExpanded: true,
                   style: TextStyle(color: baseColor),
                   decoration: InputDecoration(labelText: 'Min', labelStyle: TextStyle(color: labelColor),
                     filled: true, fillColor: fillColor, contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12), isDense: true,
@@ -1339,7 +1365,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 )),
                 const SizedBox(width: 6),
                 Expanded(child: DropdownButtonFormField<String>(
-                  value: isPM ? 'PM' : 'AM', dropdownColor: bgColor, isExpanded: true,
+                  initialValue: isPM ? 'PM' : 'AM', dropdownColor: bgColor, isExpanded: true,
                   style: TextStyle(color: baseColor),
                   decoration: InputDecoration(labelText: 'AM/PM', labelStyle: TextStyle(color: labelColor),
                     filled: true, fillColor: fillColor, contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12), isDense: true,
@@ -1459,7 +1485,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       context: context,
       isScrollControlled: true,
       backgroundColor: bgColor,
-      shape: RoundedRectangleBorder(borderRadius: const BorderRadius.vertical(top: Radius.circular(24))),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => StatefulBuilder(builder: (ctx, setLocal) {
         var items = feedbacks;
         return DraggableScrollableSheet(
@@ -1551,7 +1577,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   @override
   Widget build(BuildContext context) {
     if (_isBlocked) return _buildBlockedScreen(context);
-    if (_isPaidAccess && !_isVerified) return _buildPaymentBanner();
+    if (_isPaidAccess && !_isVerified && !_isFreeTrialActive) return _buildPaymentBanner();
     if (!_hasStarted) return SizedBox.expand(child: _buildIntroScreen());
     return Stack(
       children: [
@@ -1662,7 +1688,7 @@ class _ShimmerTextState extends State<ShimmerText> with SingleTickerProviderStat
 }
 
 class _DashboardGrid extends StatefulWidget {
-  const _DashboardGrid({Key? key}) : super(key: key);
+  const _DashboardGrid({super.key});
   @override
   State<_DashboardGrid> createState() => _DashboardGridState();
 }
@@ -1907,7 +1933,7 @@ class _StudyRoomPainter extends CustomPainter {
       ..style = PaintingStyle.stroke;
 
     final primaryColor = isDark ? const Color(0xFFB388FF) : const Color(0xFF4A148C);
-    final secondaryColor = const Color(0xFF00E5FF);
+    const secondaryColor = Color(0xFF00E5FF);
 
     // 1. Draw floor line
     canvas.drawLine(Offset(20, height - 20), Offset(width - 20, height - 20), floorPaint);
@@ -1917,7 +1943,7 @@ class _StudyRoomPainter extends CustomPainter {
     const clockRadius = 24.0;
 
     final clockBgPaint = Paint()
-      ..color = isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.03)
+      ..color = isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03)
       ..style = PaintingStyle.fill;
     final clockOuterPaint = Paint()
       ..color = isDark ? Colors.white24 : Colors.black12
@@ -1948,9 +1974,9 @@ class _StudyRoomPainter extends CustomPainter {
       ..strokeWidth = 1.2
       ..strokeCap = StrokeCap.round;
 
-    final hourLen = clockRadius * 0.5;
-    final minuteLen = clockRadius * 0.7;
-    final secondLen = clockRadius * 0.8;
+    const hourLen = clockRadius * 0.5;
+    const minuteLen = clockRadius * 0.7;
+    const secondLen = clockRadius * 0.8;
     final hourOffset = Offset(
       hourLen * math.sin(clockHourAngle),
       -hourLen * math.cos(clockHourAngle),
@@ -1974,7 +2000,7 @@ class _StudyRoomPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3;
     final chairMeshPaint = Paint()
-      ..color = primaryColor.withOpacity(0.15)
+      ..color = primaryColor.withValues(alpha: 0.15)
       ..style = PaintingStyle.fill;
 
     final backrestPath = Path()
@@ -2005,7 +2031,7 @@ class _StudyRoomPainter extends CustomPainter {
       ..color = const Color(0xFF3E2723)
       ..style = PaintingStyle.fill;
     final shirtGradient = LinearGradient(
-      colors: [primaryColor, primaryColor.withOpacity(0.7)],
+      colors: [primaryColor, primaryColor.withValues(alpha: 0.7)],
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
     );
@@ -2082,10 +2108,10 @@ class _StudyRoomPainter extends CustomPainter {
     canvas.drawCircle(Offset(175, height - 20), 3.5, wheelPaint);
 
     // 5. Study Table
-    canvas.drawLine(Offset(70, 184), Offset(70, height - 20), metalPaint);
-    canvas.drawLine(Offset(230, 184), Offset(230, height - 20), metalPaint);
+    canvas.drawLine(const Offset(70, 184), Offset(70, height - 20), metalPaint);
+    canvas.drawLine(const Offset(230, 184), Offset(230, height - 20), metalPaint);
     canvas.drawLine(Offset(70, height - 40), Offset(230, height - 40), Paint()
-      ..color = isDark ? Colors.white10 : Colors.black.withOpacity(0.05)
+      ..color = isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05)
       ..strokeWidth = 2);
 
     final tableTopGradient = LinearGradient(
@@ -2099,7 +2125,7 @@ class _StudyRoomPainter extends CustomPainter {
       ..shader = tableTopGradient.createShader(const Rect.fromLTRB(50, 174, 250, 184))
       ..style = PaintingStyle.fill;
     final tableBorderPaint = Paint()
-      ..color = isDark ? Colors.white12 : Colors.black.withOpacity(0.08)
+      ..color = isDark ? Colors.white12 : Colors.black.withValues(alpha: 0.08)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5;
 
@@ -2192,8 +2218,8 @@ class _StudyRoomPainter extends CustomPainter {
 
     final lightGradient = LinearGradient(
       colors: [
-        secondaryColor.withOpacity(0.35 * lampGlow),
-        secondaryColor.withOpacity(0.01),
+        secondaryColor.withValues(alpha: 0.35 * lampGlow),
+        secondaryColor.withValues(alpha: 0.01),
       ],
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
@@ -2214,7 +2240,7 @@ class _StudyRoomPainter extends CustomPainter {
       Paint()
         ..shader = RadialGradient(
           colors: [
-            secondaryColor.withOpacity(0.20 * lampGlow),
+            secondaryColor.withValues(alpha: 0.20 * lampGlow),
             Colors.transparent,
           ],
         ).createShader(const Rect.fromLTRB(130, 154, 170, 194))

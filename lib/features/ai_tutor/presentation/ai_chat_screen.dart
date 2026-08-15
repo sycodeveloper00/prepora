@@ -434,7 +434,7 @@ class _AiChatScreenState extends State<AiChatScreen> with SingleTickerProviderSt
             ),
           if (_selectedFile != null)
             Padding(
-              padding: EdgeInsets.only(bottom: 4),
+              padding: const EdgeInsets.only(bottom: 4),
               child: GestureDetector(
                 onTap: () => setState(() => _selectedFile = null),
                 child: Container(
@@ -448,7 +448,7 @@ class _AiChatScreenState extends State<AiChatScreen> with SingleTickerProviderSt
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.description_rounded, size: 18, color: const Color(0xFF00B8D4)),
+                      const Icon(Icons.description_rounded, size: 18, color: Color(0xFF00B8D4)),
                       const SizedBox(width: 8),
                       Flexible(
                         child: Text(
@@ -569,12 +569,12 @@ class _AiChatScreenState extends State<AiChatScreen> with SingleTickerProviderSt
             child: Container(
               width: 40,
               height: 40,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
                   colors: [Color(0xFF4A148C), Color(0xFF00B8D4)],
                 ),
                 shape: BoxShape.circle,
-                boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 8)],
+                boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 8)],
               ),
               child: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white, size: 24),
             ),
@@ -648,11 +648,11 @@ class _AiChatScreenState extends State<AiChatScreen> with SingleTickerProviderSt
               if (isUser)
                 Text(
                   msg.text,
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 14,
                     height: 1.5,
-                    fontFamilyFallback: const ['Noto Nastaliq Urdu'],
+                    fontFamilyFallback: ['Noto Nastaliq Urdu'],
                   ),
                 )
               else
@@ -687,7 +687,7 @@ class _AiChatScreenState extends State<AiChatScreen> with SingleTickerProviderSt
                         border: Border.all(color: isDark ? Colors.white12 : Colors.black12),
                       ),
                       blockquoteDecoration: BoxDecoration(
-                        border: Border(left: BorderSide(color: const Color(0xFFCE93D8), width: 3)),
+                        border: const Border(left: BorderSide(color: Color(0xFFCE93D8), width: 3)),
                         color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.withValues(alpha: 0.1),
                       ),
                       listBullet: const TextStyle(color: Color(0xFFCE93D8), fontFamilyFallback: ['Noto Nastaliq Urdu']),
@@ -695,7 +695,7 @@ class _AiChatScreenState extends State<AiChatScreen> with SingleTickerProviderSt
                       tableHead: TextStyle(fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87),
                       tableColumnWidth: const IntrinsicColumnWidth(),
                       tableScrollbarThumbVisibility: null,
-                      tablePadding: EdgeInsets.only(bottom: 6),
+                      tablePadding: const EdgeInsets.only(bottom: 6),
                       tableCellsPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                       strong: const TextStyle(fontWeight: FontWeight.bold),
                       em: const TextStyle(fontStyle: FontStyle.italic),
@@ -802,7 +802,7 @@ class _AiChatScreenState extends State<AiChatScreen> with SingleTickerProviderSt
       ),
       child: Row(
         children: [
-          Icon(Icons.wifi_off_rounded, color: Colors.redAccent, size: 18),
+          const Icon(Icons.wifi_off_rounded, color: Colors.redAccent, size: 18),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -944,8 +944,9 @@ class ScrollableTableBuilder extends MarkdownElementBuilder {
         for (final cell in tr.children?.whereType<md.Element>().where((e) => e.tag == 'td' || e.tag == 'th') ?? <md.Element>[]) {
           final align = cell.attributes['align'];
           TextAlign textAlign = TextAlign.left;
-          if (align == 'center') textAlign = TextAlign.center;
-          else if (align == 'right') textAlign = TextAlign.right;
+          if (align == 'center') {
+            textAlign = TextAlign.center;
+          } else if (align == 'right') textAlign = TextAlign.right;
 
           cells.add(TableCell(
             child: Container(
@@ -1041,12 +1042,12 @@ class CodeBlockBuilder extends MarkdownElementBuilder {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.code_rounded, size: 14, color: const Color(0xFF00B8D4)),
+                  const Icon(Icons.code_rounded, size: 14, color: Color(0xFF00B8D4)),
                   const SizedBox(width: 6),
                   Text(
                     lang,
-                    style: TextStyle(
-                      color: const Color(0xFF00B8D4),
+                    style: const TextStyle(
+                      color: Color(0xFF00B8D4),
                       fontSize: 12,
                       fontFamily: 'monospace',
                       fontWeight: FontWeight.w600,
@@ -1066,8 +1067,8 @@ class CodeBlockBuilder extends MarkdownElementBuilder {
             padding: const EdgeInsets.all(14),
             child: SelectableText(
               text,
-              style: TextStyle(
-                color: const Color(0xFF00E5FF),
+              style: const TextStyle(
+                color: Color(0xFF00E5FF),
                 fontFamily: 'monospace',
                 fontSize: 13,
                 height: 1.5,

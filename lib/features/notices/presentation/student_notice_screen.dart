@@ -103,7 +103,7 @@ class StudentNoticeScreen extends StatelessWidget {
             color: isDark ? const Color(0xFF1A0533) : const Color(0xFFFFF8E1),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: isDark ? Colors.white12 : Colors.amber.withValues(alpha: 0.5)),
-            boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 16, offset: const Offset(0, 6))],
+            boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 16, offset: Offset(0, 6))],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
