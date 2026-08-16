@@ -278,13 +278,10 @@ class _AdminControlPanelScreenState extends State<AdminControlPanelScreen> {
               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('End date/time must be in the future'), backgroundColor: Colors.orange));
               return;
             }
-            final diff = selectedEnd.difference(now);
-            final days = diff.inDays;
-            final hours = diff.inHours % 24;
             // Auto-set Paid Access OFF when trial starts
             await FirebaseService.updateSetting('paidAccess', false);
             if (mounted) setState(() => _paidAccess = false);
-            final count = await FirebaseService.startFreeTrialForAll(days: days, hours: hours);
+            final count = await FirebaseService.startFreeTrialForAll(end: selectedEnd);
             if (d.mounted) Navigator.pop(d);
             await _loadTrial();
             if (mounted) {

@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -5,6 +7,20 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
     id("com.google.gms.google-services")
 }
+
+// Load signing credentials from key.properties (local) or environment variables (CI).
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("key.properties")
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(keystorePropertiesFile.inputStream())
+}
+val keystorePath = System.getenv("RELEASE_KEYSTORE_PATH")
+    ?: keystoreProperties.getProperty("storeFile")
+val keystorePassword = System.getenv("RELEASE_KEYSTORE_PASSWORD")
+    ?: keystoreProperties.getProperty("storePassword")
+val keyAlias = System.getenv("RELEASE_KEY_ALIAS")
+    ?: keystoreProperties.getProperty("keyAlias")
+val keyPassword = keystorePassword
 
 android {
     namespace = "com.prepora.academy.prepora"
@@ -25,9 +41,20 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("release") {
+            if (keystorePath != null) {
+                storeFile = file(keystorePath)
+                storePassword = keystorePassword
+                keyAlias = keyAlias
+                keyPassword = keyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (keystorePath != null) signingConfigs.getByName("release") else signingConfigs.getByName("debug")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(

@@ -322,15 +322,15 @@ class FirebaseService {
     }
   }
 
-  static Future<int> startFreeTrialForAll({required int days, required int hours}) async {
+  static Future<int> startFreeTrialForAll({required DateTime end}) async {
     final snap = await firestore.collection('users').where('role', isEqualTo: 'student').get();
-    final end = Timestamp.fromDate(DateTime.now().add(Duration(days: days, hours: hours)));
+    final endTimestamp = Timestamp.fromDate(end);
     final batch = firestore.batch();
     int count = 0;
     for (final doc in snap.docs) {
       final data = doc.data();
       if (data['verified'] == true) continue;
-      batch.update(doc.reference, {'freeTrialActive': true, 'freeTrialEndsAt': end});
+      batch.update(doc.reference, {'freeTrialActive': true, 'freeTrialEndsAt': endTimestamp});
       count++;
     }
     if (count > 0) await batch.commit();
