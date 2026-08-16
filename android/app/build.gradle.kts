@@ -44,7 +44,8 @@ android {
     signingConfigs {
         create("release") {
             if (keystorePath != null) {
-                storeFile = file(keystorePath)
+                val resolvedPath = if (File(keystorePath).isAbsolute) keystorePath else "$rootDir/$keystorePath"
+                storeFile = file(resolvedPath)
                 storePassword = keystorePassword
                 keyAlias = keyAlias
                 keyPassword = keyPassword

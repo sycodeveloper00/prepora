@@ -35,7 +35,7 @@ jobs:
       - name: Decode release keystore
         run: |
           echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 -d > android/app/prepora-release.jks
-          echo "RELEASE_KEYSTORE_PATH=android/app/prepora-release.jks" >> $GITHUB_ENV
+          echo "RELEASE_KEYSTORE_PATH=app/prepora-release.jks" >> $GITHUB_ENV
       
       - name: Flutter Doctor
         run: flutter doctor -v
