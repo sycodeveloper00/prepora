@@ -32,8 +32,16 @@ class NotificationService {
       }
       const androidSettings = AndroidInitializationSettings('@drawable/ic_notification');
       const iosSettings = DarwinInitializationSettings();
-      await _plugin.initialize(settings: const InitializationSettings(android: androidSettings, iOS: iosSettings));
+      try {
+        await _plugin.initialize(settings: const InitializationSettings(android: androidSettings, iOS: iosSettings));
+        debugPrint('NFS: plugin initialized');
+      } catch (e) {
+        debugPrint('NFS: plugin init FAILED: $e');
+      }
       final androidPlugin = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+      if (androidPlugin == null) {
+        debugPrint('NFS: androidPlugin is NULL');
+      }
       const badgeChannel = AndroidNotificationChannel(
         _badgeChannelId, 'App Badge',
         description: 'App icon badge count',
@@ -43,7 +51,7 @@ class NotificationService {
         enableLights: false,
         showBadge: true,
       );
-      try { await androidPlugin?.createNotificationChannel(badgeChannel); } catch (_) {}
+      try { await androidPlugin?.createNotificationChannel(badgeChannel); debugPrint('NFS: badge channel created'); } catch (e) { debugPrint('NFS: badge channel FAILED: $e'); }
       const studentChannel = AndroidNotificationChannel(
         _studentChannelId, 'Student Notifications',
         description: 'Notifications from admin',
@@ -52,7 +60,7 @@ class NotificationService {
         enableVibration: true,
         showBadge: true,
       );
-      try { await androidPlugin?.createNotificationChannel(studentChannel); } catch (_) {}
+      try { await androidPlugin?.createNotificationChannel(studentChannel); debugPrint('NFS: student channel created'); } catch (e) { debugPrint('NFS: student channel FAILED: $e'); }
       const adminChannel = AndroidNotificationChannel(
         _adminChannelId, 'Admin Notifications',
         description: 'Student activity notifications',
@@ -61,7 +69,7 @@ class NotificationService {
         enableVibration: true,
         showBadge: true,
       );
-      try { await androidPlugin?.createNotificationChannel(adminChannel); } catch (_) {}
+      try { await androidPlugin?.createNotificationChannel(adminChannel); debugPrint('NFS: admin channel created'); } catch (e) { debugPrint('NFS: admin channel FAILED: $e'); }
       const streakChannel = AndroidNotificationChannel(
         'streak_channel', 'Daily Streak',
         description: 'Daily streak reminders',
@@ -70,7 +78,7 @@ class NotificationService {
         enableVibration: true,
         showBadge: true,
       );
-      try { await androidPlugin?.createNotificationChannel(streakChannel); } catch (_) {}
+      try { await androidPlugin?.createNotificationChannel(streakChannel); debugPrint('NFS: streak channel created'); } catch (e) { debugPrint('NFS: streak channel FAILED: $e'); }
       const feedbackChannel = AndroidNotificationChannel(
         'feedback_channel', 'Feedbacks',
         description: 'New student feedbacks',
@@ -79,8 +87,10 @@ class NotificationService {
         enableVibration: true,
         showBadge: true,
       );
-      try { await androidPlugin?.createNotificationChannel(feedbackChannel); } catch (_) {}
-    } catch (_) {}
+      try { await androidPlugin?.createNotificationChannel(feedbackChannel); debugPrint('NFS: feedback channel created'); } catch (e) { debugPrint('NFS: feedback channel FAILED: $e'); }
+    } catch (e) {
+      debugPrint('NFS: initialize outer FAILED: $e');
+    }
   }
 
   // ΓöÇΓöÇΓöÇ Notification Permission (Android 13+) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
