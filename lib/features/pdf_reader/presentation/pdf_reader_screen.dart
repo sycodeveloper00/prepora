@@ -92,11 +92,15 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
       final data = doc?.data() as Map<String, dynamic>?;
       final isVerified = data?['verified'] == true;
       final isBlocked = data?['blocked'] == true;
+      final trialActive = data?['freeTrialActive'] == true;
+      final endsAt = data?['freeTrialEndsAt'];
+      final trialEnd = endsAt is Timestamp ? endsAt.toDate() : null;
+      final hasActiveTrial = trialActive && (trialEnd?.isAfter(DateTime.now()) ?? false);
       if (isBlocked) {
         if (mounted) setState(() { _accessGranted = false; _isLoading = false; _localPath = null; });
         return;
       }
-      if (isVerified) {
+      if (isVerified || hasActiveTrial) {
         if (mounted) setState(() { _accessGranted = true; _isLoading = false; });
         if (_localPath == null) _loadPdf();
       } else {
