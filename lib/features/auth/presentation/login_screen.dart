@@ -64,10 +64,6 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
     } catch (e) {
-      if (e.toString().contains('BLOCKED')) {
-        if (mounted) context.go('/blocked');
-        return;
-      }
       setState(() => _errorMessage = e.toString());
     } finally {
       if (mounted) setState(() => _isLoading = false);

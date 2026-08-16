@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:home_widget/home_widget.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_provider.dart';
 import 'core/router/app_router.dart';
@@ -81,10 +82,16 @@ class _AppLifecycle extends StatefulWidget {
 }
 
 class _AppLifecycleState extends State<_AppLifecycle> with WidgetsBindingObserver {
+  StreamSubscription? _deviceSub;
+  StreamSubscription? _authSub;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _authSub = FirebaseAuth.instance.authStateChanges().listen((_) {
+      _listenForDeviceLogout();
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await NotificationService.initialize();
       await NotificationService.requestNotificationPermission();
@@ -97,11 +104,14 @@ class _AppLifecycleState extends State<_AppLifecycle> with WidgetsBindingObserve
       }
       _startSessionIfAdminOrAssistant();
       await _checkSingleDeviceLogin();
+      _listenForDeviceLogout();
     });
   }
 
   @override
   void dispose() {
+    _deviceSub?.cancel();
+    _authSub?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -111,7 +121,45 @@ class _AppLifecycleState extends State<_AppLifecycle> with WidgetsBindingObserve
     if (state == AppLifecycleState.resumed) {
       NotificationService.clearBadge();
       _checkSingleDeviceLogin();
+      _listenForDeviceLogout();
       _updateStreakAndNotify();
+    }
+  }
+
+  Future<void> _listenForDeviceLogout() async {
+    try {
+      final user = FirebaseService.currentUser;
+      if (user == null) return;
+      final deviceId = await FirebaseService.getDeviceId();
+      _deviceSub?.cancel();
+      _deviceSub = FirebaseService.firestore
+          .collection('users')
+          .doc(user.uid)
+          .snapshots()
+          .listen((snap) async {
+        if (!snap.exists) return;
+        final data = snap.data() as Map<String, dynamic>;
+        final currentDeviceId = data['currentDeviceId'] as String? ?? '';
+        if (currentDeviceId.isEmpty) return;
+        if (currentDeviceId != deviceId) {
+          await _forceLogout();
+        }
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _forceLogout() async {
+    _deviceSub?.cancel();
+    await FirebaseService.signOut();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('You were logged out because you signed in on another device.'),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 4),
+        ),
+      );
+      context.go('/auth/login');
     }
   }
 

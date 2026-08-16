@@ -1007,7 +1007,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 border: Border.all(color: Colors.redAccent.withValues(alpha: 0.3)),
               ),
               child: const Text(
-                'Our system detected suspicious activity from your account',
+                'Our system detected unusual activity from your device. Your account is blocked.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.redAccent, fontSize: 15, height: 1.5),
               ),

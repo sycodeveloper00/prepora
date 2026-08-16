@@ -116,10 +116,8 @@ class FirebaseService {
         if (userData?['blocked'] == true) {
           if (userRole == 'admin' || userRole == 'Assistant') {
             await firestore.collection('users').doc(cred.user!.uid).update({'blocked': false});
-          } else {
-            await fb_auth.FirebaseAuth.instance.signOut();
-            throw Exception('BLOCKED');
           }
+          // Students stay logged in; the dashboard shows a blocked banner
         }
         await storeSession(cred.user!.uid);
         final deviceId = await getDeviceId();
@@ -129,14 +127,8 @@ class FirebaseService {
         });
         await _trackLogin(cred.user!.uid, deviceId);
         if (userRole != 'admin' && userRole != 'Assistant') {
-          final violation = await isMultiDeviceViolation(cred.user!.uid, deviceId);
-          if (violation) {
-            try {
-              await firestore.collection('users').doc(cred.user!.uid).update({'blocked': true});
-            } catch (_) {}
-            await fb_auth.FirebaseAuth.instance.signOut();
-            throw Exception('BLOCKED');
-          }
+          // Single-device policy: the real-time listener (main.dart) logs out
+          // any device whose id no longer matches currentDeviceId.
         }
         await updateStreak(cred.user!.uid);
         final label = userRole == 'admin' ? 'Admin' : (userRole == 'Assistant' ? 'Assistant' : 'Student');
