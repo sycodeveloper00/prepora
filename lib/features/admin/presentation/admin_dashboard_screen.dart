@@ -42,6 +42,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     _folderStream = FirebaseService.getAllFolders();
     _loadPendingCount();
     _listenNewFeedbacks();
+    NotificationService.startAdminNotificationListener();
     _startTokenRefreshTimer();
   }
 
@@ -115,6 +116,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     _tokenRefreshTimer?.cancel();
     _feedbackSub?.cancel();
     _feedbackDebounce?.cancel();
+    NotificationService.dispose();
     _folderNameController.dispose();
     _searchController.dispose();
     super.dispose();

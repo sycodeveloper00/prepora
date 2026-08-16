@@ -141,6 +141,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     final uid = FirebaseService.currentUser?.uid;
     if (uid == null) return;
     _notificationStream = FirebaseService.getNotificationsForUser(uid, _userCreatedAt);
+    NotificationService.startStudentNotificationListener(uid, _userCreatedAt);
   }
 
   /// Listens to the user's Firestore document in real-time so that verification
@@ -235,6 +236,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     _typingTimer?.cancel();
     _userStatusSub?.cancel();
     _settingsSub?.cancel();
+    NotificationService.dispose();
     _floatController.dispose();
     _colorFlowController.dispose();
     _searchController.dispose();
