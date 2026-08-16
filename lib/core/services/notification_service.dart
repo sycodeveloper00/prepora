@@ -43,7 +43,7 @@ class NotificationService {
         enableLights: false,
         showBadge: true,
       );
-      await androidPlugin?.createNotificationChannel(badgeChannel);
+      try { await androidPlugin?.createNotificationChannel(badgeChannel); } catch (_) {}
       const studentChannel = AndroidNotificationChannel(
         _studentChannelId, 'Student Notifications',
         description: 'Notifications from admin',
@@ -52,7 +52,7 @@ class NotificationService {
         enableVibration: true,
         showBadge: true,
       );
-      await androidPlugin?.createNotificationChannel(studentChannel);
+      try { await androidPlugin?.createNotificationChannel(studentChannel); } catch (_) {}
       const adminChannel = AndroidNotificationChannel(
         _adminChannelId, 'Admin Notifications',
         description: 'Student activity notifications',
@@ -61,7 +61,7 @@ class NotificationService {
         enableVibration: true,
         showBadge: true,
       );
-      await androidPlugin?.createNotificationChannel(adminChannel);
+      try { await androidPlugin?.createNotificationChannel(adminChannel); } catch (_) {}
       const streakChannel = AndroidNotificationChannel(
         'streak_channel', 'Daily Streak',
         description: 'Daily streak reminders',
@@ -70,7 +70,7 @@ class NotificationService {
         enableVibration: true,
         showBadge: true,
       );
-      await androidPlugin?.createNotificationChannel(streakChannel);
+      try { await androidPlugin?.createNotificationChannel(streakChannel); } catch (_) {}
       const feedbackChannel = AndroidNotificationChannel(
         'feedback_channel', 'Feedbacks',
         description: 'New student feedbacks',
@@ -79,7 +79,7 @@ class NotificationService {
         enableVibration: true,
         showBadge: true,
       );
-      await androidPlugin?.createNotificationChannel(feedbackChannel);
+      try { await androidPlugin?.createNotificationChannel(feedbackChannel); } catch (_) {}
     } catch (_) {}
   }
 
