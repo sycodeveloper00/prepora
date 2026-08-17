@@ -1614,14 +1614,14 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   String? _latestUpdateVersion;
   String? _latestUpdateLink;
-  String _currentAppVersion = '2.0.0';
+  String _currentAppVersion = '';
 
   void _checkForUpdates() {
     PackageInfo.fromPlatform().then((info) {
       if (mounted) setState(() => _currentAppVersion = info.version);
     });
     FirebaseService.firestore.collection('app_updates').orderBy('createdAt', descending: true).limit(1).snapshots().listen((snap) {
-      if (!mounted || snap.docs.isEmpty) return;
+      if (!mounted || snap.docs.isEmpty || _currentAppVersion.isEmpty) return;
       final d = snap.docs.first.data();
       final version = d['version'] as String?;
       final link = d['link'] as String?;

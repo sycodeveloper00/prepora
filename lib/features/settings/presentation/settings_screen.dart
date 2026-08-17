@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../../../core/services/firebase_service.dart';
 import '../../../core/theme/theme_provider.dart';
 
@@ -18,12 +19,21 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
   bool _autoDownload = true;
   bool _notificationsEnabled = true;
   bool _loggingOut = false;
+  String _appVersion = '';
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _load();
+    _loadVersion();
+  }
+
+  Future<void> _loadVersion() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      if (mounted) setState(() => _appVersion = info.version);
+    } catch (_) {}
   }
 
   @override
@@ -187,7 +197,7 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
               ListTile(
                 leading: const Icon(Icons.info_outline_rounded, color: Colors.grey),
                 title: Text('Version', style: TextStyle(color: textColor)),
-                subtitle: Text('PrePora v2.0.0', style: TextStyle(color: hintColor, fontSize: 12)),
+                subtitle: Text(_appVersion.isEmpty ? 'PrePora' : 'PrePora v$_appVersion', style: TextStyle(color: hintColor, fontSize: 12)),
               ),
               Divider(height: 1, color: isDark ? Colors.white12 : Colors.black12),
               ListTile(

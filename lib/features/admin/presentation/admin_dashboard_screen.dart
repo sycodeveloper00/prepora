@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../../../core/widgets/glassmorphic_container.dart';
 import '../../../core/widgets/animated_pressable.dart';
 import '../../../core/services/firebase_service.dart';
@@ -35,6 +36,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   List<QueryDocumentSnapshot>? _localDocs;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  String _appVersion = '';
 
   @override
   void initState() {
@@ -44,6 +46,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     _listenNewFeedbacks();
     NotificationService.startAdminNotificationListener();
     _startTokenRefreshTimer();
+    _loadVersion();
+  }
+
+  Future<void> _loadVersion() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      if (mounted) setState(() => _appVersion = info.version);
+    } catch (_) {}
   }
 
   void _startTokenRefreshTimer() {
@@ -2015,7 +2025,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ListTile(
               leading: const Icon(Icons.info_outline_rounded, color: Colors.grey),
               title: Text('Version', style: TextStyle(color: baseColor)),
-              subtitle: Text('PrePora v2.0.0', style: TextStyle(color: dimColor, fontSize: 12)),
+              subtitle: Text(_appVersion.isEmpty ? 'PrePora' : 'PrePora v$_appVersion', style: TextStyle(color: dimColor, fontSize: 12)),
             ),
             ListTile(
               leading: const Icon(Icons.palette_outlined, color: Colors.amber),

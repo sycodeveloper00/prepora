@@ -34,6 +34,7 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
   String? _error;
   String? _fileName;
   bool _accessGranted = false;
+  bool _isBlocked = false;
   double _downloadProgress = 0;
   String _loadingMessage = 'Loading PDF...';
   static const _pdfChannel = MethodChannel('com.prepora.academy.prepora/pdf_intent');
@@ -98,10 +99,12 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
       final trialEnd = endsAt is Timestamp ? endsAt.toDate() : null;
       final hasActiveTrial = trialActive && (trialEnd?.isAfter(DateTime.now()) ?? false);
       if (isBlocked) {
-        if (mounted) setState(() { _accessGranted = false; _isLoading = false; _localPath = null; });
+        if (mounted) setState(() { _accessGranted = false; _isBlocked = true; _isLoading = false; _localPath = null; });
         return;
       }
-      if (isVerified || hasActiveTrial) {
+      final settings = await FirebaseService.getSettings();
+      final paidAccess = settings['paidAccess'] as bool? ?? false;
+      if (!paidAccess || isVerified || hasActiveTrial) {
         if (mounted) setState(() { _accessGranted = true; _isLoading = false; });
         if (_localPath == null) _loadPdf();
       } else {
@@ -274,6 +277,69 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
     final user = FirebaseService.currentUser;
 
     if (!_accessGranted && !_isLoading) {
+      if (_isBlocked) {
+        return Scaffold(
+          backgroundColor: const Color(0xFF0D001A),
+          appBar: AppBar(
+            title: const Text('Access Required'),
+            backgroundColor: const Color(0xFF0D001A),
+            foregroundColor: Colors.white,
+          ),
+          body: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(40),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.gpp_bad_rounded, color: Colors.redAccent, size: 64),
+                ),
+                const SizedBox(height: 24),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.redAccent.withValues(alpha: 0.3)),
+                  ),
+                  child: const Text(
+                    'Our system detected unusual activity from your device. Your account is blocked.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.redAccent, fontSize: 15, height: 1.5),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'If you believe this is a mistake, please contact the admin to restore access.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 13, height: 1.4),
+                ),
+                const SizedBox(height: 32),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      await FirebaseService.signOut();
+                      if (mounted) context.go('/auth/login');
+                    },
+                    icon: const Icon(Icons.logout_rounded, color: Colors.redAccent, size: 20),
+                    label: const Text('Logout', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1A0533),
+                      side: const BorderSide(color: Colors.redAccent),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                  ),
+                ),
+              ]),
+            ),
+          ),
+        );
+      }
     return PopScope(
       canPop: true,
       onPopInvokedWithResult: (didPop, _) {

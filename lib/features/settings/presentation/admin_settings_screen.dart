@@ -20,7 +20,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> with WidgetsB
   bool _notificationsEnabled = true;
   bool _loading = true;
   bool _loggingOut = false;
-  String _appVersion = '2.0.0';
+  String _appVersion = '';
 
   @override
   void initState() {

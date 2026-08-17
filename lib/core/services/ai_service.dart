@@ -163,7 +163,7 @@ class AiService {
           'Content-Type': 'application/json',
         },
         body: jsonEncode({
-          'model': 'auto:free',
+          'model': 'qwen/qwen3.7-flash:free',
           'messages': _messages,
           'max_tokens': 4096,
           'temperature': 0.3,
@@ -585,7 +585,7 @@ class AiService {
       'Content-Type': 'application/json',
     });
     request.body = jsonEncode({
-      'model': 'auto:free',
+      'model': 'qwen/qwen3.7-flash:free',
       'messages': _messages,
       'max_tokens': 4096,
       'temperature': 0.3,
@@ -599,6 +599,17 @@ class AiService {
       client = http.Client();
       final streamed =
           await client.send(request).timeout(const Duration(seconds: 90));
+
+      if (streamed.statusCode != 200) {
+        if (streamed.statusCode == 401) {
+          yield '\n\n⚠️ API key issue detected. Please contact the admin to get a valid API key.';
+        } else if (streamed.statusCode == 429) {
+          yield '\n\n🤖 AI service is temporarily busy. Please wait a moment and try again.';
+        } else {
+          yield '\n\n⚠️ AI service error (${streamed.statusCode}). Please try again in a few moments.';
+        }
+        return;
+      }
 
       await for (final chunk in streamed.stream
           .transform(utf8.decoder)
