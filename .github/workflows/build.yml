@@ -45,6 +45,10 @@ jobs:
       
       - name: Build APK
         id: build_apk
+        env:
+          RELEASE_KEYSTORE_PATH: app/prepora-release.jks
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
         run: |
           flutter build apk --split-per-abi --target-platform android-arm64 2>&1 | tee build_output.txt
           BUILD_EXIT=${PIPESTATUS[0]}
