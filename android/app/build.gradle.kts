@@ -14,13 +14,12 @@ val keystorePropertiesFile = rootProject.file("key.properties")
 if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(keystorePropertiesFile.inputStream())
 }
-val keystorePath = System.getenv("RELEASE_KEYSTORE_PATH")
+val ksStoreFilePath = System.getenv("RELEASE_KEYSTORE_PATH")
     ?: keystoreProperties.getProperty("storeFile")
-val keystorePassword = System.getenv("RELEASE_KEYSTORE_PASSWORD")
+val ksStorePassword = System.getenv("RELEASE_KEYSTORE_PASSWORD")
     ?: keystoreProperties.getProperty("storePassword")
-val keyAlias = System.getenv("RELEASE_KEY_ALIAS")
+val ksKeyAlias = System.getenv("RELEASE_KEY_ALIAS")
     ?: keystoreProperties.getProperty("keyAlias")
-val keyPassword = keystorePassword
 
 android {
     namespace = "com.prepora.academy.prepora"
@@ -43,19 +42,19 @@ android {
 
     signingConfigs {
         create("release") {
-            if (keystorePath != null) {
-                val resolvedPath = if (File(keystorePath).isAbsolute) keystorePath else "$rootDir/$keystorePath"
-                storeFile = file(resolvedPath)
-                storePassword = keystorePassword
-                keyAlias = keyAlias
-                keyPassword = keyPassword
+            if (ksStoreFilePath != null) {
+                val resolvedStoreFile = if (File(ksStoreFilePath).isAbsolute) ksStoreFilePath else "$rootDir/$ksStoreFilePath"
+                storeFile = file(resolvedStoreFile)
+                storePassword = ksStorePassword
+                keyAlias = ksKeyAlias
+                keyPassword = ksStorePassword
             }
         }
     }
 
     buildTypes {
         release {
-            signingConfig = if (keystorePath != null) signingConfigs.getByName("release") else signingConfigs.getByName("debug")
+            signingConfig = if (ksStoreFilePath != null) signingConfigs.getByName("release") else signingConfigs.getByName("debug")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
