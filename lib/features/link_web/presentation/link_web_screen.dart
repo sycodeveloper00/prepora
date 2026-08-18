@@ -269,6 +269,88 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
     }
   }
 
+  /// Professional confirmation popup before disconnecting a single web session.
+  Future<void> _confirmDisconnectSession(String sessionId, String webBrowser) async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (d) => Dialog(
+        backgroundColor: isDark ? const Color(0xFF1A0533) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Gradient icon
+              Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: const LinearGradient(colors: [Color(0xFFC62828), Color(0xFFFF7043)]),
+                  boxShadow: [BoxShadow(color: Colors.redAccent.withValues(alpha: 0.35), blurRadius: 20, spreadRadius: 2)],
+                ),
+                child: const Icon(Icons.link_off_rounded, size: 34, color: Colors.white),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'Disconnect Web App?',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : const Color(0xFF1A0533),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'You are about to disconnect from $webBrowser.\n\n'
+                'Your connected web app will stop working immediately and you will need to scan the QR code again to reconnect.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14,
+                  height: 1.5,
+                  color: isDark ? Colors.white70 : Colors.black54,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(d, false),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: (isDark ? Colors.white : Colors.black54).withValues(alpha: 0.4)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: Text('Cancel', style: TextStyle(fontSize: 15, color: isDark ? Colors.white : Colors.black87)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(d, true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.redAccent,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: const Text('Yes, Disconnect', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (confirmed == true) _disconnectSession(sessionId);
+  }
+
   Future<void> _disconnectAll() async {
     for (final session in _activeSessions) {
       final sid = session['sessionId'] as String?;
@@ -404,20 +486,72 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
         if (_activeSessions.length > 1)
           TextButton.icon(
             onPressed: () async {
+              final isDark = Theme.of(context).brightness == Brightness.dark;
               final confirm = await showDialog<bool>(
                 context: context,
-                builder: (d) => AlertDialog(
-                  backgroundColor: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1A0533) : Colors.white,
-                  title: const Text('Disconnect All?'),
-                  content: Text('Disconnect ${_activeSessions.length} web sessions?', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black54)),
-                  actions: [
-                    TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Cancel')),
-                    ElevatedButton(
-                      onPressed: () => Navigator.pop(d, true),
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-                      child: const Text('Disconnect All', style: TextStyle(color: Colors.white)),
+                barrierDismissible: false,
+                builder: (d) => Dialog(
+                  backgroundColor: isDark ? const Color(0xFF1A0533) : Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 72,
+                          height: 72,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: const LinearGradient(colors: [Color(0xFFC62828), Color(0xFFFF7043)]),
+                            boxShadow: [BoxShadow(color: Colors.redAccent.withValues(alpha: 0.35), blurRadius: 20, spreadRadius: 2)],
+                          ),
+                          child: const Icon(Icons.link_off_rounded, size: 34, color: Colors.white),
+                        ),
+                        const SizedBox(height: 20),
+                        Text(
+                          'Disconnect All?',
+                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isDark ? Colors.white : const Color(0xFF1A0533)),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          'You are about to disconnect ${_activeSessions.length} connected web app${_activeSessions.length > 1 ? 's' : ''}.\n\n'
+                          'All connected web apps will stop working immediately and you will need to scan the QR code again to reconnect.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 14, height: 1.5, color: isDark ? Colors.white70 : Colors.black54),
+                        ),
+                        const SizedBox(height: 24),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () => Navigator.pop(d, false),
+                                style: OutlinedButton.styleFrom(
+                                  side: BorderSide(color: (isDark ? Colors.white : Colors.black54).withValues(alpha: 0.4)),
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                child: Text('Cancel', style: TextStyle(fontSize: 15, color: isDark ? Colors.white : Colors.black87)),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: () => Navigator.pop(d, true),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.redAccent,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                child: const Text('Yes, Disconnect All', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               );
               if (confirm == true) _disconnectAll();
@@ -468,7 +602,7 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: () => _disconnectSession(sessionId),
+                onPressed: () => _confirmDisconnectSession(sessionId, webBrowser),
                 icon: const Icon(Icons.link_off_rounded, size: 18),
                 label: const Text('Disconnect'),
                 style: ElevatedButton.styleFrom(

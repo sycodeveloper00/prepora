@@ -27,6 +27,7 @@ import '../../features/settings/presentation/settings_screen.dart';
 import '../../features/settings/presentation/admin_settings_screen.dart';
 import '../../features/settings/presentation/auto_downloads_screen.dart';
 import '../../features/settings/presentation/storage_settings_screen.dart';
+import '../../features/settings/presentation/ai_api_keys_screen.dart';
 import '../../features/webview/presentation/webview_screen.dart';
 import '../../features/splash_onboarding/presentation/splash_screen.dart';
 import '../../features/student/presentation/student_progress_screen.dart';
@@ -136,6 +137,7 @@ class AppRouter {
       GoRoute(path: '/admin/feedbacks', builder: (c, s) => const AdminFeedbackScreen()),
       GoRoute(path: '/admin/control-panel', builder: (c, s) => const AdminControlPanelScreen()),
       GoRoute(path: '/admin/storage-settings', builder: (c, s) => const StorageSettingsScreen()),
+      GoRoute(path: '/admin/ai-api-keys', builder: (c, s) => const AiApiKeysScreen()),
       GoRoute(path: '/student/notices', builder: (c, s) => const StudentNoticeScreen()),
       GoRoute(path: '/student/feedbacks', builder: (c, s) => const StudentFeedbackScreen()),
       GoRoute(path: '/student/progress', builder: (c, s) => const StudentProgressScreen()),
