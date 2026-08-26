@@ -56,12 +56,19 @@ class FirebaseService {
 
   static Future<String> getDeviceId() async {
     if (_cachedDeviceId != null) return _cachedDeviceId!;
-    final prefs = await SharedPreferences.getInstance();
-    const key = 'device_uuid';
-    String? id = prefs.getString(key);
+    String? id;
+    try {
+      final info = await DeviceInfoPlugin().androidInfo;
+      id = info.id;
+    } catch (_) {}
     if (id == null || id.isEmpty) {
-      id = const Uuid().v4();
-      await prefs.setString(key, id);
+      final prefs = await SharedPreferences.getInstance();
+      const key = 'device_uuid';
+      id = prefs.getString(key);
+      if (id == null || id.isEmpty) {
+        id = const Uuid().v4();
+        await prefs.setString(key, id);
+      }
     }
     _cachedDeviceId = id;
     return id;
@@ -115,7 +122,7 @@ class FirebaseService {
         final userData = userDoc.data();
         final userRole = userData?['role'] as String?;
         if (userData?['blocked'] == true) {
-          if (userRole == 'admin' || userRole == 'Assistant') {
+          if (userRole == 'admin' || userRole == 'Assistant' || userRole == 'assistant') {
             await firestore.collection('users').doc(cred.user!.uid).update({'blocked': false});
           }
           // Students stay logged in; the dashboard shows a blocked banner
@@ -127,12 +134,19 @@ class FirebaseService {
           'lastLoginAt': FieldValue.serverTimestamp(),
         });
         await _trackLogin(cred.user!.uid, deviceId);
-        if (userRole != 'admin' && userRole != 'Assistant') {
-          // Single-device policy: the real-time listener (main.dart) logs out
-          // any device whose id no longer matches currentDeviceId.
+        if (userRole != 'admin' && userRole != 'Assistant' && userRole != 'assistant') {
+          final violation = await isMultiDeviceViolation(cred.user!.uid, deviceId);
+          if (violation) {
+            await firestore.collection('users').doc(cred.user!.uid).update({
+              'blocked': true,
+              'blockedReason': 'Multi-device violation: 3+ unique devices detected within 24 hours.',
+              'blockedAt': FieldValue.serverTimestamp(),
+            });
+            await addAdminNotification('warning', 'AUTO-BLOCK: ${cred.user!.email} blocked for multi-device violation (3+ devices in 24h).', relatedUid: cred.user!.uid);
+          }
         }
         await updateStreak(cred.user!.uid);
-        final label = userRole == 'admin' ? 'Admin' : (userRole == 'Assistant' ? 'Assistant' : 'Student');
+        final label = userRole == 'admin' ? 'Admin' : (userRole == 'Assistant' || userRole == 'assistant' ? 'Assistant' : 'Student');
         await addAdminNotification('login', '$label logged in: ${cred.user!.email}', relatedUid: cred.user!.uid);
       }
       return cred;
@@ -190,7 +204,7 @@ class FirebaseService {
     if (user != null) {
       final userDoc = await firestore.collection('users').doc(user.uid).get();
       final role = (userDoc.data())?['role'] as String?;
-      final label = role == 'admin' ? 'Admin' : (role == 'Assistant' ? 'Assistant' : 'Student');
+      final label = role == 'admin' ? 'Admin' : (role == 'Assistant' || role == 'assistant' ? 'Assistant' : 'Student');
       await addAdminNotification('logout', '$label logged out: ${user.email}', relatedUid: user.uid);
     }
     await fb_auth.FirebaseAuth.instance.signOut();
@@ -327,18 +341,18 @@ class FirebaseService {
     try {
       final mirror = await SupabaseReadService.getUser(uid);
       if (mirror != null) {
-        final active = mirror['freeTrialActive'] == true;
-        final endsAt = mirror['freeTrialEndsAt'];
-        final endDate = endsAt is Timestamp ? endsAt.toDate() : (endsAt is DateTime ? endsAt : null);
+        final active = (mirror['freeTrialActive'] == true) || (mirror['free_trial_active'] == true);
+        final endsAt = mirror['freeTrialEndsAt'] ?? mirror['free_trial_ends_at'];
+        final endDate = endsAt is String ? DateTime.tryParse(endsAt) : (endsAt is Timestamp ? endsAt.toDate() : (endsAt is DateTime ? endsAt : null));
         return {'active': active, 'endsAt': endDate};
       }
     } catch (_) {}
     try {
       final doc = await firestore.collection('users').doc(uid).get();
       final data = doc.data() ?? {};
-      final active = data['freeTrialActive'] == true;
-      final endsAt = data['freeTrialEndsAt'];
-      final endDate = endsAt is Timestamp ? endsAt.toDate() : null;
+      final active = (data['freeTrialActive'] == true) || (data['free_trial_active'] == true);
+      final endsAt = data['freeTrialEndsAt'] ?? data['free_trial_ends_at'];
+      final endDate = endsAt is Timestamp ? endsAt.toDate() : (endsAt is String ? DateTime.tryParse(endsAt) : null);
       return {'active': active, 'endsAt': endDate};
     } catch (_) {
       return {'active': false, 'endsAt': null};
@@ -381,12 +395,18 @@ class FirebaseService {
   static Future<int> startFreeTrialForAll({required DateTime end}) async {
     final snap = await firestore.collection('users').where('role', isEqualTo: 'student').get();
     final endTimestamp = Timestamp.fromDate(end);
+    final endIso = end.toIso8601String();
     final batch = firestore.batch();
     int count = 0;
     for (final doc in snap.docs) {
       final data = doc.data();
       if (data['verified'] == true) continue;
-      batch.update(doc.reference, {'freeTrialActive': true, 'freeTrialEndsAt': endTimestamp});
+      batch.update(doc.reference, {
+        'freeTrialActive': true,
+        'freeTrialEndsAt': endTimestamp,
+        'free_trial_active': true,
+        'free_trial_ends_at': endIso,
+      });
       count++;
     }
     if (count > 0) await batch.commit();
@@ -998,6 +1018,9 @@ class FirebaseService {
     } catch (_) {}
   }
 
+  static Future<void> mirrorWebSession(String sessionId, Map<String, dynamic> data, {bool? delete}) =>
+      _mirrorWrite('web_sessions', sessionId, data, delete: delete);
+
   static Future<String> addAiApiKey({
     required String name,
     required String provider,
@@ -1132,7 +1155,7 @@ class FirebaseService {
     final user = currentUser;
     if (user != null) {
       final role = await getUserRole(user.uid);
-      if (role == 'Assistant') {
+      if (role == 'Assistant' || role == 'assistant') {
         return await _uploadToAssistantCloudinary(user.uid, bytes, filename);
       }
     }
@@ -1586,7 +1609,7 @@ class FirebaseService {
           devicesIn24h.add(devId);
         }
       }
-      if (devicesIn24h.length > 1) return true;
+      if (devicesIn24h.length >= 3) return true;
       return false;
     } catch (_) {
       return false;
@@ -1598,14 +1621,17 @@ class FirebaseService {
       final now = DateTime.now();
       final iso = now.toIso8601String();
       var deviceModel = 'Android device';
+      var androidVersion = '';
       try {
         final info = await DeviceInfoPlugin().androidInfo;
         deviceModel = '${info.manufacturer} ${info.model}';
+        androidVersion = 'Android ${info.version.release} (API ${info.version.sdkInt})';
       } catch (_) {}
       await firestore.collection('login_attempts').add({
         'uid': uid,
         'deviceId': deviceId,
         'deviceModel': deviceModel,
+        'androidVersion': androidVersion,
         'timestamp': iso,
         'createdAt': Timestamp.fromDate(now),
       });
@@ -1614,6 +1640,7 @@ class FirebaseService {
           'timestamp': Timestamp.fromDate(now),
           'device': deviceModel,
           'deviceId': deviceId,
+          'androidVersion': androidVersion,
           'ip': '',
         });
       } catch (_) {}
@@ -1631,12 +1658,12 @@ class FirebaseService {
         if (!doc.exists) return;
         data = doc.data() as Map<String, dynamic>;
       }
-      final lastActive = data['lastActiveDate'] as String?;
+      final lastActive = (data['lastActiveDate'] as String?) ?? (data['last_active_date'] as String?) ?? '';
       final today = DateTime.now();
       final todayStr = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
       if (lastActive == todayStr) return;
 
-      int streak = data['streakCount'] as int? ?? 0;
+      int streak = (data['streakCount'] as int?) ?? (data['streak_count'] as int?) ?? (data['streak'] as int?) ?? 0;
       final yesterday = today.subtract(const Duration(days: 1));
       final yesterdayStr = '${yesterday.year}-${yesterday.month.toString().padLeft(2, '0')}-${yesterday.day.toString().padLeft(2, '0')}';
 
@@ -1646,13 +1673,24 @@ class FirebaseService {
         streak = 1;
       }
 
-      final totalDays = data['totalActiveDays'] as int? ?? 0;
-      await firestore.collection('users').doc(uid).update({
+      final totalDays = (data['totalActiveDays'] as int?) ?? (data['total_active_days'] as int?) ?? 0;
+      int streakBest = (data['streakBest'] as int?) ?? (data['streak_best'] as int?) ?? 0;
+      if (streak > streakBest) streakBest = streak;
+
+      // Read existing JSONB data so we don't destroy name/email/etc
+      Map<String, dynamic>? existingData;
+      try {
+        existingData = await SupabaseReadService.readPrimary('users', uid);
+      } catch (_) {}
+      final mergedData = <String, dynamic>{
+        if (existingData != null) ...existingData,
         'lastActiveDate': todayStr,
         'streakCount': streak,
         'totalActiveDays': totalDays + 1,
-        'lastLogin': Timestamp.fromDate(today),
-      });
+        'streakBest': streakBest,
+        'lastLogin': today.toIso8601String(),
+      };
+      await _mirrorWrite('users', uid, mergedData);
     } catch (_) {}
   }
 
@@ -1660,10 +1698,19 @@ class FirebaseService {
     try {
       final mirror = await SupabaseReadService.getUser(uid);
       if (mirror != null) {
+        final lastActive = (mirror['lastActiveDate'] as String?) ?? (mirror['last_active_date'] as String?) ?? '';
+        int streakCount = (mirror['streakCount'] as int?) ?? (mirror['streak_count'] as int?) ?? (mirror['streak'] as int?) ?? 0;
+        final today = DateTime.now();
+        final todayStr = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+        final yesterday = today.subtract(const Duration(days: 1));
+        final yesterdayStr = '${yesterday.year}-${yesterday.month.toString().padLeft(2, '0')}-${yesterday.day.toString().padLeft(2, '0')}';
+        if (lastActive != todayStr && lastActive != yesterdayStr) {
+          streakCount = 0;
+        }
         return {
-          'streakCount': mirror['streakCount'] as int? ?? 0,
-          'totalActiveDays': mirror['totalActiveDays'] as int? ?? 0,
-          'lastActiveDate': mirror['lastActiveDate'] as String? ?? '',
+          'streakCount': streakCount,
+          'totalActiveDays': (mirror['totalActiveDays'] as int?) ?? (mirror['total_active_days'] as int?) ?? 0,
+          'lastActiveDate': lastActive,
         };
       }
     } catch (_) {}
@@ -1795,9 +1842,16 @@ class FirebaseService {
 
   static Future<void> endActivity(String activityId) async {
     try {
-      await firestore.collection('student_activities').doc(activityId).update({
-        'endedAt': FieldValue.serverTimestamp(),
-      });
+      // Read existing data first to preserve all fields
+      Map<String, dynamic>? existing;
+      try {
+        existing = await SupabaseReadService.readPrimary('student_activities', activityId);
+      } catch (_) {}
+      final merged = <String, dynamic>{
+        if (existing != null) ...existing,
+        'endedAt': DateTime.now().toIso8601String(),
+      };
+      await _mirrorWrite('student_activities', activityId, merged);
     } catch (_) {}
   }
 
@@ -1809,6 +1863,10 @@ class FirebaseService {
     try {
       final mirror = await SupabaseReadService.getUser(uid);
       if (mirror != null) return mirror;
+    } catch (_) {}
+    try {
+      final fallback = await SupabaseReadService.readPrimary('users', uid);
+      if (fallback != null) return fallback;
     } catch (_) {}
     try {
       final doc = await firestore.collection('users').doc(uid).get();

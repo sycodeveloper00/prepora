@@ -21,6 +21,7 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
   List<Map<String, dynamic>> _connectionHistory = [];
   StreamSubscription? _activeSub;
   StreamSubscription? _historySub;
+  Timer? _staleCheckTimer;
 
   static const int _maxWebSessions = 3;
   DateTime? _lastScanTime;
@@ -30,6 +31,7 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
     super.initState();
     _loadActiveSessions();
     _loadConnectionHistory();
+    _startStaleCheck();
   }
 
   @override
@@ -37,7 +39,46 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
     _scannerController?.dispose();
     _activeSub?.cancel();
     _historySub?.cancel();
+    _staleCheckTimer?.cancel();
     super.dispose();
+  }
+
+  void _startStaleCheck() {
+    _staleCheckTimer?.cancel();
+    _staleCheckTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      _checkStaleSessions();
+    });
+  }
+
+  Future<void> _checkStaleSessions() async {
+    final user = FirebaseService.currentUser;
+    if (user == null) return;
+    final now = DateTime.now();
+    for (final session in _activeSessions) {
+      final lastActive = (session['lastActive'] as Timestamp?)?.toDate();
+      if (lastActive == null) continue;
+      final elapsed = now.difference(lastActive);
+      if (elapsed.inMinutes >= 60) {
+        final sid = session['sessionId'] as String?;
+        if (sid != null) {
+          await _disconnectSession(sid);
+          try {
+            await FirebaseService.addTargetedNotification(
+              user.uid,
+              'Web app disconnected due to no activity found',
+            );
+          } catch (_) {}
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Web app disconnected due to no activity found'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+        }
+      }
+    }
   }
 
   void _loadActiveSessions() {
@@ -230,6 +271,22 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
         'androidDeviceId': deviceId,
       }, SetOptions(merge: true));
 
+      // Mirror to Supabase so web side detects the connection
+      try {
+        await FirebaseService.mirrorWebSession(sessionId, {
+          'uid': user.uid,
+          'userName': userData?['name'] ?? user.displayName ?? 'Student',
+          'userEmail': userData?['email'] ?? user.email ?? '',
+          'userRole': userData?['role'] ?? 'student',
+          'status': 'connected',
+          'connectedAt': DateTime.now().toIso8601String(),
+          'lastActive': DateTime.now().toIso8601String(),
+          'deviceInfo': 'Mobile App',
+          'androidDeviceModel': deviceModel,
+          'androidDeviceId': deviceId,
+        });
+      } catch (_) {}
+
       setState(() {
         _isConnecting = false;
         _showScanner = false;
@@ -259,6 +316,12 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
         'status': 'disconnected',
         'disconnectedAt': Timestamp.fromDate(DateTime.now()),
       });
+      try {
+        await FirebaseService.mirrorWebSession(sessionId, {
+          'status': 'disconnected',
+          'disconnectedAt': DateTime.now().toIso8601String(),
+        });
+      } catch (_) {}
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Disconnected from Web version'), backgroundColor: Colors.orange),
@@ -359,6 +422,12 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
           'status': 'disconnected',
           'disconnectedAt': Timestamp.fromDate(DateTime.now()),
         });
+        try {
+          await FirebaseService.mirrorWebSession(sid, {
+            'status': 'disconnected',
+            'disconnectedAt': DateTime.now().toIso8601String(),
+          });
+        } catch (_) {}
       }
     }
     if (mounted) {

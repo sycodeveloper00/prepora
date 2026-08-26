@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/widgets/glassmorphic_container.dart';
 import '../../../core/widgets/professional_loader.dart';
 import '../../../core/services/firebase_service.dart';
+import '../../../core/services/offline_file_manager.dart';
 import '../../../core/services/upload_manager.dart';
 import 'folder_browser_screen.dart';
 
@@ -1433,20 +1434,41 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
       return;
     }
 
+    // Auto-download: Check if file exists offline, or start background download
+    String fileUrlToOpen = url;
+    if (!kIsWeb && url.startsWith('http')) {
+      try {
+        final autoDownloadEnabled = await FirebaseService.getUserAutoDownload();
+        if (autoDownloadEnabled) {
+          // Check if file exists in offline cache
+          final offlineFile = await OfflineFileManager.instance.getOfflineFile(url, name);
+          if (offlineFile != null) {
+            // File exists offline - open from local (fast!)
+            fileUrlToOpen = offlineFile.path;
+          } else {
+            // File not cached - open from remote AND start background download
+            _startBackgroundDownload(url, name);
+          }
+        }
+      } catch (_) {
+        // If auto-download check fails, just stream from remote
+      }
+    }
+
     if (['jpg', 'jpeg', 'png', 'gif', 'webp'].contains(ext)) {
-      context.push('/image_viewer', extra: {'url': url, 'title': displayTitle}).then((_) {
+      context.push('/image_viewer', extra: {'url': fileUrlToOpen, 'title': displayTitle}).then((_) {
         if (activityId != null) FirebaseService.endActivity(activityId);
       });
     } else if (ext == 'pdf') {
-      context.push('/pdf_reader/view', extra: {'url': url, 'folderId': widget.folderId, 'parentContentId': widget.parentContentId, 'title': name}).then((_) {
+      context.push('/pdf_reader/view', extra: {'url': fileUrlToOpen, 'folderId': widget.folderId, 'parentContentId': widget.parentContentId, 'title': name}).then((_) {
         if (activityId != null) FirebaseService.endActivity(activityId);
       });
     } else if (['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', 'webm'].contains(ext)) {
-      context.push('/media_player', extra: {'url': url, 'title': displayTitle, 'isAudio': false}).then((_) {
+      context.push('/media_player', extra: {'url': fileUrlToOpen, 'title': displayTitle, 'isAudio': false}).then((_) {
         if (activityId != null) FirebaseService.endActivity(activityId);
       });
     } else if (['mp3', 'wav', 'aac', 'ogg', 'flac', 'wma', 'm4a', 'opus'].contains(ext)) {
-      context.push('/media_player', extra: {'url': url, 'title': displayTitle, 'isAudio': true}).then((_) {
+      context.push('/media_player', extra: {'url': fileUrlToOpen, 'title': displayTitle, 'isAudio': true}).then((_) {
         if (activityId != null) FirebaseService.endActivity(activityId);
       });
     } else if (source == 'internal_storage' && !url.startsWith('http://') && !url.startsWith('https://')) {
@@ -1474,11 +1496,35 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
         }
         if (activityId != null) FirebaseService.endActivity(activityId);
       } else {
-        context.push('/webview', extra: {'url': url, 'title': displayTitle, 'folderId': widget.folderId, 'parentContentId': widget.parentContentId}).then((_) {
+        context.push('/webview', extra: {'url': fileUrlToOpen, 'title': displayTitle, 'folderId': widget.folderId, 'parentContentId': widget.parentContentId}).then((_) {
           if (activityId != null) FirebaseService.endActivity(activityId);
         });
       }
     }
+  }
+
+  /// Start downloading file in background (non-blocking)
+  void _startBackgroundDownload(String url, String name) async {
+    try {
+      // Show subtle notification that download started
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Downloading "$name" for offline access...'),
+            duration: const Duration(seconds: 2),
+            backgroundColor: const Color(0xFF00B8D4),
+          ),
+        );
+      }
+      // Download in background (non-blocking)
+      final success = await OfflineFileManager.instance.downloadInBackground(url, name);
+      if (success && mounted) {
+        // Optional: Show success message
+        // ScaffoldMessenger.of(context).showSnackBar(
+        //   SnackBar(content: Text('"$name" saved for offline access'), backgroundColor: Colors.green),
+        // );
+      }
+    } catch (_) {}
   }
 
   // ─── Build ───────────────────────────────────────────────────────────────────

@@ -122,6 +122,9 @@ class _AdminControlPanelScreenState extends State<AdminControlPanelScreen> {
                   _ctrlTile(context, Icons.cloud_upload_rounded, Colors.deepPurple, 'Storage Settings', 'Manage Supabase, Cloudinary & upload providers', onTap: () => context.push('/admin/storage-settings')),
                   _ctrlTile(context, Icons.auto_awesome_rounded, Colors.indigo, 'AI API Keys', 'Add & manage AI provider keys (BazaarLink, Groq, Gemini)', onTap: () => context.push('/admin/ai-api-keys')),
                   _ctrlTile(context, Icons.update_rounded, Colors.cyanAccent, 'App Updates', 'Manage version & update banner', onTap: () => _showAppUpdates(context)),
+                  _ctrlTile(context, Icons.storage_rounded, Colors.teal, 'Database Status', 'View table row counts & health', onTap: () => _showDatabaseStatus(context)),
+                  _ctrlTile(context, Icons.alternate_email_rounded, Colors.orange, 'FOP Authorized Emails', 'Manage FOP portal access', onTap: () => _showFopEmails(context)),
+                  _ctrlTile(context, Icons.login_rounded, Colors.blueGrey, 'Login Details', 'View student login history', onTap: () => _showLoginDetails(context)),
                 ]),
               ],
             ),
@@ -1650,5 +1653,319 @@ class _AdminDeviceHistoryPage extends StatelessWidget {
     if (diff.inDays > 0) return '${diff.inDays}d ${diff.inHours % 24}h';
     if (diff.inHours > 0) return '${diff.inHours}h ${diff.inMinutes % 60}m';
     return '${diff.inMinutes}m';
+  }
+
+  // ─── Database Status ──────────────────────────────────────────────────
+
+  void _showDatabaseStatus(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final baseColor = isDark ? Colors.white : Colors.black87;
+    final dimColor = isDark ? Colors.white38 : Colors.black54;
+    final bgColor = isDark ? const Color(0xFF1A0533) : Colors.white;
+
+    showDialog(
+      context: context,
+      builder: (d) => AlertDialog(
+        backgroundColor: bgColor,
+        title: Row(
+          children: [
+            Icon(Icons.storage_rounded, color: Colors.teal, size: 22),
+            const SizedBox(width: 8),
+            Text('Database Status', style: TextStyle(color: baseColor, fontSize: 18)),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: FutureBuilder<Map<String, int>>(
+            future: _getTableCounts(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              final counts = snapshot.data ?? {};
+              if (counts.isEmpty) {
+                return Center(child: Text('No data available', style: TextStyle(color: dimColor)));
+              }
+              final maxCount = counts.values.fold<int>(0, (a, b) => a > b ? a : b);
+              return SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: counts.entries.map((e) {
+                    final progress = maxCount > 0 ? e.value / maxCount : 0.0;
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(e.key, style: TextStyle(color: baseColor, fontSize: 13, fontWeight: FontWeight.w600)),
+                              Text('${e.value} rows', style: TextStyle(color: dimColor, fontSize: 12)),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          LinearProgressIndicator(
+                            value: progress,
+                            backgroundColor: Colors.teal.withValues(alpha: 0.1),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              progress > 0.7 ? Colors.green : (progress > 0.3 ? Colors.orange : Colors.teal),
+                            ),
+                            minHeight: 6,
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(d),
+            child: Text('Close', style: TextStyle(color: dimColor)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<Map<String, int>> _getTableCounts() async {
+    final tables = ['users', 'folders', 'contents', 'feedbacks', 'notifications', 'student_activities'];
+    final counts = <String, int>{};
+    for (final table in tables) {
+      try {
+        final snap = await FirebaseFirestore.instance.collection(table).count().get();
+        counts[table] = snap.count ?? 0;
+      } catch (_) {
+        counts[table] = 0;
+      }
+    }
+    return counts;
+  }
+
+  // ─── FOP Authorized Emails ────────────────────────────────────────────
+
+  void _showFopEmails(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final baseColor = isDark ? Colors.white : Colors.black87;
+    final dimColor = isDark ? Colors.white38 : Colors.black54;
+    final bgColor = isDark ? const Color(0xFF1A0533) : Colors.white;
+
+    showDialog(
+      context: context,
+      builder: (d) => StatefulBuilder(
+        builder: (ctx, setDialog) {
+          return AlertDialog(
+            backgroundColor: bgColor,
+            title: Row(
+              children: [
+                Icon(Icons.alternate_email_rounded, color: Colors.orange, size: 22),
+                const SizedBox(width: 8),
+                Text('FOP Emails', style: TextStyle(color: baseColor, fontSize: 18)),
+              ],
+            ),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: FutureBuilder<List<String>>(
+                future: _getFopEmails(),
+                builder: (context, snapshot) {
+                  final emails = snapshot.data ?? [];
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (emails.isEmpty)
+                        Center(child: Text('No authorized emails', style: TextStyle(color: dimColor, fontSize: 13)))
+                      else
+                        Flexible(
+                          child: ListView.builder(
+                            shrinkWrap: true,
+                            itemCount: emails.length,
+                            itemBuilder: (ctx, i) => ListTile(
+                              leading: Icon(Icons.person, color: Colors.orange, size: 20),
+                              title: Text(emails[i], style: TextStyle(color: baseColor, fontSize: 13)),
+                              trailing: IconButton(
+                                icon: Icon(Icons.delete_outline, color: Colors.redAccent, size: 18),
+                                onPressed: () async {
+                                  await _removeFopEmail(emails[i]);
+                                  setDialog(() {});
+                                },
+                              ),
+                              dense: true,
+                            ),
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(d),
+                child: Text('Close', style: TextStyle(color: dimColor)),
+              ),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('Add Email'),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+                onPressed: () async {
+                  await _showAddFopEmailDialog(context);
+                  setDialog(() {});
+                },
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Future<List<String>> _getFopEmails() async {
+    try {
+      final snap = await FirebaseFirestore.instance.collection('fop_emails').get();
+      return snap.docs.map((d) => d.data()['email'] as String? ?? '').where((e) => e.isNotEmpty).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> _addFopEmail(String email) async {
+    await FirebaseFirestore.instance.collection('fop_emails').add({
+      'email': email.toLowerCase().trim(),
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> _removeFopEmail(String email) async {
+    final snap = await FirebaseFirestore.instance.collection('fop_emails').where('email', isEqualTo: email).get();
+    for (final doc in snap.docs) {
+      await doc.reference.delete();
+    }
+  }
+
+  Future<void> _showAddFopEmailDialog(BuildContext context) async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final baseColor = isDark ? Colors.white : Colors.black87;
+    final bgColor = isDark ? const Color(0xFF1A0533) : Colors.white;
+    final ctrl = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (d) => AlertDialog(
+        backgroundColor: bgColor,
+        title: Text('Add FOP Email', style: TextStyle(color: baseColor)),
+        content: TextField(
+          controller: ctrl,
+          keyboardType: TextInputType.emailAddress,
+          style: TextStyle(color: baseColor),
+          decoration: InputDecoration(
+            hintText: 'email@example.com',
+            hintStyle: TextStyle(color: baseColor.withValues(alpha: 0.3)),
+            filled: true,
+            fillColor: isDark ? Colors.white10 : Colors.black12,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(d), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+            onPressed: () => Navigator.pop(d, ctrl.text.trim()),
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
+    if (result != null && result.isNotEmpty && result.contains('@')) {
+      await _addFopEmail(result);
+    }
+  }
+
+  // ─── Login Details ────────────────────────────────────────────────────
+
+  void _showLoginDetails(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final baseColor = isDark ? Colors.white : Colors.black87;
+    final dimColor = isDark ? Colors.white38 : Colors.black54;
+    final bgColor = isDark ? const Color(0xFF1A0533) : Colors.white;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _LoginDetailsPage(),
+      ),
+    );
+  }
+}
+
+// ─── Login Details Page ─────────────────────────────────────────────────────
+
+class _LoginDetailsPage extends StatefulWidget {
+  @override
+  State<_LoginDetailsPage> createState() => _LoginDetailsPageState();
+}
+
+class _LoginDetailsPageState extends State<_LoginDetailsPage> {
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final baseColor = isDark ? Colors.white : Colors.black87;
+    final dimColor = isDark ? Colors.white38 : Colors.black54;
+    final bgColor = isDark ? const Color(0xFF1A0533) : Colors.white;
+    final cardColor = isDark ? const Color(0xFF13132D) : Colors.white;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Login Details', style: TextStyle(fontWeight: FontWeight.bold)),
+        leading: IconButton(icon: const Icon(Icons.arrow_back_ios_new_rounded), onPressed: () => Navigator.pop(context)),
+      ),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance.collection('login_attempts').orderBy('createdAt', descending: true).limit(100).snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+            return Center(child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.login_rounded, size: 64, color: dimColor),
+                const SizedBox(height: 12),
+                Text('No login attempts yet', style: TextStyle(color: dimColor, fontSize: 16)),
+              ],
+            ));
+          }
+          final docs = snapshot.data!.docs;
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: docs.length,
+            itemBuilder: (ctx, i) {
+              final data = docs[i].data() as Map<String, dynamic>;
+              final uid = data['uid'] as String? ?? '';
+              final device = data['deviceModel'] as String? ?? 'Unknown device';
+              final timestamp = data['timestamp'] as String? ?? '';
+              final createdAt = data['createdAt'] as Timestamp?;
+
+              return Card(
+                color: cardColor,
+                margin: const EdgeInsets.only(bottom: 8),
+                child: ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: Colors.blue.withValues(alpha: 0.1),
+                    child: const Icon(Icons.person, color: Colors.blue, size: 20),
+                  ),
+                  title: Text(uid.substring(0, uid.length > 8 ? 8 : uid.length), style: TextStyle(color: baseColor, fontSize: 13, fontFamily: 'monospace')),
+                  subtitle: Text('$device\n${createdAt?.toDate().toString().substring(0, 19) ?? timestamp}', style: TextStyle(color: dimColor, fontSize: 11)),
+                  isThreeLine: true,
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
   }
 }

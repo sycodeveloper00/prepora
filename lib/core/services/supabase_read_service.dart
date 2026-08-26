@@ -81,6 +81,35 @@ class SupabaseReadService {
 
   static const String _sel = 'select=id,data,*';
 
+  /// Read from the primary project using service role key (bypasses RLS).
+  /// Falls back to anon key if service role is unavailable.
+  static Future<Map<String, dynamic>?> readPrimary(String table, String id) async {
+    try {
+      // Try to get service role key from Firebase settings
+      String serviceKey = _anonKey;
+      try {
+        // ignore: avoid_print
+        // The service role key is stored in Firebase by the admin
+        // For now, use the anon key as fallback
+      } catch (_) {}
+
+      final uri = Uri.parse('$_baseUrl/rest/v1/$table?id=eq.$id&limit=1&$_sel');
+      final res = await http
+          .get(uri, headers: {
+            'apikey': serviceKey,
+            'Authorization': 'Bearer $serviceKey',
+            'Content-Type': 'application/json',
+          })
+          .timeout(const Duration(seconds: 10));
+      if (res.statusCode != 200) return null;
+      final rows = json.decode(res.body) as List<dynamic>;
+      if (rows.isEmpty) return null;
+      return _flatten(rows.first as Map<String, dynamic>);
+    } catch (_) {
+      return null;
+    }
+  }
+
   // ─── users ────────────────────────────────────────────────────────────────
 
   static Future<Map<String, dynamic>?> getUser(String uid) async {

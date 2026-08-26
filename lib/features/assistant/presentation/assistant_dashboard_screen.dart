@@ -160,6 +160,45 @@ class _AssistantDashboardScreenState extends State<AssistantDashboardScreen> {
                   onPressed: () => context.push('/settings'),
                 ),
                 const SizedBox(width: 8),
+                IconButton(
+                  icon: Icon(Icons.link_off_rounded, color: isDark ? Colors.white70 : Colors.black54, size: 22),
+                  tooltip: 'Disconnect Web Sessions',
+                  onPressed: () async {
+                    final confirmed = await showDialog<bool>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: const Text('Disconnect Web Sessions?'),
+                        content: const Text('This will sign you out from all web browsers.'),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+                            onPressed: () => Navigator.pop(ctx, true),
+                            child: const Text('Disconnect'),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (confirmed == true) {
+                      try {
+                        final user = FirebaseService.currentUser;
+                        if (user != null) {
+                          await FirebaseFirestore.instance.collection('web_sessions').where('uid', isEqualTo: user.uid).get().then((snap) {
+                            for (final doc in snap.docs) {
+                              doc.reference.delete();
+                            }
+                          });
+                        }
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Web sessions disconnected'), backgroundColor: Colors.green),
+                          );
+                        }
+                      } catch (_) {}
+                    }
+                  },
+                ),
+                const SizedBox(width: 8),
                 _loggingOut
                     ? const Padding(
                         padding: EdgeInsets.all(8),

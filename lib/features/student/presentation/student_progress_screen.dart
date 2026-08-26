@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -16,7 +17,7 @@ class StudentProgressScreen extends StatefulWidget {
 
 class _StudentProgressScreenState extends State<StudentProgressScreen> with SingleTickerProviderStateMixin {
   bool _isVerified = false;
-  bool _isBlocked = true;
+  bool _isBlocked = false;
   String _email = '';
   String _studentName = '';
   double _paidAmount = 0;
@@ -27,6 +28,10 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
   int _totalActiveDays = 0;
   String _lastActiveDate = '';
   int _streakBest = 0;
+
+  bool _freeTrialActive = false;
+  DateTime? _freeTrialEndsAt;
+  Timer? _trialCountdownTimer;
 
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
@@ -44,6 +49,7 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
 
   @override
   void dispose() {
+    _trialCountdownTimer?.cancel();
     _fadeController.dispose();
     super.dispose();
   }
@@ -59,24 +65,34 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
         FirebaseService.getUserData(uid),
         FirebaseService.getStudentFeedbacks(uid),
         FirebaseService.getStreak(uid),
+        FirebaseService.getFreeTrial(uid),
       ]);
       final userData = results[0] as Map<String, dynamic>?;
       final feedbacks = results[1] as List<Map<String, dynamic>>;
       final streak = results[2] as Map<String, dynamic>;
+      final trial = results[3] as Map<String, dynamic>;
       if (mounted) {
         setState(() {
           _isVerified = userData?['verified'] == true;
           _isBlocked = userData?['blocked'] == true;
           _email = userData?['email'] as String? ?? '';
           _studentName = userData?['name'] as String? ?? '';
-          _paidAmount = (userData?['paidAmount'] as num?)?.toDouble() ?? 0;
+          _paidAmount = (userData?['paidAmount'] as num?)?.toDouble() ?? (userData?['paid_amount'] as num?)?.toDouble() ?? 0;
           _feedbacks = feedbacks;
           _streakCount = streak['streakCount'] as int? ?? 0;
           _totalActiveDays = streak['totalActiveDays'] as int? ?? 0;
           _lastActiveDate = streak['lastActiveDate'] as String? ?? '';
-          _streakBest = userData?['streakBest'] as int? ?? _streakCount;
+          _streakBest = (userData?['streakBest'] as int?) ?? (userData?['streak_best'] as int?) ?? _streakCount;
+          _freeTrialActive = trial['active'] == true;
+          _freeTrialEndsAt = trial['endsAt'] as DateTime?;
           _loadingUser = false;
         });
+        if (_freeTrialActive && _freeTrialEndsAt != null) {
+          _trialCountdownTimer?.cancel();
+          _trialCountdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+            if (mounted) setState(() {});
+          });
+        }
       }
     } catch (e) {
       if (mounted) setState(() => _loadingUser = false);
@@ -109,6 +125,10 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             _buildProfileHeader(cardColor, textColor, dimColor, isDark),
+                            if (_freeTrialActive && _freeTrialEndsAt != null) ...[
+                              const SizedBox(height: 6),
+                              _buildTrialBanner(isDark, textColor),
+                            ],
                             const SizedBox(height: 6),
                             _buildStatusBubbles(cardColor, textColor, dimColor, isDark),
                             const SizedBox(height: 6),
@@ -1158,5 +1178,72 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
     if (k.contains('date')) return Icons.calendar_today_rounded;
     if (k.contains('time')) return Icons.access_time_rounded;
     return Icons.info_outline_rounded;
+  }
+
+  // ─── Free Trial Banner ──────────────────────────────────────────────────
+  Widget _buildTrialBanner(bool isDark, Color textColor) {
+    final now = DateTime.now();
+    final diff = _freeTrialEndsAt!.difference(now);
+    if (diff.isNegative) {
+      _freeTrialActive = false;
+      return const SizedBox.shrink();
+    }
+    final dd = diff.inDays.toString().padLeft(2, '0');
+    final hh = (diff.inHours % 24).toString().padLeft(2, '0');
+    final mm = (diff.inMinutes % 60).toString().padLeft(2, '0');
+    final ss = (diff.inSeconds % 60).toString().padLeft(2, '0');
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFFF6B35), Color(0xFFFF8F00)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFF6B35).withOpacity(0.5), width: 1),
+        boxShadow: [
+          BoxShadow(color: const Color(0xFFFF6B35).withOpacity(0.2), blurRadius: 8, offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.timer_rounded, color: Colors.white, size: 28),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Free Trial Ends', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 4),
+                Text(
+                  '$dd:$hh:$mm:$ss',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: 'monospace',
+                    letterSpacing: 2,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Text(
+              'LIVE',
+              style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
