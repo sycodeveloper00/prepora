@@ -39,7 +39,7 @@ class OfflineFileManager {
     }
     // Hash the URL for a unique filename
     final bytes = utf8.encode(url);
-    final hash = md5(bytes).toString().substring(0, 16);
+    final hash = md5.convert(bytes).toString().substring(0, 16);
     final ext = _getExtensionFromUrl(url);
     return '$hash.$ext';
   }
