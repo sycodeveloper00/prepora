@@ -16,7 +16,7 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObserver {
-  bool _autoDownload = true;
+  bool _autoDownload = false;
   bool _notificationsEnabled = true;
   bool _loggingOut = false;
   String _appVersion = '';

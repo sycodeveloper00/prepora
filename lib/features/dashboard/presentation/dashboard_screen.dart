@@ -653,6 +653,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       ])),
                       PopupMenuItem(value: 'notes', child: Row(children: [const Icon(Icons.note_rounded, size: 18, color: Color(0xFF00B8D4)), const SizedBox(width: 10), Text('Notes', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87))])), PopupMenuItem(value: 'progress', child: Row(children: [const Icon(Icons.insights_rounded, size: 18, color: Color(0xFF4A148C)), const SizedBox(width: 10), Text('Progress', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87))])),
                       PopupMenuItem(value: 'link_web', child: Row(children: [const Icon(Icons.qr_code_scanner_rounded, size: 18, color: Color(0xFF00E676)), const SizedBox(width: 10), Text('Link with Web Version', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87))])),
+                      PopupMenuItem(value: 'contact_support', child: Row(children: [const Icon(Icons.support_agent_rounded, size: 18, color: Colors.orange), const SizedBox(width: 10), Text('Contact Support', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87))])),
                       PopupMenuItem(value: 'settings', child: Row(children: [Icon(Icons.settings_outlined, size: 18, color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black87), const SizedBox(width: 10), Text('Settings', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87))])),
                     ]
                   : [
@@ -672,6 +673,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                   context.push('/student/notices');
                 } else if (val == 'link_web') {
                   context.push('/link-web');
+                } else if (val == 'contact_support') {
+                  context.push('/student/feedbacks');
                 }
               },
             );

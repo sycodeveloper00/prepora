@@ -16,7 +16,7 @@ class AdminSettingsScreen extends StatefulWidget {
 }
 
 class _AdminSettingsScreenState extends State<AdminSettingsScreen> with WidgetsBindingObserver {
-  bool _autoDownload = true;
+  bool _autoDownload = false;
   bool _notificationsEnabled = true;
   bool _loading = true;
   bool _loggingOut = false;

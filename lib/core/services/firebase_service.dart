@@ -2241,7 +2241,7 @@ class FirebaseService {
     if (user == null) return true;
     final doc = await FirebaseService.firestore.collection('users').doc(user.uid).get();
     final data = doc.data();
-    return data?['autoDownload'] as bool? ?? true;
+    return data?['autoDownload'] as bool? ?? false;
   }
 
   static Future<void> updateUserAutoDownload(bool value) async {
