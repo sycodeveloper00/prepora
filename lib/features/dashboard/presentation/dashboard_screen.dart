@@ -174,7 +174,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         _isFreeTrialActive = trialActive && (trialEnd?.isAfter(DateTime.now()) ?? false);
       });
       }
-    });
+    }, onError: (_) {});
   }
 
   /// Listens to the global `settings/general` document in real-time so that when
@@ -195,7 +195,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         _accountNo = data['accountNo'] as String? ?? '';
         _bankName = data['bankName'] as String? ?? '';
       });
-    });
+    }, onError: (_) {});
   }
 
   void _startTypingAnimation() {
@@ -1632,7 +1632,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         setState(() { _latestUpdateVersion = version; _latestUpdateLink = link; });
         if (mounted) _showForceUpdateDialog(context);
       }
-    });
+    }, onError: (_) {});
   }
 
   void _showForceUpdateDialog(BuildContext context) {

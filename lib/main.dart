@@ -144,7 +144,7 @@ class _AppLifecycleState extends State<_AppLifecycle> with WidgetsBindingObserve
         if (currentDeviceId != deviceId) {
           await _forceLogout();
         }
-      });
+      }, onError: (_) {});
     } catch (_) {}
   }
 

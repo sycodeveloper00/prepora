@@ -1945,7 +1945,7 @@ class FirebaseService {
     try {
       final uid = currentUser?.uid;
       if (uid == null) return null;
-      final mirror = await SupabaseReadService.getNote(uid, lectureId);
+      final mirror = await SupabaseReadService.getNote(lectureId, uid);
       if (mirror != null) return _MirrorDocumentSnapshot(mirror);
     } catch (_) {}
     try {
@@ -1960,11 +1960,13 @@ class FirebaseService {
   static Future<void> saveNote(String lectureId, String content, {String? lectureName}) async {
     final uid = currentUser?.uid;
     if (uid == null) return;
-    await firestore.collection('users').doc(uid).collection('notes').doc(lectureId).set({
-      'content': content,
-      'lectureName': lectureName ?? '',
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    try {
+      await firestore.collection('users').doc(uid).collection('notes').doc(lectureId).set({
+        'content': content,
+        'lectureName': lectureName ?? '',
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (_) {}
     await _mirrorWrite('notes', lectureId, {
       'uid': uid,
       'content': content,
