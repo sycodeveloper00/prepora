@@ -236,8 +236,17 @@ class SupabaseReadService {
       final res = await _tryQuery(p['url']!, p['anon']!, table, q);
 
       if (res != null && res.statusCode == 200) {
-        final rows = json.decode(res.body) as List<dynamic>;
-        final casted = rows.cast<Map<String, dynamic>>();
+        List<Map<String, dynamic>> casted;
+        try {
+          final rows = json.decode(res.body) as List<dynamic>;
+          casted = rows.cast<Map<String, dynamic>>();
+        } catch (_) {
+          // Malformed/non-JSON body — treat as a failure, not a crash.
+          _failCounts[idx]++;
+          consecutiveFailures++;
+          if (consecutiveFailures >= 3 && bestResult != null) break;
+          continue;
+        }
 
         if (casted.isNotEmpty) {
           if (_failCounts[idx] > 0) _failCounts[idx] = 0;
@@ -296,9 +305,21 @@ class SupabaseReadService {
     Duration interval = const Duration(seconds: 10),
   }) async* {
     String? lastKey;
-    List<Map<String, dynamic>> lastList = const [];
+    List<Map<String, dynamic>>? lastList;
+    var consecutiveErrors = 0;
     while (true) {
-      final rows = await _query(table, query);
+      List<Map<String, dynamic>>? rows;
+      try {
+        rows = await _query(table, query);
+        consecutiveErrors = 0;
+      } catch (_) {
+        // Never let a poll error kill the stream — this is what caused screens
+        // to go blank after a few minutes when a single HTTP/JSON error escaped
+        // the async* generator and terminated the subscription.
+        consecutiveErrors++;
+        rows = null;
+      }
+
       if (rows != null) {
         final list = rows.map((r) => _flatten(r)).toList();
         final key = json.encode(list);
@@ -307,15 +328,18 @@ class SupabaseReadService {
           lastList = list;
           yield list;
         }
-      } else {
-        // Transient failure — preserve last known data instead of yielding empty
-        // Only re-emit if we previously had data (first poll still yields empty)
-        if (lastList.isNotEmpty) {
-          // Don't yield — keep showing previous data
+      } else if (consecutiveErrors >= 3) {
+        // Repeated failures — re-emit last known data so the UI recovers from
+        // an empty/blank state instead of staying blank while the network heals.
+        final last = lastList;
+        if (last != null && last.isNotEmpty) {
+          yield last;
         } else {
           yield const [];
         }
       }
+      // On a single transient failure we silently skip this cycle and keep the
+      // previously emitted data on screen (no empty re-emit).
       await Future.delayed(interval);
     }
   }

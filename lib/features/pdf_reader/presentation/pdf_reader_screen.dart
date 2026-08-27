@@ -242,10 +242,20 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
   }
 
   Future<void> _saveAnnotation() async {
-    if (_strokes.isEmpty && _textOverlay == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nothing to save - add drawings or text first')),
+    final hasStrokes = _strokes.isNotEmpty;
+    final hasText = _textOverlay != null;
+    if (!hasStrokes && !hasText) {
+      // Saving an empty annotation = bookmarking the PDF in Notes.
+      await FirebaseService.saveNote(
+        widget.documentId,
+        'PDF: ${_fileName ?? "Document"}',
+        lectureName: _fileName ?? 'PDF Note',
       );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('PDF added to Notes!'), backgroundColor: Colors.green),
+        );
+      }
       return;
     }
 

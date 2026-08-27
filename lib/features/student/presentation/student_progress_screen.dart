@@ -139,6 +139,20 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
                       StreamBuilder<QuerySnapshot>(
                         stream: FirebaseService.getStudentActivities(_uid),
                         builder: (context, snapshot) {
+                          if (snapshot.hasError) {
+                            return SliverFillRemaining(
+                              child: Padding(
+                                padding: const EdgeInsets.all(32),
+                                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                                  Icon(Icons.cloud_off_rounded, size: 56, color: dimColor),
+                                  const SizedBox(height: 12),
+                                  Text('Activity loading is temporarily unavailable', style: TextStyle(color: dimColor, fontSize: 15, fontWeight: FontWeight.w600), textAlign: TextAlign.center),
+                                  const SizedBox(height: 6),
+                                  Text('Check your connection and try again', style: TextStyle(color: dimColor, fontSize: 12)),
+                                ]),
+                              ),
+                            );
+                          }
                           if (snapshot.connectionState == ConnectionState.waiting) {
                             return const SliverFillRemaining(child: Center(child: ProfessionalLoader()));
                           }
