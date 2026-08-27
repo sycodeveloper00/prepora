@@ -979,8 +979,6 @@ class FirebaseService {
     return {'id': d.id, ...d.data()};
   }
 
-  static const String _mirrorSyncEndpoint = 'https://prepora-web.vercel.app/api/sync-mirror';
-
   /// Mirrors an AI key row into the read-mirror Supabase (best effort — never
   /// throws, so Firestore remains the source of truth even if mirroring fails).
   static Future<void> _mirrorAiApiKey({
@@ -989,13 +987,9 @@ class FirebaseService {
     bool? isActive,
   }) async {
     try {
-      await http
-          .post(
-            Uri.parse(_mirrorSyncEndpoint),
-            headers: {'Content-Type': 'application/json'},
-            body: json.encode({'table': 'ai_api_keys', 'id': id, 'data': data, 'isActive': isActive}),
-          )
-          .timeout(const Duration(seconds: 10));
+      final mirrorData = <String, dynamic>{...data};
+      if (isActive != null) mirrorData['isActive'] = isActive;
+      await SupabaseReadService.writeToAll('ai_api_keys', id, mirrorData);
     } catch (_) {}
   }
 
@@ -1003,18 +997,7 @@ class FirebaseService {
   /// Never throws. Plain values only (no FieldValue/Timestamp sentinels).
   static Future<void> _mirrorWrite(String table, String id, Map<String, dynamic> data, {bool? delete}) async {
     try {
-      await http
-          .post(
-            Uri.parse(_mirrorSyncEndpoint),
-            headers: {'Content-Type': 'application/json'},
-            body: json.encode({
-              'table': table,
-              'id': id,
-              'data': data,
-              if (delete == true) 'delete': true,
-            }),
-          )
-          .timeout(const Duration(seconds: 10));
+      await SupabaseReadService.writeToAll(table, id, data, delete: delete == true);
     } catch (_) {}
   }
 
@@ -1094,13 +1077,7 @@ class FirebaseService {
   static Future<void> deleteAiApiKey(String id) async {
     await firestore.collection('ai_api_keys').doc(id).delete();
     try {
-      await http
-          .post(
-            Uri.parse(_mirrorSyncEndpoint),
-            headers: {'Content-Type': 'application/json'},
-            body: json.encode({'table': 'ai_api_keys', 'id': id, 'data': const {}, 'delete': true}),
-          )
-          .timeout(const Duration(seconds: 10));
+      await SupabaseReadService.writeToAll('ai_api_keys', id, const {}, delete: true);
     } catch (_) {}
   }
 
@@ -2113,7 +2090,7 @@ class FirebaseService {
 
   static Future<Set<String>> getUidsWithContentAccess(String folderId, String contentId) async {
     try {
-      final mirror = await SupabaseReadService.getUidsWithContentAccess(folderId, contentId);
+      final mirror = await SupabaseReadService.getUidsWithContentAccess(contentId, folderId: folderId);
       if (mirror != null) return mirror;
     } catch (_) {}
     final snap = await firestore
