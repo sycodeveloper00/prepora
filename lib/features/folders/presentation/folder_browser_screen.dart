@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/services/firebase_service.dart';
+import '../../../core/services/supabase_read_service.dart';
 import '../../../core/utils.dart';
 import '../../../core/widgets/professional_loader.dart';
 
@@ -60,51 +60,54 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
   Future<void> _loadAll() async {
     setState(() => _loading = true);
     try {
-      // 1. Fetch all top-level folders
-      final folderSnap = await FirebaseService.firestore.collection('folders').get();
+      // Use Supabase mirror for fast single-query fetch
+      final folders = await SupabaseReadService.getFolders();
+      if (folders == null || !mounted) return;
+      
+      // Build tree structure from flat list
       final rootNodes = <BrowseNode>[];
-      for (final doc in folderSnap.docs) {
-        final data = doc.data();
-        rootNodes.add(BrowseNode(
-          id: doc.id,
-          name: data['name'] as String? ?? 'Untitled',
-          isTopLevel: true,
-          topLevelFolderId: doc.id,
-          parentContentId: null,
-        ));
+      final subFoldersByTopLevel = <String, List<Map<String, dynamic>>>{};
+      
+      for (final f in folders) {
+        final isTopLevel = f['parentContentId'] == null;
+        if (isTopLevel) {
+          rootNodes.add(BrowseNode(
+            id: f['id'] as String,
+            name: f['name'] as String? ?? 'Untitled',
+            isTopLevel: true,
+            topLevelFolderId: f['id'] as String,
+            parentContentId: null,
+          ));
+        } else {
+          final topLevelId = f['topLevelFolderId'] as String? ?? f['id'] as String;
+          subFoldersByTopLevel.putIfAbsent(topLevelId, () => []).add(f);
+        }
       }
+      
       rootNodes.sort((a, b) => a.name.compareTo(b.name));
       _rootFolders = rootNodes;
 
-      // 2. Batch load all sub-folders for each top-level folder in parallel
+      // Build sub-folder cache from flat list
       _subFolderCache.clear();
-      final subFutures = rootNodes.map((root) async {
-        final snap = await FirebaseService.firestore
-            .collection('folders').doc(root.id)
-            .collection('contents')
-            .where('type', isEqualTo: 'subfolder')
-            .get();
+      for (final entry in subFoldersByTopLevel.entries) {
+        final topLevelId = entry.key;
+        final subs = entry.value;
         final byParent = <String?, List<BrowseNode>>{};
-        for (final doc in snap.docs) {
-          final d = doc.data();
-          final parentId = d['parentContentId'] as String?;
+        for (final f in subs) {
+          final parentId = f['parentContentId'] as String?;
           byParent.putIfAbsent(parentId, () => []);
           byParent[parentId]!.add(BrowseNode(
-            id: doc.id,
-            name: d['name'] as String? ?? 'Untitled',
+            id: f['id'] as String,
+            name: f['name'] as String? ?? 'Untitled',
             isTopLevel: false,
-            topLevelFolderId: root.id,
+            topLevelFolderId: topLevelId,
             parentContentId: parentId,
           ));
         }
         for (final key in byParent.keys) {
           byParent[key]!.sort((a, b) => a.name.compareTo(b.name));
         }
-        return MapEntry(root.id, byParent);
-      }).toList();
-      final subResults = await Future.wait(subFutures);
-      for (final entry in subResults) {
-        _subFolderCache[entry.key] = entry.value;
+        _subFolderCache[topLevelId] = byParent;
       }
 
       if (!mounted) return;

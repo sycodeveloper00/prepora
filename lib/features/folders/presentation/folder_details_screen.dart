@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/widgets/glassmorphic_container.dart';
 import '../../../core/widgets/professional_loader.dart';
 import '../../../core/services/firebase_service.dart';
+import '../../../core/services/supabase_read_service.dart';
 import '../../../core/services/offline_file_manager.dart';
 import '../../../core/services/upload_manager.dart';
 import 'folder_browser_screen.dart';
@@ -105,12 +106,10 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
     if (widget.assistantContentAccess != null) {
       _assistantAccess = widget.assistantContentAccess!;
     }
-    _folderFuture = FirebaseService.firestore.collection('folders').doc(widget.folderId).get();
-    _contentsStream = FirebaseService.firestore
-        .collection('folders')
-        .doc(widget.folderId)
-        .collection('contents')
-        .snapshots();
+    // Use Supabase mirror for fast single-query folder fetch
+    _folderFuture = SupabaseReadService.getFolder(widget.folderId);
+    // Use Supabase mirror stream for contents
+    _contentsStream = SupabaseReadService.streamContents(widget.folderId, parentContentId: widget.parentContentId);
     _refreshAssistantAccess();
     _checkStatus();
     _loadSubfolderName();
@@ -122,12 +121,10 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
   void _loadSubfolderName() async {
     if (widget.parentContentId == null) return;
     try {
-      final snap = await FirebaseService.firestore
-          .collection('folders').doc(widget.folderId)
-          .collection('contents').doc(widget.parentContentId!).get();
-      if (snap.exists && mounted) {
+      final content = await SupabaseReadService.getContent(widget.folderId, widget.parentContentId!);
+      if (content != null && mounted) {
         setState(() {
-          _subfolderName = (snap.data() as Map<String, dynamic>)['name'] as String? ?? '';
+          _subfolderName = content['name'] as String? ?? '';
         });
       }
     } catch (_) {}

@@ -254,9 +254,17 @@ class _DashboardScreenState extends State<DashboardScreen>
     final uid = FirebaseService.currentUser?.uid ?? '';
     FirebaseService.markStudentNotificationsRead(uid);
     NotificationService.clearBadge();
-    _rebuildNotificationStream();
     
-    // Use a Completer to wait for stream data or timeout
+    // Use cached docs immediately if available, otherwise wait for stream
+    final docs = _latestNotificationDocs;
+    
+    // If we have cached docs, show overlay immediately
+    if (docs.isNotEmpty) {
+      _showNotifOverlay(docs, uid);
+      return;
+    }
+    
+    // No cached docs - wait for stream (max 1.5s)
     final completer = Completer<List<QueryDocumentSnapshot>>();
     StreamSubscription? sub;
     bool completed = false;
@@ -273,51 +281,55 @@ class _DashboardScreenState extends State<DashboardScreen>
         if (!completed) {
           completed = true;
           sub?.cancel();
-          completer.complete(_latestNotificationDocs); // Use cached data on error
+          completer.complete([]);
         }
       },
     );
     
-    // Timeout after 2 seconds
-    Future.delayed(const Duration(seconds: 2), () {
+    // Timeout after 1.5 seconds
+    Future.delayed(const Duration(milliseconds: 1500), () {
       if (!completed) {
         completed = true;
         sub?.cancel();
-        completer.complete(_latestNotificationDocs);
+        completer.complete([]);
       }
     });
     
-    completer.future.then((docs) {
+    completer.future.then((freshDocs) {
       if (!mounted) return;
-      final renderBox = _bellKey.currentContext?.findRenderObject() as RenderBox?;
-      if (renderBox == null) return;
-      final pos = renderBox.localToGlobal(Offset.zero);
-      final size = renderBox.size;
-      _notifOverlay = OverlayEntry(
-        builder: (ctx) => Stack(children: [
-          Positioned.fill(
-            child: GestureDetector(
-              onTap: () { _notifOverlay?.remove(); _notifOverlay = null; },
-              behavior: HitTestBehavior.translucent,
-            ),
-          ),
-          Positioned(
-            left: (pos.dx + size.width / 2 - 170).clamp(8.0, MediaQuery.of(context).size.width - 348.0),
-            top: pos.dy + size.height + 8,
-            child: NotificationBellBox(
-              docs: docs,
-              onClear: () {
-                FirebaseService.markStudentNotificationsRead(uid);
-                NotificationService.clearBadge();
-                _notifOverlay?.remove();
-                _notifOverlay = null;
-              },
-            ),
-          ),
-        ]),
-      );
-      Overlay.of(context).insert(_notifOverlay!);
+      _showNotifOverlay(freshDocs.isNotEmpty ? freshDocs : docs, uid);
     });
+  }
+
+  void _showNotifOverlay(List<QueryDocumentSnapshot> docs, String uid) {
+    final renderBox = _bellKey.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox == null) return;
+    final pos = renderBox.localToGlobal(Offset.zero);
+    final size = renderBox.size;
+    _notifOverlay = OverlayEntry(
+      builder: (ctx) => Stack(children: [
+        Positioned.fill(
+          child: GestureDetector(
+            onTap: () { _notifOverlay?.remove(); _notifOverlay = null; },
+            behavior: HitTestBehavior.translucent,
+          ),
+        ),
+        Positioned(
+          left: (pos.dx + size.width / 2 - 170).clamp(8.0, MediaQuery.of(context).size.width - 348.0),
+          top: pos.dy + size.height + 8,
+          child: NotificationBellBox(
+            docs: docs,
+            onClear: () {
+              FirebaseService.markStudentNotificationsRead(uid);
+              NotificationService.clearBadge();
+              _notifOverlay?.remove();
+              _notifOverlay = null;
+            },
+          ),
+        ),
+      ]),
+    );
+    Overlay.of(context).insert(_notifOverlay!);
   }
 
   List<QueryDocumentSnapshot> _latestNotificationDocs = [];

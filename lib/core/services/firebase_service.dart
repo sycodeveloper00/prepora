@@ -763,7 +763,7 @@ class FirebaseService {
   // ─── Assistant Supabase Accounts ──────────────────────────────────────────
 
   static Future<List<Map<String, dynamic>>> getAssistantSupabaseAccounts() async {
-    final snap = await firestore.collection('assistant_supabase').orderBy('createdAt', descending: false).get();
+    final snap = await firestore.collection('assistant_supabase').orderBy('createdAt', descending: true).get();
     return snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
   }
 
@@ -773,6 +773,8 @@ class FirebaseService {
     required String projectUrl,
     required String serviceRoleKey,
     required String anonKey,
+    int storageLimitMB = 1024,
+    bool autoSwitchEnabled = true,
   }) async {
     final doc = await firestore.collection('assistant_supabase').add({
       'assistantUid': assistantUid,
@@ -783,6 +785,9 @@ class FirebaseService {
       'bucketStatus': 'pending',
       'failedBuckets': <String>[],
       'isActive': true,
+      'storageLimitMB': storageLimitMB,
+      'autoSwitchEnabled': autoSwitchEnabled,
+      'currentUsageMB': 0,
       'createdAt': FieldValue.serverTimestamp(),
     });
     final snap = await firestore.collection('assistant_supabase').where('assistantUid', isEqualTo: assistantUid).get();
@@ -801,7 +806,7 @@ class FirebaseService {
     return doc.id;
   }
 
-  static Future<void> updateAssistantSupabaseAccount(String id, {String? projectUrl, String? serviceRoleKey, String? anonKey, bool? isActive}) async {
+  static Future<void> updateAssistantSupabaseAccount(String id, {String? projectUrl, String? serviceRoleKey, String? anonKey, bool? isActive, int? storageLimitMB, bool? autoSwitchEnabled}) async {
     if (isActive == true) {
       final docSnap = await firestore.collection('assistant_supabase').doc(id).get();
       final assistantUid = (docSnap.data())?['assistantUid'] as String?;
@@ -820,11 +825,13 @@ class FirebaseService {
     } else if (isActive == false) {
       await firestore.collection('assistant_supabase').doc(id).update({'isActive': false});
     }
-    if (projectUrl != null || serviceRoleKey != null || anonKey != null) {
+    if (projectUrl != null || serviceRoleKey != null || anonKey != null || storageLimitMB != null || autoSwitchEnabled != null) {
       final data = <String, dynamic>{};
       if (projectUrl != null) data['projectUrl'] = projectUrl.trim();
       if (serviceRoleKey != null) data['serviceRoleKey'] = serviceRoleKey.trim();
       if (anonKey != null) data['anonKey'] = anonKey.trim();
+      if (storageLimitMB != null) data['storageLimitMB'] = storageLimitMB;
+      if (autoSwitchEnabled != null) data['autoSwitchEnabled'] = autoSwitchEnabled;
       await firestore.collection('assistant_supabase').doc(id).update(data);
     }
   }
@@ -861,7 +868,7 @@ class FirebaseService {
   // ─── Supabase Multi-Account ────────────────────────────────────────────────
 
   static Future<List<Map<String, dynamic>>> getSupabaseAccounts() async {
-    final snap = await firestore.collection('supabase_accounts').orderBy('createdAt', descending: false).get();
+    final snap = await firestore.collection('supabase_accounts').orderBy('createdAt', descending: true).get();
     return snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
   }
 
@@ -906,7 +913,7 @@ class FirebaseService {
     return {'status': allReady ? 'ready' : (failed.length == 2 ? 'failed' : 'partial'), 'failedBuckets': failed};
   }
 
-  static Future<String> addSupabaseAccount(String projectUrl, String serviceRoleKey, String anonKey, {bool isActive = true}) async {
+  static Future<String> addSupabaseAccount(String projectUrl, String serviceRoleKey, String anonKey, {bool isActive = true, int storageLimitMB = 1024, bool autoSwitchEnabled = true}) async {
     final doc = await firestore.collection('supabase_accounts').add({
       'projectUrl': projectUrl.trim(),
       'serviceRoleKey': serviceRoleKey.trim(),
@@ -914,6 +921,9 @@ class FirebaseService {
       'bucketStatus': 'pending',
       'failedBuckets': <String>[],
       'isActive': isActive,
+      'storageLimitMB': storageLimitMB,
+      'autoSwitchEnabled': autoSwitchEnabled,
+      'currentUsageMB': 0,
       'createdAt': FieldValue.serverTimestamp(),
     });
     if (isActive) {
@@ -934,7 +944,7 @@ class FirebaseService {
     return doc.id;
   }
 
-  static Future<void> updateSupabaseAccount(String id, {String? projectUrl, String? serviceRoleKey, String? anonKey, bool? isActive}) async {
+  static Future<void> updateSupabaseAccount(String id, {String? projectUrl, String? serviceRoleKey, String? anonKey, bool? isActive, int? storageLimitMB, bool? autoSwitchEnabled}) async {
     if (isActive == true) {
       final snap = await firestore.collection('supabase_accounts').get();
       final batch = firestore.batch();
@@ -949,11 +959,13 @@ class FirebaseService {
     } else if (isActive == false) {
       await firestore.collection('supabase_accounts').doc(id).update({'isActive': false});
     }
-    if (projectUrl != null || serviceRoleKey != null || anonKey != null) {
+    if (projectUrl != null || serviceRoleKey != null || anonKey != null || storageLimitMB != null || autoSwitchEnabled != null) {
       final data = <String, dynamic>{};
       if (projectUrl != null) data['projectUrl'] = projectUrl.trim();
       if (serviceRoleKey != null) data['serviceRoleKey'] = serviceRoleKey.trim();
       if (anonKey != null) data['anonKey'] = anonKey.trim();
+      if (storageLimitMB != null) data['storageLimitMB'] = storageLimitMB;
+      if (autoSwitchEnabled != null) data['autoSwitchEnabled'] = autoSwitchEnabled;
       await firestore.collection('supabase_accounts').doc(id).update(data);
     }
   }
@@ -965,6 +977,12 @@ class FirebaseService {
   // ─── AI API Keys Multi-Account ────────────────────────────────────────────
 
   static Future<List<Map<String, dynamic>>> getAiApiKeys() async {
+    // Mirror first for performance
+    try {
+      final mirror = await SupabaseReadService.getAllAiApiKeys();
+      if (mirror != null && mirror.isNotEmpty) return mirror;
+    } catch (_) {}
+    // Fallback to Firestore
     final snap = await firestore.collection('ai_api_keys').orderBy('createdAt', descending: false).get();
     return snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
   }

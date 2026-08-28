@@ -66,3 +66,25 @@ CREATE TABLE IF NOT EXISTS settings (
   key TEXT UNIQUE NOT NULL,
   value JSONB
 );
+
+-- Supabase Ping Log table (tracks keep-alive pings for all projects)
+CREATE TABLE IF NOT EXISTS supabase_ping_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_url TEXT NOT NULL,
+  project_type TEXT NOT NULL, -- 'system', 'admin_storage', 'assistant_storage'
+  account_id TEXT, -- For admin/assistant accounts: the Firestore doc ID
+  status TEXT NOT NULL, -- 'success', 'failed', 'paused_530'
+  response_time_ms INTEGER,
+  error_message TEXT,
+  pinged_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_supabase_ping_log_project_url ON supabase_ping_log(project_url);
+CREATE INDEX IF NOT EXISTS idx_supabase_ping_log_account_id ON supabase_ping_log(account_id);
+CREATE INDEX IF NOT EXISTS idx_supabase_ping_log_pinged_at ON supabase_ping_log(pinged_at DESC);
+
+-- Enable RLS
+ALTER TABLE supabase_ping_log ENABLE ROW LEVEL SECURITY;
+
+-- Policy: Service role can insert/read
+CREATE POLICY "ping_log_service_all" ON supabase_ping_log FOR ALL USING (auth.role() = 'service_role');

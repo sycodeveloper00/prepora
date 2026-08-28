@@ -13,6 +13,7 @@ import 'core/theme/theme_provider.dart';
 import 'core/router/app_router.dart';
 import 'core/services/firebase_service.dart';
 import 'core/services/notification_service.dart';
+import 'core/services/storage_account_keep_alive.dart';
 
 const _pdfChannel = MethodChannel('com.prepora.academy.prepora/pdf_intent');
 
@@ -27,6 +28,7 @@ void main() async {
   await FirebaseService.initialize();
   await _initStorage();
   runApp(const ProviderScope(child: PrePoraApp()));
+  StorageAccountKeepAliveService.start();
 }
 
 void _listenPdfIntent() {

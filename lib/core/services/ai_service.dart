@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../services/firebase_service.dart';
+import '../services/supabase_read_service.dart';
 
 class AiService {
   static const String _defaultApiKey =
@@ -20,6 +21,9 @@ class AiService {
   /// one model, so a failed model automatically falls back to the next one.
   static List<Map<String, dynamic>> _keyPool = [];
 
+  /// Models that have hit quota/failure in the current session.
+  static final Set<String> failedModels = {};
+
   /// Caches the last successfully-loaded key so the AI keeps working even if
   /// the Firestore read fails.
   static String? _cachedApiKey;
@@ -36,41 +40,57 @@ class AiService {
   }
 
   /// Loads the active AI API key config from Firestore (once). Falls back to
-  /// the last known good key, then the built-in defaults. Builds the model pool
-  /// so failed models can be retried.
+  /// the last known good key, then the built-in defaults, when Firestore is
+  /// unavailable. Builds the model pool so failed models can be retried.
   static Future<void> loadActiveKey() async {
     if (_keyLoaded) return;
     try {
-      final key = await FirebaseService.getActiveAiApiKey();
-      if (key != null) {
-        final apiKeyVal = (key['apiKey'] as String?)?.trim();
-        final baseUrlVal = (key['baseUrl'] as String?)?.trim();
-        final providerVal = (key['provider'] as String?)?.trim() ?? 'openai';
-        final baseModel = (key['model'] as String?)?.trim();
+      // Build the pool from ALL mirror keys (active first) so a depleted/failed
+      // key automatically falls back to the next working key + model instead of
+      // failing the whole chat with "AI server is unavailable".
+      final all = await FirebaseService.getAiApiKeys();
+      if (all != null && all.isNotEmpty) {
         final pool = <Map<String, dynamic>>[];
-        final models = key['models'];
-        if (models is List) {
-          for (final m in models) {
-            final s = m.toString().trim();
-            if (s.isEmpty) continue;
-            pool.add({'apiKey': apiKeyVal, 'baseUrl': baseUrlVal, 'model': s, 'provider': providerVal});
+        final seen = <String>{};
+        final ordered = [...all]..sort((a, b) {
+            final av = a['isActive'] == true ? 0 : 1;
+            final bv = b['isActive'] == true ? 0 : 1;
+            if (av != bv) return av - bv;
+            return 0;
+          });
+        for (final key in ordered) {
+          final apiKeyVal = (key['apiKey'] as String?)?.trim();
+          final baseUrlVal = (key['baseUrl'] as String?)?.trim();
+          final providerVal = (key['provider'] as String?)?.trim() ?? 'openai';
+          final baseModel = (key['model'] as String?)?.trim();
+          final models = key['models'];
+          final list = <String>[];
+          if (models is List) {
+            for (final m in models) {
+              final s = m.toString().trim();
+              if (s.isNotEmpty) list.add(s);
+            }
+          }
+          if (list.isEmpty && baseModel != null && baseModel.isNotEmpty) list.add(baseModel);
+          if (list.isEmpty || apiKeyVal == null || apiKeyVal.isEmpty) continue;
+          for (final model in list) {
+            final dedup = '$providerVal|$model|$apiKeyVal';
+            if (!seen.add(dedup)) continue;
+            pool.add({'apiKey': apiKeyVal, 'baseUrl': baseUrlVal, 'model': model, 'provider': providerVal});
           }
         }
-        if (pool.isEmpty && baseModel != null && baseModel.isNotEmpty) {
-          pool.add({'apiKey': apiKeyVal, 'baseUrl': baseUrlVal, 'model': baseModel, 'provider': providerVal});
+        if (pool.isNotEmpty) {
+          _keyPool = pool;
+          _cachedPool = pool;
+          _applyPoolEntry(pool.first);
+          _cachedApiKey = _apiKey;
+          _cachedBaseUrl = _baseUrl;
+          _cachedModel = _model;
+          _cachedProvider = _provider;
         }
-        if (pool.isEmpty) {
-          pool.add({'apiKey': _defaultApiKey, 'baseUrl': _defaultBaseUrl, 'model': _defaultModel, 'provider': 'openai'});
-        }
-        _keyPool = pool;
-        _cachedPool = pool;
-        _applyPoolEntry(pool.first);
-        _cachedApiKey = _apiKey;
-        _cachedBaseUrl = _baseUrl;
-        _cachedModel = _model;
-        _cachedProvider = _provider;
       }
     } catch (_) {
+      // Firestore read failed — reuse the last known good key if we have one.
       if (_cachedPool != null && _cachedPool!.isNotEmpty) {
         _keyPool = _cachedPool!;
         _applyPoolEntry(_keyPool.first);
@@ -755,6 +775,7 @@ class AiService {
 
     String? lastError;
     for (final entry in pool) {
+      if (failedModels.contains(entry['model'])) continue;
       _applyPoolEntry(entry);
       final fullBuffer = StringBuffer();
       http.Client? client;
@@ -766,6 +787,9 @@ class AiService {
 
         if (streamed.statusCode != 200) {
           lastError = _errorForStatus(streamed.statusCode);
+          if (streamed.statusCode == 429 || streamed.statusCode == 401 || streamed.statusCode == 403) {
+            failedModels.add(entry['model'] as String);
+          }
           client.close();
           continue;
         }

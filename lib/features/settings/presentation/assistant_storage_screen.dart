@@ -325,6 +325,8 @@ class _AssistantStorageScreenState extends State<AssistantStorageScreen> {
     final urlCtrl = TextEditingController();
     final serviceKeyCtrl = TextEditingController();
     final anonKeyCtrl = TextEditingController();
+    final storageLimitCtrl = TextEditingController(text: '1024');
+    bool autoSwitchEnabled = true;
     String? selectedUid;
     String selectedName = '';
     bool isLoading = false;
@@ -340,8 +342,8 @@ class _AssistantStorageScreenState extends State<AssistantStorageScreen> {
             if (errorMsg != null) ...[
               Container(
                 padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(color: Colors.redAccent.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
-                child: Row(children: [const Icon(Icons.error_outline, color: Colors.redAccent, size: 16), const SizedBox(width: 8), Expanded(child: Text(errorMsg!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)))]),
+                decoration: BoxDecoration(color: errorMsg!.contains('530') ? Colors.orange.withValues(alpha: 0.1) : Colors.redAccent.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+                child: Row(children: [Icon(errorMsg!.contains('530') ? Icons.warning_amber_rounded : Icons.error_outline, color: errorMsg!.contains('530') ? Colors.orangeAccent : Colors.redAccent, size: 16), const SizedBox(width: 8), Expanded(child: Text(errorMsg!, style: TextStyle(color: errorMsg!.contains('530') ? Colors.orangeAccent : Colors.redAccent, fontSize: 12)))]),
               ),
               const SizedBox(height: 12),
             ],
@@ -368,8 +370,15 @@ class _AssistantStorageScreenState extends State<AssistantStorageScreen> {
             TextField(controller: serviceKeyCtrl, style: TextStyle(color: baseColor), maxLines: 3, decoration: InputDecoration(labelText: 'Service Role Key', hintText: 'eyJhbGciOi...', labelStyle: TextStyle(color: dimColor), hintStyle: TextStyle(color: dimColor), filled: true, fillColor: fillColor, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
             const SizedBox(height: 12),
             TextField(controller: anonKeyCtrl, style: TextStyle(color: baseColor), maxLines: 3, decoration: InputDecoration(labelText: 'Anon Key', hintText: 'eyJhbGciOi...', labelStyle: TextStyle(color: dimColor), hintStyle: TextStyle(color: dimColor), filled: true, fillColor: fillColor, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
+            const SizedBox(height: 12),
+            TextField(controller: storageLimitCtrl, style: TextStyle(color: baseColor), keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Storage Limit (MB)', hintText: '1024 (1GB)', labelStyle: TextStyle(color: dimColor), hintStyle: TextStyle(color: dimColor), filled: true, fillColor: fillColor, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
             const SizedBox(height: 8),
-            Text('Buckets will be auto-created. Invalid credentials = account NOT added.', style: TextStyle(color: dimColor, fontSize: 11)),
+            Row(children: [
+              Checkbox(value: autoSwitchEnabled, activeColor: Colors.teal, onChanged: (v) => setDialog(() => autoSwitchEnabled = v ?? true)),
+              Expanded(child: Text('Auto-switch to next account when storage limit reached', style: TextStyle(color: baseColor, fontSize: 13))),
+            ]),
+            const SizedBox(height: 8),
+            Text('Buckets will be auto-created. Invalid credentials = account NOT added. Storage usage checked every 24h.', style: TextStyle(color: dimColor, fontSize: 11)),
           ])),
         ),
         actions: [
@@ -377,6 +386,7 @@ class _AssistantStorageScreenState extends State<AssistantStorageScreen> {
           ElevatedButton(
             onPressed: isLoading ? null : () async {
               if (selectedUid == null || urlCtrl.text.trim().isEmpty || serviceKeyCtrl.text.trim().isEmpty || anonKeyCtrl.text.trim().isEmpty) return;
+              final storageLimit = int.tryParse(storageLimitCtrl.text.trim()) ?? 1024;
               setDialog(() { isLoading = true; errorMsg = null; });
               final verifyResult = await FirebaseService.verifySupabaseCredentials(urlCtrl.text.trim(), serviceKeyCtrl.text.trim());
               if (verifyResult['valid'] != true) {
@@ -386,6 +396,8 @@ class _AssistantStorageScreenState extends State<AssistantStorageScreen> {
               await FirebaseService.addAssistantSupabaseAccount(
                 assistantUid: selectedUid!, assistantName: selectedName,
                 projectUrl: urlCtrl.text.trim(), serviceRoleKey: serviceKeyCtrl.text.trim(), anonKey: anonKeyCtrl.text.trim(),
+                storageLimitMB: storageLimit,
+                autoSwitchEnabled: autoSwitchEnabled,
               );
               if (d.mounted) Navigator.pop(d);
               _load();
@@ -409,29 +421,48 @@ class _AssistantStorageScreenState extends State<AssistantStorageScreen> {
     final urlCtrl = TextEditingController(text: acc['projectUrl'] as String? ?? '');
     final serviceKeyCtrl = TextEditingController(text: acc['serviceRoleKey'] as String? ?? '');
     final anonKeyCtrl = TextEditingController(text: acc['anonKey'] as String? ?? '');
+    final storageLimitCtrl = TextEditingController(text: (acc['storageLimitMB'] as int? ?? 1024).toString());
+    bool autoSwitchEnabled = acc['autoSwitchEnabled'] as bool? ?? true;
     final assistantName = acc['assistantName'] as String? ?? 'Unknown';
-    showDialog(context: context, builder: (d) => AlertDialog(
-      backgroundColor: bgColor,
-      title: Row(children: [const Icon(Icons.edit_rounded, color: Colors.teal, size: 22), const SizedBox(width: 8), Text('Edit $assistantName', style: TextStyle(color: baseColor, fontSize: 15))]),
-      content: SizedBox(
-        width: 500,
-        child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-          TextField(controller: urlCtrl, style: TextStyle(color: baseColor), decoration: InputDecoration(labelText: 'Project URL', labelStyle: TextStyle(color: dimColor), filled: true, fillColor: fillColor, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
-          const SizedBox(height: 12),
-          TextField(controller: serviceKeyCtrl, style: TextStyle(color: baseColor), maxLines: 3, decoration: InputDecoration(labelText: 'Service Role Key', labelStyle: TextStyle(color: dimColor), filled: true, fillColor: fillColor, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
-          const SizedBox(height: 12),
-          TextField(controller: anonKeyCtrl, style: TextStyle(color: baseColor), maxLines: 3, decoration: InputDecoration(labelText: 'Anon Key', labelStyle: TextStyle(color: dimColor), filled: true, fillColor: fillColor, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
-        ])),
-      ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(d), child: Text('Cancel', style: TextStyle(color: dimColor))),
-        ElevatedButton(onPressed: () async {
-          if (urlCtrl.text.trim().isEmpty || serviceKeyCtrl.text.trim().isEmpty || anonKeyCtrl.text.trim().isEmpty) return;
-          await FirebaseService.updateAssistantSupabaseAccount(acc['id'], projectUrl: urlCtrl.text.trim(), serviceRoleKey: serviceKeyCtrl.text.trim(), anonKey: anonKeyCtrl.text.trim());
-          if (d.mounted) Navigator.pop(d); _load();
-        }, style: ElevatedButton.styleFrom(backgroundColor: Colors.teal), child: const Text('Save', style: TextStyle(color: Colors.white))),
-      ],
-    ));
+    showDialog(context: context, builder: (d) => StatefulBuilder(builder: (ctx, setDialog) {
+      return AlertDialog(
+        backgroundColor: bgColor,
+        title: Row(children: [const Icon(Icons.edit_rounded, color: Colors.teal, size: 22), const SizedBox(width: 8), Text('Edit $assistantName', style: TextStyle(color: baseColor, fontSize: 15))]),
+        content: SizedBox(
+          width: 500,
+          child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextField(controller: urlCtrl, style: TextStyle(color: baseColor), decoration: InputDecoration(labelText: 'Project URL', labelStyle: TextStyle(color: dimColor), filled: true, fillColor: fillColor, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
+            const SizedBox(height: 12),
+            TextField(controller: serviceKeyCtrl, style: TextStyle(color: baseColor), maxLines: 3, decoration: InputDecoration(labelText: 'Service Role Key', labelStyle: TextStyle(color: dimColor), filled: true, fillColor: fillColor, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
+            const SizedBox(height: 12),
+            TextField(controller: anonKeyCtrl, style: TextStyle(color: baseColor), maxLines: 3, decoration: InputDecoration(labelText: 'Anon Key', labelStyle: TextStyle(color: dimColor), filled: true, fillColor: fillColor, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
+            const SizedBox(height: 12),
+            TextField(controller: storageLimitCtrl, style: TextStyle(color: baseColor), keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Storage Limit (MB)', labelStyle: TextStyle(color: dimColor), filled: true, fillColor: fillColor, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
+            const SizedBox(height: 8),
+            Row(children: [
+              Checkbox(value: autoSwitchEnabled, activeColor: Colors.teal, onChanged: (v) => setDialog(() => autoSwitchEnabled = v ?? true)),
+              Expanded(child: Text('Auto-switch to next account when storage limit reached', style: TextStyle(color: baseColor, fontSize: 13))),
+            ]),
+          ])),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(d), child: Text('Cancel', style: TextStyle(color: dimColor))),
+          ElevatedButton(onPressed: () async {
+            if (urlCtrl.text.trim().isEmpty || serviceKeyCtrl.text.trim().isEmpty || anonKeyCtrl.text.trim().isEmpty) return;
+            final storageLimit = int.tryParse(storageLimitCtrl.text.trim()) ?? 1024;
+            await FirebaseService.updateAssistantSupabaseAccount(
+              acc['id'],
+              projectUrl: urlCtrl.text.trim(),
+              serviceRoleKey: serviceKeyCtrl.text.trim(),
+              anonKey: anonKeyCtrl.text.trim(),
+              storageLimitMB: storageLimit,
+              autoSwitchEnabled: autoSwitchEnabled,
+            );
+            if (d.mounted) Navigator.pop(d); _load();
+          }, style: ElevatedButton.styleFrom(backgroundColor: Colors.teal), child: const Text('Save', style: TextStyle(color: Colors.white))),
+        ],
+      );
+    }));
   }
 
   void _showDeleteAssistantSupabaseDialog(Map<String, dynamic> acc) {

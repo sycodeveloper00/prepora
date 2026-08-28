@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:uuid/uuid.dart';
 
 /// TTL in-memory cache for non-user data (settings, folders, etc.)
 class _TtlCache {
@@ -574,13 +575,13 @@ class SupabaseReadService {
   }
 
   static Future<List<Map<String, dynamic>>?> getUsersByRole(String role) async {
-    final rows = await _query('users', 'role=eq.$role&$_sel');
+    final rows = await _query('users', 'role=eq.$role&$_sel&order=created_at.desc');
     if (rows == null) return null;
     return rows.map(_flatten).toList();
   }
 
   static Future<List<Map<String, dynamic>>?> getUsersWhere(String filter) async {
-    final rows = await _query('users', '$filter&$_sel');
+    final rows = await _query('users', '$filter&$_sel&order=created_at.desc');
     if (rows == null) return null;
     return rows.map(_flatten).toList();
   }
@@ -589,7 +590,7 @@ class SupabaseReadService {
     String role, {
     Duration interval = const Duration(seconds: 10),
   }) {
-    return _poll('users', 'role=eq.$role&$_sel', interval: interval);
+    return _poll('users', 'role=eq.$role&$_sel&order=created_at.desc', interval: interval);
   }
 
   // ─── settings ─────────────────────────────────────────────────────────────
@@ -945,9 +946,13 @@ class SupabaseReadService {
   }
 
   static Future<List<Map<String, dynamic>>?> getAiApiKeys() async {
-    final rows = await _query('ai_api_keys', '$_sel&order=created_at.asc');
+    final rows = await _query('ai_api_keys', '$_sel&order=created_at.desc');
     if (rows == null) return null;
     return rows.map(_flatten).toList();
+  }
+
+  static Future<List<Map<String, dynamic>>?> getAllAiApiKeys() async {
+    return getAiApiKeys();
   }
 
   static Future<Map<String, dynamic>?> getActiveAiApiKey() async {
@@ -1130,7 +1135,7 @@ class SupabaseReadService {
   }
 
   // ─── Keep-Alive Pinger ───────────────────────────────────────────────────
-  // Pings all 4 Supabase projects every 6h to prevent free-tier pause.
+  // Pings all 8 Supabase projects every 24h to prevent free-tier pause.
 
   static Timer? _keepAliveTimer;
   static DateTime? _lastPingTime;
@@ -1142,7 +1147,7 @@ class SupabaseReadService {
   static void startKeepAlive() {
     _keepAliveTimer?.cancel();
     _pingAllProjects();
-    _keepAliveTimer = Timer.periodic(const Duration(hours: 6), (_) => _pingAllProjects());
+    _keepAliveTimer = Timer.periodic(const Duration(hours: 24), (_) => _pingAllProjects());
   }
 
   static Future<void> _pingAllProjects() async {
@@ -1150,6 +1155,7 @@ class SupabaseReadService {
     for (final project in _projects) {
       try {
         final url = '${project['url']}/rest/v1/settings?select=id&limit=1';
+        final start = DateTime.now();
         final resp = await http.get(
           Uri.parse(url),
           headers: {
@@ -1157,11 +1163,52 @@ class SupabaseReadService {
             'Authorization': 'Bearer ${project['anon']}',
           },
         ).timeout(const Duration(seconds: 10));
-        if (resp.statusCode == 200) anySuccess = true;
-      } catch (_) {}
+        final responseTime = DateTime.now().difference(start).inMilliseconds;
+        final success = resp.statusCode == 200;
+        if (success) anySuccess = true;
+
+        // Log ping result
+        await _logPing(
+          projectUrl: project['url']!,
+          projectType: 'system',
+          status: success ? 'success' : (resp.statusCode == 530 ? 'paused_530' : 'failed'),
+          responseTimeMs: responseTime,
+          errorMessage: success ? null : 'HTTP ${resp.statusCode}',
+        );
+      } catch (e) {
+        await _logPing(
+          projectUrl: project['url']!,
+          projectType: 'system',
+          status: 'failed',
+          responseTimeMs: 0,
+          errorMessage: e.toString(),
+        );
+      }
     }
     _lastPingTime = DateTime.now();
     _lastPingSuccess = anySuccess;
+  }
+
+  static Future<void> _logPing({
+    required String projectUrl,
+    required String projectType,
+    String? accountId,
+    required String status,
+    required int responseTimeMs,
+    String? errorMessage,
+  }) async {
+    try {
+      final data = {
+        'project_url': projectUrl,
+        'project_type': projectType,
+        'account_id': accountId,
+        'status': status,
+        'response_time_ms': responseTimeMs,
+        'error_message': errorMessage,
+        'pinged_at': DateTime.now().toIso8601String(),
+      };
+      await _writeAll('supabase_ping_log', const Uuid().v4(), data);
+    } catch (_) {}
   }
 
   static Future<Map<String, int>> getDatabaseStats() async {
