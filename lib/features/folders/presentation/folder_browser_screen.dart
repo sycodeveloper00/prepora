@@ -291,7 +291,7 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
         'type': 'subfolder',
         'name': name,
         'parentContentId': parent.isTopLevel ? null : parent.id,
-        'createdAt': FieldValue.serverTimestamp(),
+        'createdAt': DateTime.now().toIso8601String(),
       });
       // Re-fetch sub-folders for this top-level folder
       final snap = await FirebaseService.firestore

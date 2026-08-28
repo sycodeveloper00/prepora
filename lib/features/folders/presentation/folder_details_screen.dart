@@ -94,8 +94,8 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
   }
 
   // ─── Cached futures & streams to prevent blinking rebuild loops ───
-  late Future<DocumentSnapshot> _folderFuture;
-  late Stream<QuerySnapshot> _contentsStream;
+  late Future<Map<String, dynamic>?> _folderFuture;
+  late Stream<List<Map<String, dynamic>>> _contentsStream;
 
   @override
   void initState() {
@@ -200,12 +200,11 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
     FirebaseService.firestore.collection('folders').doc(widget.folderId).update({'sortModes.$_sortKey': mode});
   }
 
-  List<DocumentSnapshot> _filterDocs(List<DocumentSnapshot> docs, String query) {
+  List<Map<String, dynamic>> _filterDocs(List<Map<String, dynamic>> docs, String query) {
     if (query.isEmpty) return docs;
     final q = query.toLowerCase();
     return docs.where((doc) {
-      final data = doc.data() as Map<String, dynamic>;
-      final name = (data['name'] as String? ?? '').toLowerCase();
+      final name = (doc['name'] as String? ?? '').toLowerCase();
       return name.contains(q);
     }).toList();
   }
@@ -1528,11 +1527,11 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<DocumentSnapshot>(
+    return FutureBuilder<Map<String, dynamic>?>(
       future: _folderFuture,
       builder: (context, folderSnap) {
-        if (folderSnap.hasData && folderSnap.data!.exists) {
-          _folderName = (folderSnap.data!.data() as Map<String, dynamic>)['name'] as String? ?? 'Folder';
+        if (folderSnap.hasData && folderSnap.data != null) {
+          _folderName = folderSnap.data!['name'] as String? ?? 'Folder';
         }
         final isLoading = folderSnap.connectionState == ConnectionState.waiting;
         final folderName = _folderName.isNotEmpty ? _folderName : (isLoading ? '' : 'Folder');
@@ -1640,11 +1639,11 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
               _buildSelectionToolbar(),
               if (UploadManager.instance.isUploading) _buildUploadPanel(),
               Expanded(
-                child: StreamBuilder<QuerySnapshot>(
+                child: StreamBuilder<List<Map<String, dynamic>>>(
                   stream: _contentsStream,
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: ProfessionalLoader());
-                    if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                    if (!snapshot.hasData || snapshot.data!.isEmpty) {
                       return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                         const Icon(Icons.folder_open_rounded, size: 80, color: Colors.white12),
                         const SizedBox(height: 16),
@@ -1653,10 +1652,9 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
                       ]));
                     }
 
-                    final docs = snapshot.data!.docs;
+                    final docs = snapshot.data!;
                     final parentFiltered = docs.where((doc) {
-                      final data = doc.data() as Map<String, dynamic>;
-                      final docParentId = data['parentContentId'] as String?;
+                      final docParentId = doc['parentContentId'] as String?;
                       if (widget.parentContentId != null) {
                         if (docParentId != widget.parentContentId) return false;
                       } else {
@@ -1669,13 +1667,12 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
                     final visibleDocs = widget.isAdmin
                         ? filteredDocs
                         : filteredDocs.where((doc) {
-                            final d = doc.data() as Map<String, dynamic>;
-                            return d['invisible'] != true;
+                            return doc['invisible'] != true;
                           }).toList();
 
                     // If local order has missing or extra IDs vs stream, reset local order
                     if (_hasLocalOrder && _searchQuery.isEmpty) {
-                      final streamIds = visibleDocs.map((d) => d.id).toSet();
+                      final streamIds = visibleDocs.map((d) => d['id'] as String).toSet();
                       final localIds = _localOrderMap.keys.toSet();
                       if (!localIds.containsAll(streamIds) || localIds.length != streamIds.length) {
                         _hasLocalOrder = false;
@@ -1686,32 +1683,32 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
                       _localOrderMap.clear();
                       // Sort by stored order field first (for persistence across app restarts)
                       visibleDocs.sort((a, b) {
-                        final aOrder = (a.data() as Map<String, dynamic>)['order'] as num? ?? 999999;
-                        final bOrder = (b.data() as Map<String, dynamic>)['order'] as num? ?? 999999;
+                        final aOrder = a['order'] as num? ?? 999999;
+                        final bOrder = b['order'] as num? ?? 999999;
                         return aOrder.compareTo(bOrder);
                       });
                       for (int i = 0; i < visibleDocs.length; i++) {
-                        _localOrderMap[visibleDocs[i].id] = i;
+                        _localOrderMap[visibleDocs[i]['id'] as String] = i;
                       }
                     }
 
                     // Apply sort mode
                     if (_sortMode == 'az' || _sortMode == 'custom_asc') {
                       visibleDocs.sort((a, b) {
-                        final aName = (a.data() as Map<String, dynamic>)['name'] as String? ?? '';
-                        final bName = (b.data() as Map<String, dynamic>)['name'] as String? ?? '';
+                        final aName = a['name'] as String? ?? '';
+                        final bName = b['name'] as String? ?? '';
                         return _naturalCompare(aName, bName);
                       });
                     } else if (_sortMode == 'za' || _sortMode == 'custom_desc') {
                       visibleDocs.sort((a, b) {
-                        final aName = (a.data() as Map<String, dynamic>)['name'] as String? ?? '';
-                        final bName = (b.data() as Map<String, dynamic>)['name'] as String? ?? '';
+                        final aName = a['name'] as String? ?? '';
+                        final bName = b['name'] as String? ?? '';
                         return _naturalCompare(bName, aName);
                       });
                     } else {
                       // Custom order — use local order map
                       if (_hasLocalOrder && _searchQuery.isEmpty) {
-                        visibleDocs.sort((a, b) => (_localOrderMap[a.id] ?? 9999).compareTo(_localOrderMap[b.id] ?? 9999));
+                        visibleDocs.sort((a, b) => (_localOrderMap[a['id'] as String] ?? 9999).compareTo(_localOrderMap[b['id'] as String] ?? 9999));
                       }
                     }
 
@@ -1724,7 +1721,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
                       ]));
                     }
 
-                    _visibleContentIds = visibleDocs.map((d) => d.id).toList();
+                    _visibleContentIds = visibleDocs.map((d) => d['id'] as String).toList();
 
                     final useCustomOrder = widget.isAdmin && (_sortMode == 'custom' || _sortMode == 'custom_asc' || _sortMode == 'custom_desc');
                     final listWidget = useCustomOrder
@@ -1745,19 +1742,19 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
                               WidgetsBinding.instance.addPostFrameCallback((_) {
                                 if (mounted) setState(() {});
                               });
-                              final allDocs = snapshot.data!.docs.toList();
+                              final allDocs = snapshot.data!;
                               final reordered = allDocs.where((doc) {
-                                final d = doc.data() as Map<String, dynamic>;
+                                final d = doc;
                                 final pid = d['parentContentId'] as String?;
                                 if (widget.parentContentId != null) {
                                   return pid == widget.parentContentId;
                                 }
                                 return pid == null;
                               }).toList();
-                              reordered.sort((a, b) => (_localOrderMap[a.id] ?? 9999).compareTo(_localOrderMap[b.id] ?? 9999));
+                              reordered.sort((a, b) => (_localOrderMap[a['id'] as String] ?? 9999).compareTo(_localOrderMap[b['id'] as String] ?? 9999));
                               final batch = FirebaseService.firestore.batch();
                               for (int i = 0; i < reordered.length; i++) {
-                                batch.update(reordered[i].reference, {'order': i});
+                                batch.update(FirebaseService.firestore.collection('folders').doc(widget.folderId).collection('contents').doc(reordered[i]['id'] as String), {'order': i});
                               }
                               await batch.commit();
                             },
@@ -1773,9 +1770,9 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
                               );
                             },
                             itemBuilder: (context, index) {
-                              final data = visibleDocs[index].data() as Map<String, dynamic>;
+                              final data = visibleDocs[index];
                               final type = data['type'] as String? ?? 'file';
-                              final docId = visibleDocs[index].id;
+                              final docId = data['id'] as String;
                               return Container(
                                 key: ValueKey(docId),
                                 child: _buildContentCard(context, docId, data, type, index),
@@ -1786,9 +1783,9 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
                             padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 100),
                             itemCount: visibleDocs.length,
                             itemBuilder: (context, index) {
-                              final data = visibleDocs[index].data() as Map<String, dynamic>;
+                              final data = visibleDocs[index];
                               final type = data['type'] as String? ?? 'file';
-                              final docId = visibleDocs[index].id;
+                              final docId = data['id'] as String;
                               return _buildContentCard(context, docId, data, type, index);
                             },
                           );
