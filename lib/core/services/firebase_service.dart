@@ -1515,7 +1515,12 @@ class FirebaseService {
   // ─── Notifications ─────────────────────────────────────────────────────────────
 
   static Stream<QuerySnapshot> getNotificationsForUser(String uid, DateTime since) {
-    return SupabaseReadService.streamNotifications(uid, since).map((rows) => _MirrorQuerySnapshot(rows));
+    return firestore
+        .collection('notifications')
+        .where('uid', isEqualTo: uid)
+        .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(since))
+        .orderBy('createdAt', descending: true)
+        .snapshots();
   }
 
   static Future<void> markStudentNotificationsRead(String uid) async {
