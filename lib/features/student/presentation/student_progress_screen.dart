@@ -75,7 +75,7 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
     }
     if (mounted) {
       setState(() {
-        _activitiesStream = SupabaseReadService.streamStudentActivities(uid);
+        _activitiesStream = FirebaseService.getStudentActivities(uid);
       });
     }
     try {

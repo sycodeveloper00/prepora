@@ -1593,7 +1593,10 @@ class _DashboardScreenState extends State<DashboardScreen>
                         final ticket = data['ticketNo'] as String? ?? '';
                         final msg = data['message'] as String? ?? '';
                         final status = data['status'] as String? ?? 'pending';
-                        final time = (data['createdAt'] as Timestamp?)?.toDate();
+                        final rawTime = data['createdAt'] ?? data['created_at'];
+                        DateTime? time;
+                        if (rawTime is Timestamp) time = rawTime.toDate();
+                        else if (rawTime is String) time = DateTime.tryParse(rawTime);
                         final timeStr = time != null ? '${time.day}/${time.month}/${time.year} ${time.hour}:${time.minute.toString().padLeft(2, '0')}' : '';
                         final statusColor = status == 'completed' ? Colors.green : (status == 'rejected' ? Colors.red : (status == 'verified' ? Colors.teal : Colors.orange));
                         return Card(

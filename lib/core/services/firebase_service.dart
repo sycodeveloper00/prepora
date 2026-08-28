@@ -1515,27 +1515,23 @@ class FirebaseService {
   // ─── Notifications ─────────────────────────────────────────────────────────────
 
   static Stream<QuerySnapshot> getNotificationsForUser(String uid, DateTime since) {
-    return firestore
-        .collection('notifications')
-        .where('uid', isEqualTo: uid)
-        .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(since))
-        .orderBy('createdAt', descending: true)
-        .snapshots();
+    return SupabaseReadService.streamNotifications(uid, since).map((rows) => _MirrorQuerySnapshot(rows));
   }
 
   static Future<void> markStudentNotificationsRead(String uid) async {
-    final snap = await firestore
-        .collection('notifications')
-        .where('uid', isEqualTo: uid)
-        .get();
-    final batch = firestore.batch();
-    for (final d in snap.docs) {
-      final data = d.data();
-      if (data['read'] == false) {
-        batch.update(d.reference, {'read': true});
+    List<Map<String, dynamic>>? unread;
+    try { unread = await SupabaseReadService.getUnreadNotificationsForUser(uid); } catch (_) {}
+    if (unread != null && unread.isNotEmpty) {
+      for (final row in unread) {
+        final id = row['id'] as String?;
+        if (id != null && id.isNotEmpty) {
+          await _mirrorWrite('notifications', id, {
+            ...row,
+            'read': true,
+          });
+        }
       }
     }
-    await batch.commit();
   }
 
   // ─── Admin Notifications ───────────────────────────────────────────────────────
@@ -1837,6 +1833,13 @@ class FirebaseService {
       'folderPath': folderPath,
       'startedAt': FieldValue.serverTimestamp(),
     });
+    await _mirrorWrite('student_activities', doc.id, {
+      'uid': uid,
+      'name': name,
+      'type': type,
+      'folderPath': folderPath,
+      'startedAt': DateTime.now().toIso8601String(),
+    });
     return doc.id;
   }
 
@@ -1920,6 +1923,15 @@ class FirebaseService {
       final doc = await firestore.collection('feedbacks').add(data);
       final ticketNo = doc.id.substring(0, 6).toUpperCase();
       await doc.update({'ticketNo': ticketNo});
+      await _mirrorWrite('feedbacks', doc.id, {
+        'message': data['message'],
+        'uid': data['uid'],
+        'student_name': data['student_name'],
+        'createdAt': DateTime.now().toIso8601String(),
+        'status': 'pending',
+        'viewed': false,
+        'ticketNo': ticketNo,
+      });
       final name = currentUser?.displayName ?? 'Unknown';
       await addAdminNotification('feedback', 'New Contact Support message from $name', relatedUid: currentUser?.uid);
       return doc.id;
@@ -1931,7 +1943,7 @@ class FirebaseService {
   static Future<List<Map<String, dynamic>>> getStudentFeedbacksOnce(String uid) async {
     try {
       final mirror = await SupabaseReadService.getFeedbacksForUser(uid);
-      if (mirror != null) return mirror;
+      if (mirror != null && mirror.isNotEmpty) return mirror;
     } catch (_) {}
     final snap = await firestore
         .collection('feedbacks')

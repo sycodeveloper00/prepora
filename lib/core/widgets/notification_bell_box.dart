@@ -23,14 +23,22 @@ class NotificationBellBox extends StatefulWidget {
 class _NotificationBellBoxState extends State<NotificationBellBox> {
   late List<QueryDocumentSnapshot> _docs;
 
+  static DateTime? _parseCreatedAt(dynamic value) {
+    if (value == null) return null;
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    if (value is String) return DateTime.tryParse(value);
+    return null;
+  }
+
   @override
   void initState() {
     super.initState();
     _docs = List.from(widget.docs)
       ..sort((a, b) {
-        final aTime = (a.data() as Map<String, dynamic>)['createdAt'] as Timestamp?;
-        final bTime = (b.data() as Map<String, dynamic>)['createdAt'] as Timestamp?;
-        return (bTime?.toDate() ?? DateTime(0)).compareTo(aTime?.toDate() ?? DateTime(0));
+        final aTime = _parseCreatedAt((a.data() as Map<String, dynamic>)['createdAt'] ?? (a.data() as Map<String, dynamic>)['created_at']);
+        final bTime = _parseCreatedAt((b.data() as Map<String, dynamic>)['createdAt'] ?? (b.data() as Map<String, dynamic>)['created_at']);
+        return (bTime ?? DateTime(0)).compareTo(aTime ?? DateTime(0));
       });
   }
 
@@ -40,9 +48,9 @@ class _NotificationBellBoxState extends State<NotificationBellBox> {
     if (widget.docs != oldWidget.docs) {
       _docs = List.from(widget.docs)
         ..sort((a, b) {
-          final aTime = (a.data() as Map<String, dynamic>)['createdAt'] as Timestamp?;
-          final bTime = (b.data() as Map<String, dynamic>)['createdAt'] as Timestamp?;
-          return (bTime?.toDate() ?? DateTime(0)).compareTo(aTime?.toDate() ?? DateTime(0));
+          final aTime = _parseCreatedAt((a.data() as Map<String, dynamic>)['createdAt'] ?? (a.data() as Map<String, dynamic>)['created_at']);
+          final bTime = _parseCreatedAt((b.data() as Map<String, dynamic>)['createdAt'] ?? (b.data() as Map<String, dynamic>)['created_at']);
+          return (bTime ?? DateTime(0)).compareTo(aTime ?? DateTime(0));
         });
     }
   }
@@ -124,7 +132,7 @@ class _NotificationBellBoxState extends State<NotificationBellBox> {
                   itemBuilder: (context, index) {
                     final data = _docs[index].data() as Map<String, dynamic>;
                     final message = data['message'] as String? ?? '';
-                    final time = (data['createdAt'] as Timestamp?)?.toDate();
+                    final time = _parseCreatedAt(data['createdAt'] ?? data['created_at']);
                     final isRead = data['read'] == true;
                     return Container(
                       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),

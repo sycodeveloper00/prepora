@@ -1347,9 +1347,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
       final currentUser = FirebaseService.currentUser;
       if (currentUser != null) {
         final folderPath = _subfolderName.isNotEmpty ? '$_folderName > $_subfolderName' : _folderName;
-        FirebaseService.logActivity(uid: currentUser.uid, name: name, type: type, folderPath: folderPath).then((id) {
-          activityId = id;
-        });
+        activityId = await FirebaseService.logActivity(uid: currentUser.uid, name: name, type: type, folderPath: folderPath);
       }
     }
 
