@@ -148,7 +148,7 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             _buildProfileHeader(cardColor, textColor, dimColor, isDark),
-                            if (_freeTrialActive && _freeTrialEndsAt != null) ...[
+                            if (_freeTrialActive && _freeTrialEndsAt != null && !_isVerified) ...[
                               const SizedBox(height: 6),
                               _buildTrialBanner(isDark, textColor),
                             ],

@@ -2,12 +2,14 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class WebScraperService {
+  static const Duration _timeout = Duration(seconds: 8);
+
   static Future<String?> fetchUrlContent(String url) async {
     try {
       final uri = Uri.parse(url);
       final response = await http.get(uri, headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      });
+      }).timeout(_timeout);
       if (response.statusCode == 200) {
         final body = response.body;
         final cleaned = _stripHtml(body);
@@ -23,7 +25,7 @@ class WebScraperService {
     try {
       final response = await http.get(
         Uri.parse('https://youtubetranscript.com/?v=$videoId'),
-      );
+      ).timeout(_timeout);
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data is List) {
@@ -44,7 +46,7 @@ class WebScraperService {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         },
-      );
+      ).timeout(_timeout);
       if (response.statusCode == 200) {
         final body = response.body;
         final videoIds = RegExp(r'\/watch\?v=([a-zA-Z0-9_-]{11})').allMatches(body).toList();

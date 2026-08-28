@@ -131,7 +131,15 @@ class _AiChatScreenState extends State<AiChatScreen> with SingleTickerProviderSt
     try {
       String messageToSend = fullMessage;
 
-      final webContext = await WebScraperService.processMessage(fullMessage);
+      // Add timeout for web context so it doesn't block AI response
+      String? webContext;
+      try {
+        webContext = await WebScraperService.processMessage(fullMessage)
+            .timeout(const Duration(seconds: 10), onTimeout: () => null);
+      } catch (_) {
+        webContext = null; // Fail silently, continue without web context
+      }
+      
       if (webContext != null) {
         messageToSend = '$fullMessage\n\n[WEB CONTEXT]\n$webContext';
       }

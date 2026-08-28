@@ -225,18 +225,34 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
     _scannerController?.stop();
 
     try {
+      // First check Firestore (local source of truth)
       final sessionDoc = FirebaseService.firestore.collection('web_sessions').doc(sessionId);
       final sessionSnap = await sessionDoc.get();
 
+      Map<String, dynamic>? sessionData;
+      
       if (!sessionSnap.exists) {
-        _showError('Invalid QR code. Please try again.');
-        setState(() { _isConnecting = false; _showScanner = true; });
-        _scannerController?.start();
-        return;
+        // Fallback: check Supabase mirror (created by Web API)
+        try {
+          final mirror = await SupabaseReadService.getWebSession(sessionId);
+          if (mirror != null) {
+            sessionData = mirror;
+            // Sync to Firestore for future reads
+            await sessionDoc.set(mirror);
+          }
+        } catch (_) {}
+        
+        if (sessionData == null) {
+          _showError('Invalid QR code. Please try again.');
+          setState(() { _isConnecting = false; _showScanner = true; });
+          _scannerController?.start();
+          return;
+        }
+      } else {
+        sessionData = sessionSnap.data();
       }
 
-      final sessionData = sessionSnap.data()!;
-      if (sessionData['status'] == 'connected' && sessionData['uid'] != user.uid) {
+      if (sessionData!['status'] == 'connected' && sessionData['uid'] != user.uid) {
         _showError('This QR code is already linked to another account.');
         setState(() { _isConnecting = false; _showScanner = true; });
         _scannerController?.start();

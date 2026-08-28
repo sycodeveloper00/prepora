@@ -1978,17 +1978,30 @@ class FirebaseService {
   static Future<List<Map<String, dynamic>>> getAllNotes() async {
     final uid = currentUser?.uid;
     if (uid == null) return [];
+    
+    // Read from Firestore first for immediate visibility (local source of truth)
+    try {
+      final snap = await firestore.collection('users').doc(uid).collection('notes')
+          .orderBy('updatedAt', descending: true).get();
+      if (snap.docs.isNotEmpty) {
+        return snap.docs.map((d) {
+          final data = d.data();
+          return {
+            'id': d.id,
+            'content': data['content'] as String? ?? '',
+            'lectureName': data['lectureName'] as String? ?? 'Unknown Lecture',
+            'updatedAt': (data['updatedAt'] as Timestamp?)?.toDate()?.toIso8601String() ?? '',
+          };
+        }).toList();
+      }
+    } catch (_) {}
+    
+    // Fallback to Supabase mirror if Firestore unavailable
     try {
       final mirror = await SupabaseReadService.getNotes(uid);
       if (mirror != null) return mirror;
     } catch (_) {}
-    final snap = await firestore
-        .collection('users')
-        .doc(uid)
-        .collection('notes')
-        .orderBy('updatedAt', descending: true)
-        .get();
-    return snap.docs.map((e) => {'id': e.id, ...e.data()}).toList();
+    return [];
   }
 
   static Future<void> deleteNote(String id) async {
