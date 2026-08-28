@@ -1223,7 +1223,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 if (_isProcessing) return;
                 setState(() => _isProcessing = true);
                 await FirebaseService.signOut();
-                if (context.mounted) context.go('/auth/login');
+                if (mounted && context.mounted) context.go('/auth/login');
               },
               child: Opacity(
                 opacity: _isProcessing ? 0.5 : 1.0,

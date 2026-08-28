@@ -6,6 +6,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:intl/intl.dart';
 import 'dart:io' show Platform;
 import '../../../core/services/firebase_service.dart';
+import '../../../core/services/supabase_read_service.dart';
 
 class LinkWebScreen extends StatefulWidget {
   const LinkWebScreen({super.key});
