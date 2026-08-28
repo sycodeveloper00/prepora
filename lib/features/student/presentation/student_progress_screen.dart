@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import '../../../core/services/firebase_service.dart';
+import '../../../core/services/supabase_read_service.dart';
 import '../../../core/widgets/professional_loader.dart';
 
 class StudentProgressScreen extends StatefulWidget {
@@ -13,6 +14,16 @@ class StudentProgressScreen extends StatefulWidget {
 
   @override
   State<StudentProgressScreen> createState() => _StudentProgressScreenState();
+}
+
+DateTime? _parseActivityDate(dynamic value) {
+  if (value == null) return null;
+  if (value is DateTime) return value;
+  if (value is Timestamp) return value.toDate();
+  if (value is String) {
+    try { return DateTime.parse(value); } catch (_) { return null; }
+  }
+  return null;
 }
 
 class _StudentProgressScreenState extends State<StudentProgressScreen> with SingleTickerProviderStateMixin {
@@ -54,11 +65,18 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
     super.dispose();
   }
 
+  Stream<List<Map<String, dynamic>>>? _activitiesStream;
+
   Future<void> _loadUserData() async {
     final uid = _uid;
     if (uid.isEmpty) {
       if (mounted) setState(() => _loadingUser = false);
       return;
+    }
+    if (mounted) {
+      setState(() {
+        _activitiesStream = SupabaseReadService.streamStudentActivities(uid);
+      });
     }
     try {
       final results = await Future.wait([
@@ -71,6 +89,10 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
       final feedbacks = results[1] as List<Map<String, dynamic>>;
       final streak = results[2] as Map<String, dynamic>;
       final trial = results[3] as Map<String, dynamic>;
+      final trialActive = trial['active'] == true;
+      final endsAt = trial['endsAt'];
+      final trialEnd = endsAt is String ? DateTime.tryParse(endsAt) : (endsAt as DateTime?);
+      final isTrialActive = trialActive && (trialEnd?.isAfter(DateTime.now()) ?? false);
       if (mounted) {
         setState(() {
           _isVerified = userData?['verified'] == true;
@@ -83,11 +105,11 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
           _totalActiveDays = streak['totalActiveDays'] as int? ?? 0;
           _lastActiveDate = streak['lastActiveDate'] as String? ?? '';
           _streakBest = (userData?['streakBest'] as int?) ?? (userData?['streak_best'] as int?) ?? _streakCount;
-          _freeTrialActive = trial['active'] == true;
-          _freeTrialEndsAt = trial['endsAt'] as DateTime?;
+          _freeTrialActive = isTrialActive;
+          _freeTrialEndsAt = trialEnd;
           _loadingUser = false;
         });
-        if (_freeTrialActive && _freeTrialEndsAt != null) {
+        if (isTrialActive) {
           _trialCountdownTimer?.cancel();
           _trialCountdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
             if (mounted) setState(() {});
@@ -95,6 +117,7 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
         }
       }
     } catch (e) {
+      debugPrint('[StudentProgress] _loadUserData error: $e');
       if (mounted) setState(() => _loadingUser = false);
     }
   }
@@ -136,8 +159,8 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
                           ],
                         ),
                       ),
-                      StreamBuilder<QuerySnapshot>(
-                        stream: FirebaseService.getStudentActivities(_uid),
+                      StreamBuilder<List<Map<String, dynamic>>>(
+                        stream: _activitiesStream,
                         builder: (context, snapshot) {
                           if (snapshot.hasError) {
                             return SliverFillRemaining(
@@ -156,7 +179,7 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
                           if (snapshot.connectionState == ConnectionState.waiting) {
                             return const SliverFillRemaining(child: Center(child: ProfessionalLoader()));
                           }
-                          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                          if (!snapshot.hasData || snapshot.data!.isEmpty) {
                             return SliverFillRemaining(
                               child: SingleChildScrollView(
                                 child: Column(children: [
@@ -170,11 +193,11 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
                               ),
                             );
                           }
-                          final docs = snapshot.data!.docs.toList()
+                          final docs = snapshot.data!.toList()
                             ..sort((a, b) {
-                              final aTime = (a.data() as Map<String, dynamic>)['startedAt'] as Timestamp?;
-                              final bTime = (b.data() as Map<String, dynamic>)['startedAt'] as Timestamp?;
-                              return (bTime?.toDate() ?? DateTime(2000)).compareTo(aTime?.toDate() ?? DateTime(2000));
+                              final aTime = _parseActivityDate(a['startedAt']);
+                              final bTime = _parseActivityDate(b['startedAt']);
+                              return (bTime ?? DateTime(2000)).compareTo(aTime ?? DateTime(2000));
                             });
                           return SliverToBoxAdapter(
                             child: _buildStatsContent(docs, cardColor, textColor, dimColor, isDark),
@@ -415,15 +438,14 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
   }
 
   // ─── Stats Content (from activities) ────────────────────────────────────────
-  Widget _buildStatsContent(List<QueryDocumentSnapshot> docs, Color cardColor, Color textColor, Color dimColor, bool isDark) {
+  Widget _buildStatsContent(List<Map<String, dynamic>> docs, Color cardColor, Color textColor, Color dimColor, bool isDark) {
     final totalCount = docs.length;
     final now = DateTime.now();
 
     int totalMinutes = 0;
-    for (final doc in docs) {
-      final data = doc.data() as Map<String, dynamic>;
-      final startedAt = (data['startedAt'] as Timestamp?)?.toDate();
-      final endedAt = (data['endedAt'] as Timestamp?)?.toDate();
+    for (final data in docs) {
+      final startedAt = _parseActivityDate(data['startedAt']);
+      final endedAt = _parseActivityDate(data['endedAt']);
       if (startedAt != null && endedAt != null) {
         totalMinutes += endedAt.difference(startedAt).inMinutes;
       }
@@ -431,10 +453,10 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
     final hours = totalMinutes ~/ 60;
     final mins = totalMinutes % 60;
 
-    final lectures = docs.where((d) => (d.data() as Map)['type'] == 'lecture').length;
-    final files = docs.where((d) => (d.data() as Map)['type'] == 'file').length;
+    final lectures = docs.where((d) => d['type'] == 'lecture').length;
+    final files = docs.where((d) => d['type'] == 'file').length;
     final mockTests = docs.where((d) {
-      final t = (d.data() as Map)['type'] as String? ?? '';
+      final t = d['type'] as String? ?? '';
       return t.contains('mocktest');
     }).length;
 
@@ -442,9 +464,8 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
     final dailyCounts = <int>[];
     for (final day in last7Days) {
       int count = 0;
-      for (final doc in docs) {
-        final data = doc.data() as Map<String, dynamic>;
-        final startedAt = (data['startedAt'] as Timestamp?)?.toDate();
+      for (final data in docs) {
+        final startedAt = _parseActivityDate(data['startedAt']);
         if (startedAt != null && startedAt.year == day.year && startedAt.month == day.month && startedAt.day == day.day) {
           count++;
         }
@@ -457,9 +478,8 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
     final monthlyCounts = <int>[];
     for (final day in last30Days) {
       int count = 0;
-      for (final doc in docs) {
-        final data = doc.data() as Map<String, dynamic>;
-        final startedAt = (data['startedAt'] as Timestamp?)?.toDate();
+      for (final data in docs) {
+        final startedAt = _parseActivityDate(data['startedAt']);
         if (startedAt != null && startedAt.year == day.year && startedAt.month == day.month && startedAt.day == day.day) {
           count++;
         }
@@ -469,8 +489,7 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
     final maxMonthly = monthlyCounts.isNotEmpty ? monthlyCounts.reduce((a, b) => a > b ? a : b).toDouble() : 5.0;
 
     final subjectMap = <String, int>{};
-    for (final doc in docs) {
-      final data = doc.data() as Map<String, dynamic>;
+    for (final data in docs) {
       final folderPath = data['folderPath'] as String? ?? '';
       final name = data['name'] as String? ?? 'Unknown';
       final subject = folderPath.isNotEmpty ? folderPath.split('/').first : name;
@@ -481,18 +500,16 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
     final maxSubjectCount = topSubjects.isNotEmpty ? topSubjects.first.value : 1;
 
     final grouped = <String, List<Map<String, dynamic>>>{};
-    for (final doc in docs) {
-      final data = doc.data() as Map<String, dynamic>;
-      final startedAt = (data['startedAt'] as Timestamp?)?.toDate();
+    for (final data in docs) {
+      final startedAt = _parseActivityDate(data['startedAt']);
       if (startedAt == null) continue;
       final key = DateFormat('EEE, MMM d, yyyy').format(startedAt);
       grouped.putIfAbsent(key, () => []);
-      grouped[key]!.add({...data, 'docId': doc.id});
+      grouped[key]!.add({...data, 'docId': data['id'] ?? ''});
     }
 
     final uniqueContentIds = <String>{};
-    for (final doc in docs) {
-      final data = doc.data() as Map<String, dynamic>;
+    for (final data in docs) {
       final contentId = data['contentId'] as String?;
       if (contentId != null) uniqueContentIds.add(contentId);
     }
@@ -960,8 +977,8 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
     final name = item['name'] as String? ?? 'Unknown';
     final type = item['type'] as String? ?? 'file';
     final folderPath = item['folderPath'] as String? ?? '';
-    final startedAt = (item['startedAt'] as Timestamp?)?.toDate();
-    final endedAt = (item['endedAt'] as Timestamp?)?.toDate();
+    final startedAt = _parseActivityDate(item['startedAt']);
+    final endedAt = _parseActivityDate(item['endedAt']);
 
     IconData icon;
     Color iconColor;
