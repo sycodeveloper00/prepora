@@ -57,7 +57,10 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                         final ticket = d['ticketNo'] as String? ?? '';
                         final msg = d['message'] as String? ?? '';
                         final status = d['status'] as String? ?? 'pending';
-                        final time = (d['createdAt'] as Timestamp?)?.toDate();
+                        final rawTime = d['createdAt'] ?? d['created_at'];
+                        DateTime? time;
+                        if (rawTime is Timestamp) time = rawTime.toDate();
+                        else if (rawTime is String) time = DateTime.tryParse(rawTime);
                         final timeStr = time != null ? '${time.day}/${time.month}/${time.year} ${time.hour}:${time.minute.toString().padLeft(2, '0')}' : '';
                         final statusColor = status == 'completed' ? Colors.green : (status == 'rejected' ? Colors.red : Colors.orange);
                         return Card(

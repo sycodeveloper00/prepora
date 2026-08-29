@@ -148,7 +148,11 @@ class _NotificationPopupDialog extends StatelessWidget {
     final msg = d['message'] as String? ?? '';
     final userName = d['userName'] as String? ?? '';
     final role = d['role'] as String? ?? '';
-    final time = d['createdAt'] as Timestamp?;
+    final rawTime = d['createdAt'] ?? d['created_at'];
+    DateTime? time;
+    if (rawTime is Timestamp) time = rawTime.toDate();
+    else if (rawTime is DateTime) time = rawTime;
+    else if (rawTime is String) time = DateTime.tryParse(rawTime);
     final timeStr = time != null ? _formatTimestamp(time) : '';
 
     IconData icon;
@@ -223,8 +227,8 @@ class _NotificationPopupDialog extends StatelessWidget {
     }
   }
 
-  static String _formatTimestamp(Timestamp ts) {
-    final diff = DateTime.now().difference(ts.toDate());
+  static String _formatTimestamp(DateTime dt) {
+    final diff = DateTime.now().difference(dt);
     if (diff.inMinutes < 1) return 'just now';
     if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
     if (diff.inHours < 24) return '${diff.inHours}h ago';

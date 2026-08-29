@@ -1945,12 +1945,22 @@ class FirebaseService {
       final mirror = await SupabaseReadService.getFeedbacksForUser(uid);
       if (mirror != null && mirror.isNotEmpty) return mirror;
     } catch (_) {}
-    final snap = await firestore
-        .collection('feedbacks')
-        .where('uid', isEqualTo: uid)
-        .orderBy('createdAt', descending: true)
-        .get();
-    return snap.docs.map((e) => {'id': e.id, ...e.data()}).toList();
+    try {
+      final snap = await firestore
+          .collection('feedbacks')
+          .where('uid', isEqualTo: uid)
+          .orderBy('createdAt', descending: true)
+          .get();
+      return snap.docs.map((e) => {'id': e.id, ...e.data()}).toList();
+    } catch (_) {}
+    try {
+      final snap = await firestore
+          .collection('feedbacks')
+          .where('uid', isEqualTo: uid)
+          .get();
+      return snap.docs.map((e) => {'id': e.id, ...e.data()}).toList();
+    } catch (_) {}
+    return [];
   }
 
   static Stream<QuerySnapshot> getAllFeedbacks() {
