@@ -58,11 +58,14 @@ class _NotepadViewState extends State<NotepadView> {
 
   Future<void> _saveNote() async {
     setState(() => _isSaving = true);
-    await FirebaseService.saveNote(widget.lectureId, _textController.text, lectureName: widget.lectureName);
+    final ok = await FirebaseService.saveNote(widget.lectureId, _textController.text, lectureName: widget.lectureName);
     if (mounted) {
       setState(() => _isSaving = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('âœ… Note saved!'), backgroundColor: Colors.green),
+        SnackBar(
+          content: Text(ok ? 'Note saved!' : 'Failed to save — please check your connection and try again.'),
+          backgroundColor: ok ? Colors.green : Colors.redAccent,
+        ),
       );
     }
   }

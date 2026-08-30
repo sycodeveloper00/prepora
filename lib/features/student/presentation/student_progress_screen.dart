@@ -492,7 +492,7 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
     for (final data in docs) {
       final folderPath = data['folderPath'] as String? ?? '';
       final name = data['name'] as String? ?? 'Unknown';
-      final subject = folderPath.isNotEmpty ? folderPath.split('/').first : name;
+      final subject = folderPath.isNotEmpty ? folderPath.split('>').first.trim() : name;
       subjectMap[subject] = (subjectMap[subject] ?? 0) + 1;
     }
     final sortedSubjects = subjectMap.entries.toList()..sort((a, b) => b.value.compareTo(a.value));

@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
@@ -12,9 +13,10 @@ import '../../../core/services/firebase_service.dart';
 import '../../../core/services/supabase_read_service.dart';
 import '../../../core/services/offline_file_manager.dart';
 import '../../../core/services/upload_manager.dart';
+import '../../../core/providers/app_state_provider.dart';
 import 'folder_browser_screen.dart';
 
-class FolderDetailsScreen extends StatefulWidget {
+class FolderDetailsScreen extends ConsumerStatefulWidget {
   final String folderId;
   final bool canEdit;
   final bool canManage;
@@ -35,19 +37,15 @@ class FolderDetailsScreen extends StatefulWidget {
   });
 
   @override
-  State<FolderDetailsScreen> createState() => _FolderDetailsScreenState();
+  ConsumerState<FolderDetailsScreen> createState() => _FolderDetailsScreenState();
 }
 
-class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
+class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
   String _searchQuery = '';
   String _folderName = '';
   String _subfolderName = '';
   Set<String> _assistantAccess = {};
   final Set<String> _pendingOptimistic = {};
-  bool _isBlocked = false;
-  bool _isVerified = true;
-  bool _isPaidAccess = false;
-  bool _isFreeTrialActive = false;
   final Map<String, int> _localOrderMap = {};
   bool _hasLocalOrder = false;
   Set<String> _selectedIds = {};
@@ -111,7 +109,6 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
     // Use Supabase mirror stream for contents
     _contentsStream = SupabaseReadService.streamContents(widget.folderId, parentContentId: widget.parentContentId);
     _refreshAssistantAccess();
-    _checkStatus();
     _loadSubfolderName();
     _loadGroupLink();
     _loadSortMode();
@@ -130,28 +127,10 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
     } catch (_) {}
   }
 
-  void _checkStatus() async {
-    final uid = FirebaseService.currentUser?.uid;
-    if (uid != null) {
-      final blocked = await FirebaseService.isStudentBlocked(uid);
-      final settings = await FirebaseService.getSettings();
-      final paidAccess = settings['paidAccess'] as bool? ?? false;
-      final verified = await FirebaseService.isStudentVerified(uid);
-      final trial = await FirebaseService.getFreeTrial(uid);
-      final trialEnd = trial['endsAt'] as DateTime?;
-      final trialActive = trial['active'] == true;
-      if (trialActive && trialEnd != null && !trialEnd.isAfter(DateTime.now())) {
-        await FirebaseService.expireFreeTrial(uid);
-      }
-      if (mounted) {
-        setState(() {
-        _isBlocked = blocked;
-        _isVerified = verified;
-        _isPaidAccess = paidAccess;
-        _isFreeTrialActive = trialActive && (trialEnd?.isAfter(DateTime.now()) ?? false);
-      });
-      }
-    }
+  void _refreshContentsStream() {
+    setState(() {
+      _contentsStream = SupabaseReadService.streamContents(widget.folderId, parentContentId: widget.parentContentId);
+    });
   }
 
   void _refreshAssistantAccess() async {
@@ -514,6 +493,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
               if (newId != null && !widget.isAdmin) { _assistantAccess.add(newId); _pendingOptimistic.add(newId); }
               await _sendScopedNotification('Created sub-folder: ${nameCtrl.text.trim()}', parentContentId: widget.parentContentId);
               _refreshAssistantAccess();
+              _refreshContentsStream();
             },
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4A148C)),
             child: const Text('Create', style: TextStyle(color: Colors.white)),
@@ -555,6 +535,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
               if (newId != null && !widget.isAdmin) { _assistantAccess.add(newId); _pendingOptimistic.add(newId); }
               await _sendScopedNotification('Added lecture: ${titleCtrl.text.trim()}', parentContentId: widget.parentContentId);
               _refreshAssistantAccess();
+              _refreshContentsStream();
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700),
             child: const Text('Save', style: TextStyle(color: Colors.white)),
@@ -648,6 +629,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
       final newId = await FirebaseService.addFolderContent(folderId, data);
       if (newId != null && !widget.isAdmin) { _assistantAccess.add(newId); _pendingOptimistic.add(newId); }
       await _sendScopedNotification('Uploaded file: $name', parentContentId: parentContentId);
+      _refreshContentsStream();
     } catch (_) {}
   }
 
@@ -728,6 +710,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
                 if (newId != null && !widget.isAdmin) { _assistantAccess.add(newId); _pendingOptimistic.add(newId); }
                 await _sendScopedNotification('Uploaded from Drive: ${nameCtrl.text.trim()}', parentContentId: widget.parentContentId);
                 _refreshAssistantAccess();
+                _refreshContentsStream();
                 if (d.mounted) Navigator.pop(d);
               } finally {
                 if (d.mounted) setDialogState(() => saving = false);
@@ -781,6 +764,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
                 if (newId != null && !widget.isAdmin) { _assistantAccess.add(newId); _pendingOptimistic.add(newId); }
                 await _sendScopedNotification('Uploaded file: ${nameCtrl.text.trim()}', parentContentId: widget.parentContentId);
                 _refreshAssistantAccess();
+                _refreshContentsStream();
                 if (d.mounted) Navigator.pop(d);
               } finally {
                 if (d.mounted) setDialogState(() => saving = false);
@@ -834,6 +818,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
                 if (newId != null && !widget.isAdmin) { _assistantAccess.add(newId); _pendingOptimistic.add(newId); }
                 await _sendScopedNotification('Added Mock Test URL: ${nameCtrl.text.trim()}', parentContentId: widget.parentContentId);
                 _refreshAssistantAccess();
+                _refreshContentsStream();
                 if (d.mounted) Navigator.pop(d);
               } finally {
                 if (d.mounted) setDialogState(() => saving = false);
@@ -887,6 +872,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
                 if (newId != null && !widget.isAdmin) { _assistantAccess.add(newId); _pendingOptimistic.add(newId); }
                 await _sendScopedNotification('Added Mock Test Code: ${nameCtrl.text.trim()}', parentContentId: widget.parentContentId);
                 _refreshAssistantAccess();
+                _refreshContentsStream();
                 if (d.mounted) Navigator.pop(d);
               } finally {
                 if (d.mounted) setDialogState(() => saving = false);
@@ -996,6 +982,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
           }
         }
         _refreshAssistantAccess();
+        _refreshContentsStream();
         if (ctx.mounted && count > 0) {
           ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('$count mock test file(s) uploaded!'), backgroundColor: Colors.green));
         }
@@ -1081,6 +1068,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
               Navigator.pop(d);
               await FirebaseService.renameFolderContent(widget.folderId, contentId, ctrl.text.trim());
               await _sendScopedNotification('Renamed "$currentName" to "${ctrl.text.trim()}"', parentContentId: widget.parentContentId);
+              _refreshContentsStream();
             },
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4A148C)),
             child: const Text('Rename', style: TextStyle(color: Colors.white)),
@@ -1129,6 +1117,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
               } else {
                 await FirebaseService.updateContentField(widget.folderId, contentId, 'description', newDesc);
               }
+              _refreshContentsStream();
             },
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4A148C)),
             child: const Text('Save', style: TextStyle(color: Colors.white)),
@@ -1178,6 +1167,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
                 await FirebaseService.updateContentField(widget.folderId, contentId, 'code', urlCtrl.text.trim());
               }
               await _sendScopedNotification('Updated: ${nameCtrl.text.trim()}', parentContentId: widget.parentContentId, contentData: data);
+              _refreshContentsStream();
             },
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4A148C)),
             child: const Text('Save', style: TextStyle(color: Colors.white)),
@@ -1330,6 +1320,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
     final name = FirebaseService.cleanTitle(data['name'] as String? ?? '');
     final locked = data['locked'] as bool? ?? false;
     final updating = data['updating'] as bool? ?? false;
+    final contentId = data['id'] as String?;
 
     if (!widget.isAdmin) {
       if (locked) {
@@ -1347,7 +1338,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
       final currentUser = FirebaseService.currentUser;
       if (currentUser != null) {
         final folderPath = _subfolderName.isNotEmpty ? '$_folderName > $_subfolderName' : _folderName;
-        activityId = await FirebaseService.logActivity(uid: currentUser.uid, name: name, type: type, folderPath: folderPath);
+        activityId = await FirebaseService.logActivity(uid: currentUser.uid, name: name, type: type, folderPath: folderPath, contentId: contentId);
       }
     }
 
@@ -1401,6 +1392,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
         _openFile(data, activityId: activityId);
         break;
       default:
+        if (activityId != null) FirebaseService.endActivity(activityId!);
         break;
     }
   }
@@ -1410,7 +1402,10 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
     final source = data['source'] as String? ?? 'url';
     final name = data['name'] as String? ?? 'File';
 
-    if (url.isEmpty) return;
+    if (url.isEmpty) {
+      if (activityId != null) FirebaseService.endActivity(activityId!);
+      return;
+    }
 
     String ext = name.contains('.') ? name.split('.').last.toLowerCase() : '';
     if (ext.isEmpty) {
@@ -1425,6 +1420,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
         backgroundColor: Colors.redAccent,
         duration: Duration(seconds: 4),
       ));
+      if (activityId != null) FirebaseService.endActivity(activityId!);
       return;
     }
 
@@ -1471,6 +1467,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
           content: Text('This file is stored on device, cannot open on web'),
           backgroundColor: Colors.redAccent,
         ));
+        if (activityId != null) FirebaseService.endActivity(activityId!);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Opening $name...')));
         final result = await OpenFilex.open(url);
@@ -1478,6 +1475,7 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Cannot open file: ${result.message}'), backgroundColor: Colors.redAccent));
         }
+        if (activityId != null) FirebaseService.endActivity(activityId!);
       }
     } else if (url.isNotEmpty) {
       final isCloudDrive = url.contains('drive.google.com') || url.contains('docs.google.com') || url.contains('googleapis.com/drive') ||
@@ -1808,9 +1806,17 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
                   onPressed: () => _showUploadOptions(context),
                   child: const Icon(Icons.add, color: Colors.white),
                 )
-              : (_isBlocked || (_isPaidAccess && !_isVerified && !_isFreeTrialActive))
-                  ? const SizedBox.shrink()
-                  : FutureBuilder<String?>(
+              : Builder(
+                  builder: (context) {
+                    final status = ref.watch(userStatusProvider).valueOrNull;
+                    final isBlocked = status?.isBlocked ?? false;
+                    final isPaidAccess = status?.isPaidAccess ?? false;
+                    final isVerified = status?.isVerified ?? false;
+                    final isFreeTrialActive = status?.isFreeTrialActive ?? false;
+                    if (isBlocked || (isPaidAccess && !isVerified && !isFreeTrialActive)) {
+                      return const SizedBox.shrink();
+                    }
+                    return FutureBuilder<String?>(
                       future: FirebaseService.getGroupLinkForLevel(widget.folderId, parentContentId: widget.parentContentId ?? 'root'),
                       builder: (context, snap) {
                         final link = snap.data;
@@ -1826,7 +1832,9 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
                           ],
                         );
                       },
-                    ),
+                    );
+                  },
+                ),
         );
       },
     );
@@ -2279,6 +2287,13 @@ class _FolderDetailsScreenState extends State<FolderDetailsScreen> {
             borderRadius: BorderRadius.circular(16),
             onTap: disabled ? null : () {
               if (_isSelectMode) { _onContentSelect(id); return; }
+              if (!widget.isAdmin) {
+                final currentUser = FirebaseService.currentUser;
+                if (currentUser != null) {
+                  final folderPath = _subfolderName.isNotEmpty ? '$_folderName > $_subfolderName' : _folderName;
+                  FirebaseService.logActivity(uid: currentUser.uid, name: name, type: 'subfolder', folderPath: folderPath, contentId: id);
+                }
+              }
               context.push('/folders/${widget.folderId}/sub/$id', extra: {
                 'canEdit': widget.canEdit, 'canManage': widget.canManage,
                 'isAdmin': widget.isAdmin,

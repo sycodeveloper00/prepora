@@ -1484,31 +1484,31 @@ class FirebaseService {
   }
 
   static Future<String?> addNotice(String title, String? fileUrl, String fileType) async {
+    final docId = 'nt_${DateTime.now().millisecondsSinceEpoch}';
     try {
       // If file is a local file path, upload to Supabase Storage
       String? supabaseUrl = fileUrl;
-      if (!kIsWeb && fileUrl != null && (fileUrl.startsWith('/') || fileUrl.startsWith('file://'))) {
-        final file = File(fileUrl.replaceFirst('file://', ''));
-        final ext = fileUrl.split('.').last;
-        final fileName = 'notices/${DateTime.now().millisecondsSinceEpoch}.$ext';
-        supabaseUrl = await uploadFileToSupabase('notices', fileName, file);
+      if (fileUrl != null && (fileUrl.startsWith('/') || fileUrl.startsWith('file://'))) {
+        try {
+          final file = File(fileUrl.replaceFirst('file://', ''));
+          final ext = fileUrl.split('.').last;
+          final fileName = 'notices/${DateTime.now().millisecondsSinceEpoch}.$ext';
+          supabaseUrl = await uploadFileToSupabase('notices', fileName, file);
+        } catch (e) {
+          print('[addNotice] Supabase file upload failed: $e');
+          supabaseUrl = null;
+        }
       }
-      final doc = await firestore.collection('notices').add({
+      await SupabaseReadService.writeToAll('notices', docId, {
         'title': title,
         'fileUrl': supabaseUrl,
         'fileType': fileType,
-        'createdAt': FieldValue.serverTimestamp(),
+        'createdAt': DateTime.now().toIso8601String(),
       });
-      return doc.id;
+      return docId;
     } catch (e) {
-      // Fallback: just save the text notice without file
-      final doc = await firestore.collection('notices').add({
-        'title': title,
-        'fileUrl': null,
-        'fileType': 'text',
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-      return doc.id;
+      print('[addNotice] Supabase write failed: $e');
+      return null;
     }
   }
 
@@ -1825,22 +1825,18 @@ class FirebaseService {
     required String name,
     required String type,
     required String folderPath,
+    String? contentId,
   }) async {
-    final doc = await firestore.collection('student_activities').add({
+    final docId = 'act_${DateTime.now().millisecondsSinceEpoch}';
+    await SupabaseReadService.writeToAll('student_activities', docId, {
       'uid': uid,
       'name': name,
       'type': type,
       'folderPath': folderPath,
-      'startedAt': FieldValue.serverTimestamp(),
-    });
-    await _mirrorWrite('student_activities', doc.id, {
-      'uid': uid,
-      'name': name,
-      'type': type,
-      'folderPath': folderPath,
+      if (contentId != null) 'contentId': contentId,
       'startedAt': DateTime.now().toIso8601String(),
     });
-    return doc.id;
+    return docId;
   }
 
   static Future<void> endActivity(String activityId) async {
@@ -1943,7 +1939,14 @@ class FirebaseService {
   static Future<List<Map<String, dynamic>>> getStudentFeedbacksOnce(String uid) async {
     try {
       final mirror = await SupabaseReadService.getFeedbacksForUser(uid);
-      if (mirror != null && mirror.isNotEmpty) return mirror;
+      if (mirror != null && mirror.isNotEmpty) {
+        mirror.sort((a, b) {
+          final aTime = a['createdAt'] ?? a['created_at'] ?? '';
+          final bTime = b['createdAt'] ?? b['created_at'] ?? '';
+          return bTime.toString().compareTo(aTime.toString());
+        });
+        return mirror;
+      }
     } catch (_) {}
     try {
       final snap = await firestore
@@ -1958,7 +1961,14 @@ class FirebaseService {
           .collection('feedbacks')
           .where('uid', isEqualTo: uid)
           .get();
-      return snap.docs.map((e) => {'id': e.id, ...e.data()}).toList();
+      final list = snap.docs.map((e) => {'id': e.id, ...e.data()}).toList();
+      list.sort((a, b) {
+        final aTime = a['createdAt'];
+        final bTime = b['createdAt'];
+        if (aTime is Timestamp && bTime is Timestamp) return bTime.compareTo(aTime);
+        return 0;
+      });
+      return list;
     } catch (_) {}
     return [];
   }
@@ -1992,75 +2002,55 @@ class FirebaseService {
       if (uid == null) return null;
       final mirror = await SupabaseReadService.getNote(lectureId, uid);
       if (mirror != null) return _MirrorDocumentSnapshot(mirror);
-    } catch (_) {}
-    try {
-      final uid = currentUser?.uid;
-      if (uid == null) return null;
-      return await firestore.collection('users').doc(uid).collection('notes').doc(lectureId).get();
-    } catch (_) {
-      return null;
+    } catch (e) {
+      debugPrint('[getNote] Supabase read failed: $e');
     }
+    return null;
   }
 
-  static Future<void> saveNote(String lectureId, String content, {String? lectureName}) async {
+  static Future<bool> saveNote(String lectureId, String content, {String? lectureName}) async {
     final uid = currentUser?.uid;
-    if (uid == null) return;
+    if (uid == null) return false;
     try {
-      await firestore.collection('users').doc(uid).collection('notes').doc(lectureId).set({
+      await SupabaseReadService.writeToAll('notes', lectureId, {
+        'uid': uid,
         'content': content,
         'lectureName': lectureName ?? '',
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-    } catch (_) {}
-    await _mirrorWrite('notes', lectureId, {
-      'uid': uid,
-      'content': content,
-      'lectureName': lectureName ?? '',
-      'updatedAt': DateTime.now().toIso8601String(),
-    });
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
+      return true;
+    } catch (e) {
+      debugPrint('[saveNote] Supabase write failed: $e');
+      return false;
+    }
   }
 
   static Future<List<Map<String, dynamic>>> getAllNotes() async {
     final uid = currentUser?.uid;
     if (uid == null) return [];
     
-    // Read from Firestore first for immediate visibility (local source of truth)
-    try {
-      final snap = await firestore.collection('users').doc(uid).collection('notes')
-          .orderBy('updatedAt', descending: true).get();
-      if (snap.docs.isNotEmpty) {
-        return snap.docs.map((d) {
-          final data = d.data();
-          return {
-            'id': d.id,
-            'content': data['content'] as String? ?? '',
-            'lectureName': data['lectureName'] as String? ?? 'Unknown Lecture',
-            'updatedAt': (data['updatedAt'] as Timestamp?)?.toDate()?.toIso8601String() ?? '',
-          };
-        }).toList();
+    for (int i = 0; i < 3; i++) {
+      try {
+        final mirror = await SupabaseReadService.getNotes(uid);
+        if (mirror != null && mirror.isNotEmpty) return mirror;
+      } catch (e) {
+        debugPrint('[getAllNotes] Supabase read attempt ${i + 1} failed: $e');
       }
-    } catch (_) {}
-    
-    // Fallback to Supabase mirror if Firestore unavailable
-    try {
-      final mirror = await SupabaseReadService.getNotes(uid);
-      if (mirror != null) return mirror;
-    } catch (_) {}
+      if (i < 2) await Future.delayed(const Duration(milliseconds: 300));
+    }
     return [];
   }
 
   static Future<void> deleteNote(String id) async {
     final uid = currentUser?.uid;
     if (uid == null) return;
-    await firestore.collection('users').doc(uid).collection('notes').doc(id).delete();
-    await _mirrorWrite('notes', id, const {}, delete: true);
+    await SupabaseReadService.writeToAll('notes', id, const {}, delete: true);
   }
 
   static Future<void> renameNote(String id, String newName) async {
     final uid = currentUser?.uid;
     if (uid == null) return;
-    await firestore.collection('users').doc(uid).collection('notes').doc(id).update({'lectureName': newName});
-    await _mirrorWrite('notes', id, {'uid': uid, 'lectureName': newName});
+    await SupabaseReadService.writeToAll('notes', id, {'uid': uid, 'lectureName': newName});
   }
 
   // ─── Assistant Access ─────────────────────────────────────────────────────────────

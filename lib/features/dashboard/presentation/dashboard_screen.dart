@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -10,17 +11,18 @@ import '../../../core/widgets/animated_pressable.dart';
 import '../../../core/services/firebase_service.dart';
 import '../../../core/services/widget_service.dart';
 import '../../../core/services/notification_service.dart';
+import '../../../core/providers/app_state_provider.dart';
 import '../../../core/widgets/notification_bell_box.dart';
 import '../../../core/widgets/professional_loader.dart';
 import '../../student/presentation/student_progress_screen.dart';
 
-class DashboardScreen extends StatefulWidget {
+class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
   @override
-  State<DashboardScreen> createState() => _DashboardScreenState();
+  ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen>
+class _DashboardScreenState extends ConsumerState<DashboardScreen>
     with TickerProviderStateMixin {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
@@ -28,20 +30,6 @@ class _DashboardScreenState extends State<DashboardScreen>
   bool _isSearching = false;
   Timer? _searchDebounce;
 
-  final List<String> _typingTexts = [
-    'MDCAT', 'ECAT', 'NUST', 'NET', 'FAST', 'USAT', 'NTS NAT', 'GAT',
-    'GRE', 'HAT', 'SAT', 'NED', 'NUTECH', 'CUET', 'BCAT', 'TCAT',
-    'IBA', 'LCAT', 'LSE', 'GIKI', 'BUET', 'AUET', 'VU',
-    'DUHS', 'JSMU', 'IIUI', 'NUML', 'KU', 'UAF',
-    'IELTS', 'CCE', 'CSS', 'PMS', 'KPPSC', 'PPSC', 'BPSC', 'AJKPSC',
-    'SPSC', 'GBPSC', 'ISSB', 'ASF', 'FPSC',
-    'Abroad Scholarships', 'Abroad Jobs', 'Language Learning', 'Programming',
-  ];
-  String _currentText = '';
-  int _textIndex = 0;
-  int _charIndex = 0;
-  Timer? _typingTimer;
-  bool _isDeleting = false;
   bool _hasStarted = false;
 
   late AnimationController _floatController;
@@ -52,32 +40,16 @@ class _DashboardScreenState extends State<DashboardScreen>
   final GlobalKey<_DashboardGridState> _gridKey = GlobalKey<_DashboardGridState>();
   final GlobalKey _bellKey = GlobalKey();
   OverlayEntry? _notifOverlay;
-  bool _isBlocked = false;
-  bool _isVerified = true;
-  bool _isPaidAccess = false;
-  bool _isFreeTrialActive = false;
   bool _isProcessing = false;
-  double _price = 0;
-  String _accountTitle = '';
-  String _accountNo = '';
-  String _bankName = '';
 
-  // Real-time listener for user verification/blocked status
-  StreamSubscription? _userStatusSub;
-  StreamSubscription? _settingsSub;
+  // Real-time listener for notifications
   Stream<QuerySnapshot>? _notificationStream;
-  int _streakCount = 0;
-  int _totalActiveDays = 0;
+  DateTime _userCreatedAt = DateTime(2020);
 
   @override
   void initState() {
     super.initState();
-    _checkStatus();
-    _listenUserStatus();
-    _listenSettings();
-    _startTypingAnimation();
     _checkForUpdates();
-    _rebuildNotificationStream();
 
     _floatController = AnimationController(
       vsync: this,
@@ -93,149 +65,15 @@ class _DashboardScreenState extends State<DashboardScreen>
     )..repeat();
   }
 
-  DateTime _userCreatedAt = DateTime(2020);
-
-  void _checkStatus() async {
-    final uid = FirebaseService.currentUser?.uid;
-    if (uid == null) return;
-    final results = await Future.wait([
-      FirebaseService.isStudentBlocked(uid),
-      FirebaseService.getSettings(),
-      FirebaseService.getUser(uid),
-    ]);
-    final blocked = results[0] as bool;
-    final settings = results[1] as Map<String, dynamic>;
-    final paidAccess = settings['paidAccess'] as bool? ?? false;
-    final verified = await FirebaseService.isStudentVerified(uid);
-    final trial = await FirebaseService.getFreeTrial(uid);
-    final trialActive = trial['active'] == true;
-    final trialEnd = trial['endsAt'] as DateTime?;
-    if (trialActive && trialEnd != null && !trialEnd.isAfter(DateTime.now())) {
-      await FirebaseService.expireFreeTrial(uid);
-    }
-    final user = FirebaseService.currentUser;
-    final userDoc = results[2] as dynamic;
-    final createdAt = (userDoc?.data() as Map<String, dynamic>?)?['createdAt'] as Timestamp?;
-    final streakData = await FirebaseService.getStreak(uid);
-    if (mounted) {
-      setState(() {
-      _isBlocked = blocked;
-      _isVerified = verified;
-      _isPaidAccess = paidAccess;
-      _isFreeTrialActive = trialActive && (trialEnd?.isAfter(DateTime.now()) ?? false);
-      _price = (settings['price'] as num?)?.toDouble() ?? 0;
-      _accountTitle = settings['accountTitle'] as String? ?? '';
-      _accountNo = settings['accountNo'] as String? ?? '';
-      _bankName = settings['bankName'] as String? ?? '';
-      _userName = user?.displayName ?? '';
-      _userCreatedAt = createdAt?.toDate() ?? DateTime(2020);
-      _streakCount = streakData['streakCount'] as int? ?? 0;
-      _totalActiveDays = streakData['totalActiveDays'] as int? ?? 0;
-      _rebuildNotificationStream();
-    });
-    }
-    WidgetService.updateStreakWidget(_streakCount, _totalActiveDays);
-  }
-
-  void _rebuildNotificationStream() {
-    final uid = FirebaseService.currentUser?.uid;
-    if (uid == null) return;
-    _notificationStream = FirebaseService.getNotificationsForUser(uid, _userCreatedAt);
-    NotificationService.startStudentNotificationListener(uid, _userCreatedAt);
-  }
-
-  /// Listens to the user's Firestore document in real-time so that verification
-  /// and blocked status updates from admin reflect immediately without a restart.
-  void _listenUserStatus() {
-    final uid = FirebaseService.currentUser?.uid;
-    if (uid == null) return;
-    _userStatusSub = FirebaseService.firestore
-        .collection('users')
-        .doc(uid)
-        .snapshots()
-        .listen((snap) async {
-      if (!snap.exists || !mounted) return;
-      final data = snap.data() as Map<String, dynamic>;
-      final blocked = data['blocked'] as bool? ?? false;
-      final settings = await FirebaseService.getSettings();
-      final paidAccess = settings['paidAccess'] as bool? ?? false;
-      final verified = data['verified'] as bool? ?? false;
-      final trialActive = data['freeTrialActive'] == true;
-      final endsAt = data['freeTrialEndsAt'];
-      final trialEnd = endsAt is Timestamp ? endsAt.toDate() : null;
-      if (trialActive && trialEnd != null && !trialEnd.isAfter(DateTime.now())) {
-        await FirebaseService.expireFreeTrial(uid);
-      }
-      if (mounted) {
-        setState(() {
-        _isBlocked = blocked;
-        _isVerified = verified;
-        _isPaidAccess = paidAccess;
-        _isFreeTrialActive = trialActive && (trialEnd?.isAfter(DateTime.now()) ?? false);
-      });
-      }
-    }, onError: (_) {});
-  }
-
-  /// Listens to the global `settings/general` document in real-time so that when
-  /// the admin toggles `paidAccess` (or changes price/account info), unverified
-  /// student panels reflect the change immediately WITHOUT restarting the app.
-  void _listenSettings() {
-    _settingsSub = FirebaseService.firestore
-        .collection('settings')
-        .doc('general')
-        .snapshots()
-        .listen((snap) {
-      if (!snap.exists || !mounted) return;
-      final data = snap.data() as Map<String, dynamic>;
-      setState(() {
-        _isPaidAccess = data['paidAccess'] as bool? ?? false;
-        _price = (data['price'] as num?)?.toDouble() ?? 0;
-        _accountTitle = data['accountTitle'] as String? ?? '';
-        _accountNo = data['accountNo'] as String? ?? '';
-        _bankName = data['bankName'] as String? ?? '';
-      });
-    }, onError: (_) {});
-  }
-
-  void _startTypingAnimation() {
-    _typingTimer?.cancel();
-    _typingTimer = Timer.periodic(const Duration(milliseconds: 85), (timer) {
-      if (!mounted) return;
-      setState(() {
-        if (!_isDeleting) {
-          if (_charIndex < _typingTexts[_textIndex].length) {
-            _currentText += _typingTexts[_textIndex][_charIndex];
-            _charIndex++;
-          } else {
-            _isDeleting = true;
-            timer.cancel();
-            Future.delayed(const Duration(seconds: 2), () {
-              if (mounted) _startTypingAnimation();
-            });
-          }
-        } else {
-          if (_currentText.isNotEmpty) {
-            _currentText = _currentText.substring(0, _currentText.length - 1);
-          } else {
-            _isDeleting = false;
-            _charIndex = 0;
-            _textIndex = (_textIndex + 1) % _typingTexts.length;
-            timer.cancel();
-            Future.delayed(const Duration(milliseconds: 300), () {
-              if (mounted) _startTypingAnimation();
-            });
-          }
-        }
-      });
-    });
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _rebuildNotificationStream();
   }
 
   @override
   void dispose() {
-    _typingTimer?.cancel();
-    _userStatusSub?.cancel();
-    _settingsSub?.cancel();
+    _updateSub?.cancel();
     NotificationService.dispose();
     _floatController.dispose();
     _colorFlowController.dispose();
@@ -243,6 +81,16 @@ class _DashboardScreenState extends State<DashboardScreen>
     _searchDebounce?.cancel();
     _notifOverlay?.remove();
     super.dispose();
+  }
+
+  void _rebuildNotificationStream() {
+    final uid = FirebaseService.currentUser?.uid;
+    if (uid == null) return;
+    final statusAsync = ref.read(userStatusProvider);
+    final createdAt = statusAsync.valueOrNull?.userCreatedAt ?? DateTime(2020);
+    _userCreatedAt = createdAt;
+    _notificationStream = FirebaseService.getNotificationsForUser(uid, createdAt);
+    NotificationService.startStudentNotificationListener(uid, createdAt);
   }
 
   void _toggleNotifOverlay() {
@@ -333,14 +181,6 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   List<QueryDocumentSnapshot> _latestNotificationDocs = [];
-
-  final List<Map<String, List<String>>> _examCategories = [
-    {'Entry Tests': ['MDCAT', 'ECAT', 'NUST', 'NET', 'FAST', 'USAT', 'NTS NAT', 'GAT', 'GRE', 'HAT', 'SAT']},
-    {'University Tests': ['NED', 'NUTECH', 'CUET', 'BCAT', 'TCAT', 'IBA', 'LSE', 'LCAT', 'GIKI', 'BUET', 'AUET', 'VU']},
-    {'Medical & Other': ['DUHS', 'JSMU', 'IIUI', 'NUML', 'KU', 'UAF', 'IELTS', 'CCE']},
-    {'CSS & Services': ['CSS', 'PMS', 'KPPSC', 'PPSC', 'BPSC', 'AJKPSC', 'SPSC', 'GBPSC', 'ISSB', 'ASF', 'FPSC']},
-    {'Global Opportunities': ['Abroad Scholarships', 'Abroad Jobs', 'Language Learning', 'Programming']},
-  ];
 
   Widget _buildIntroScreen() {
     return Stack(
@@ -442,46 +282,10 @@ class _DashboardScreenState extends State<DashboardScreen>
                             decoration: TextDecoration.none,
                           ),
                         ),
-                        Flexible(
-                          child: Text(
-                            _currentText,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                              decoration: TextDecoration.none,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                        const Flexible(
+                          child: TypingAnimatedText(),
                         ),
-                        _buildCursor(),
                       ],
-                    ),
-                    const SizedBox(height: 14),
-                    AnimatedOpacity(
-                      opacity: _currentText.isNotEmpty ? 1.0 : 0.0,
-                      duration: const Duration(milliseconds: 400),
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 300),
-                        child: Container(
-                          key: ValueKey(_currentText),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.05),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            _getCategoryFor(_currentText),
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.4),
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 1.5,
-                              decoration: TextDecoration.none,
-                            ),
-                          ),
-                        ),
-                      ),
                     ),
                   ],
                 ),
@@ -496,36 +300,11 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  Widget _buildCursor() {
-    return AnimatedBuilder(
-      animation: _floatController,
-      builder: (_, __) => Container(
-        width: 2,
-        height: 22,
-        margin: const EdgeInsets.only(left: 3),
-        decoration: BoxDecoration(
-          color: _floatAnim.value > 0
-              ? const Color(0xFF00E5FF)
-              : const Color(0xFF00E5FF).withValues(alpha: 0.2),
-          borderRadius: BorderRadius.circular(1),
-        ),
-      ),
-    );
-  }
-
-  String _getCategoryFor(String exam) {
-    for (final cat in _examCategories) {
-      final title = cat.keys.first;
-      final items = cat.values.first;
-      if (items.contains(exam)) return title.toUpperCase();
-    }
-    return '';
-  }  Widget _buildArrowButton() {
+  Widget _buildArrowButton() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 32),
       child: AnimatedPressable(
         onTap: () {
-          _typingTimer?.cancel();
           setState(() => _hasStarted = true);
         },
         scaleFactor: 0.95,
@@ -595,8 +374,13 @@ class _DashboardScreenState extends State<DashboardScreen>
           const SizedBox(width: 10),
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             const Text('PrePora', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-            if (_userName.isNotEmpty)
-              Text(_userName, style: TextStyle(fontSize: 11, color: Theme.of(context).brightness == Brightness.dark ? Colors.white54 : Colors.black45)),
+            Builder(
+              builder: (ctx) {
+                final userName = ref.watch(userStatusProvider).valueOrNull?.userName ?? '';
+                if (userName.isEmpty) return const SizedBox.shrink();
+                return Text(userName, style: TextStyle(fontSize: 11, color: Theme.of(ctx).brightness == Brightness.dark ? Colors.white54 : Colors.black45));
+              },
+            ),
           ]),
         ],
       ),
@@ -775,6 +559,9 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   Widget _buildStreakBar(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final status = ref.watch(userStatusProvider).valueOrNull;
+    final streakCount = status?.streakCount ?? 0;
+    final totalActiveDays = status?.totalActiveDays ?? 0;
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.fromLTRB(14, 8, 14, 0),
@@ -808,7 +595,7 @@ class _DashboardScreenState extends State<DashboardScreen>
             child: const Icon(Icons.local_fire_department_rounded, color: Colors.orange, size: 22),
           ),
           const SizedBox(width: 10),
-          Text('$_streakCount', style: TextStyle(
+          Text('$streakCount', style: TextStyle(
             color: isDark ? Colors.white : Colors.black87,
             fontWeight: FontWeight.bold, fontSize: 18,
           )),
@@ -817,7 +604,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           const Spacer(),
           Icon(Icons.stars_rounded, color: Colors.amber.shade600, size: 16),
           const SizedBox(width: 4),
-          Text('$_totalActiveDays total', style: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontSize: 11)),
+          Text('$totalActiveDays total', style: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontSize: 11)),
         ],
       ),
     );
@@ -878,14 +665,6 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  bool _isAncestorRestricted(String? contentId, Map<String, Map<String, dynamic>> contentMap, {int depth = 0}) {
-    if (contentId == null || contentId == 'root' || depth > 10) return false;
-    final data = contentMap[contentId];
-    if (data == null) return false;
-    if (data['invisible'] == true || data['locked'] == true || data['updating'] == true) return true;
-    return _isAncestorRestricted(data['parentContentId'] as String?, contentMap, depth: depth + 1);
-  }
-
   Future<void> _performSearch(String query) async {
     if (query.length < 2) {
       if (mounted) setState(() { _searchResults = []; _isSearching = false; });
@@ -894,54 +673,71 @@ class _DashboardScreenState extends State<DashboardScreen>
     if (mounted) setState(() => _isSearching = true);
     final q = query.toLowerCase();
     final results = <_SearchResult>[];
-    final foldersSnap = await FirebaseService.firestore.collection('folders').get();
-    final visibleFolders = foldersSnap.docs.where((d) {
-      final data = d.data();
-      return data['invisible'] != true && data['locked'] != true && data['updating'] != true;
-    }).toList();
-    final contentsFutures = visibleFolders.map((folderDoc) async {
-      final contentsSnap = await FirebaseService.firestore
-          .collection('folders').doc(folderDoc.id)
-          .collection('contents').get();
-      return MapEntry(folderDoc, contentsSnap);
-    }).toList();
-    final contentsResults = await Future.wait(contentsFutures);
-    for (final entry in contentsResults) {
-      final folderDoc = entry.key;
-      final folderData = folderDoc.data();
-      final folderName = folderData['name'] as String? ?? '';
-      final folderId = folderDoc.id;
-      if (folderName.toLowerCase().contains(q)) {
-        results.add(_SearchResult(
-          title: folderName, folderId: folderId, isFolder: true,
-        ));
-      }
-      final contentMap = <String, Map<String, dynamic>>{};
-      for (final cd in entry.value.docs) {
-        contentMap[cd.id] = cd.data();
-      }
-      for (final contentDoc in entry.value.docs) {
-        final contentData = contentDoc.data();
-        final contentName = contentData['name'] as String? ?? contentData['title'] as String? ?? '';
-        if (contentName.toLowerCase().contains(q)) {
-          if (contentData['invisible'] == true) continue;
-          if (contentData['locked'] == true || contentData['updating'] == true) continue;
-          final contentParentId = contentData['parentContentId'] as String?;
-          if (_isAncestorRestricted(contentParentId, contentMap)) continue;
-          final docType = contentData['type'] as String?;
-          final isSubfolder = docType == 'subfolder' || (docType == null && contentData['url'] == null);
+
+    try {
+      // Search folders by name (single query with limit)
+      final foldersSnap = await FirebaseService.firestore
+          .collection('folders')
+          .limit(50)
+          .get();
+
+      for (final folderDoc in foldersSnap.docs) {
+        final data = folderDoc.data();
+        if (data['invisible'] == true || data['locked'] == true) continue;
+        final folderName = data['name'] as String? ?? '';
+        if (folderName.toLowerCase().contains(q)) {
           results.add(_SearchResult(
-            title: contentName,
-            folderId: folderId,
-            folderName: folderName,
-            contentId: contentDoc.id,
-            isFolder: false,
-            isSubfolder: isSubfolder,
-            parentContentId: contentParentId,
+            title: folderName, folderId: folderDoc.id, isFolder: true,
           ));
         }
       }
-    }
+
+      // Search contents across visible folders (parallel, max 10 folders)
+      final visibleFolders = foldersSnap.docs.where((d) {
+        final data = d.data();
+        return data['invisible'] != true && data['locked'] != true && data['updating'] != true;
+      }).take(10).toList();
+
+      final contentsFutures = visibleFolders.map((folderDoc) async {
+        try {
+          final contentsSnap = await FirebaseService.firestore
+              .collection('folders').doc(folderDoc.id)
+              .collection('contents')
+              .limit(100)
+              .get();
+          return MapEntry(folderDoc, contentsSnap);
+        } catch (_) {
+          return MapEntry(folderDoc, null);
+        }
+      }).toList();
+
+      final contentsResults = await Future.wait(contentsFutures);
+      for (final entry in contentsResults) {
+        if (entry.value == null) continue;
+        final folderData = entry.key.data();
+        final folderName = folderData['name'] as String? ?? '';
+        final folderId = entry.key.id;
+        for (final contentDoc in entry.value!.docs) {
+          final contentData = contentDoc.data();
+          final contentName = contentData['name'] as String? ?? contentData['title'] as String? ?? '';
+          if (contentName.toLowerCase().contains(q)) {
+            if (contentData['invisible'] == true || contentData['locked'] == true) continue;
+            final docType = contentData['type'] as String?;
+            final isSubfolder = docType == 'subfolder' || (docType == null && contentData['url'] == null);
+            results.add(_SearchResult(
+              title: contentName,
+              folderId: folderId,
+              folderName: folderName,
+              contentId: contentDoc.id,
+              isFolder: false,
+              isSubfolder: isSubfolder,
+              parentContentId: contentData['parentContentId'] as String?,
+            ));
+          }
+        }
+      }
+    } catch (_) {}
+
     if (mounted) setState(() { _searchResults = results; _isSearching = false; });
   }
 
@@ -1104,10 +900,14 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  String _userName = '';
-
   Widget _buildPaymentBanner() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final settingsAsync = ref.watch(appSettingsProvider);
+    final settings = settingsAsync.valueOrNull;
+    final price = settings?.price ?? 0;
+    final accountTitle = settings?.accountTitle ?? '';
+    final accountNo = settings?.accountNo ?? '';
+    final bankName = settings?.bankName ?? '';
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF0D001A) : const Color(0xFFF5F0FF),
       body: SafeArea(
@@ -1139,7 +939,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: isDark ? Colors.white : Colors.black87, letterSpacing: 2)),
             ),
             const SizedBox(height: 16),
-            Text('Pay Rs.${_price.toStringAsFixed(0)} to get access',
+            Text('Pay Rs.${price.toStringAsFixed(0)} to get access',
               style: TextStyle(color: (isDark ? Colors.white : Colors.black87).withValues(alpha: 0.6), fontSize: 14)),
             const SizedBox(height: 24),
             // Account details card
@@ -1155,11 +955,11 @@ class _DashboardScreenState extends State<DashboardScreen>
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('Send payment to:', style: TextStyle(color: (isDark ? Colors.white : Colors.black87).withValues(alpha: 0.7), fontSize: 13, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 12),
-                _bannerField('Account Owner', _accountTitle, Icons.person_rounded, Colors.orangeAccent),
+                _bannerField('Account Owner', accountTitle, Icons.person_rounded, Colors.orangeAccent),
                 const SizedBox(height: 10),
-                _bannerField('Account No', _accountNo, Icons.pin_rounded, Colors.cyanAccent),
+                _bannerField('Account No', accountNo, Icons.pin_rounded, Colors.cyanAccent),
                 const SizedBox(height: 10),
-                _bannerField('Bank Name', _bankName, Icons.account_balance_rounded, Colors.amber),
+                _bannerField('Bank Name', bankName, Icons.account_balance_rounded, Colors.amber),
               ]),
             ),
             const SizedBox(height: 12),
@@ -1654,8 +1454,15 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   @override
   Widget build(BuildContext context) {
-    if (_isBlocked) return _buildBlockedScreen(context);
-    if (_isPaidAccess && !_isVerified && !_isFreeTrialActive) return _buildPaymentBanner();
+    final statusAsync = ref.watch(userStatusProvider);
+    final status = statusAsync.valueOrNull;
+    if (status == null) {
+      return const Scaffold(body: Center(child: ProfessionalLoader()));
+    }
+    // Update home widget with streak data
+    WidgetService.updateStreakWidget(status.streakCount, status.totalActiveDays);
+    if (status.isBlocked) return _buildBlockedScreen(context);
+    if (status.isPaidAccess && !status.isVerified && !status.isFreeTrialActive) return _buildPaymentBanner();
     if (!_hasStarted) return SizedBox.expand(child: _buildIntroScreen());
     return Stack(
       children: [
@@ -1667,12 +1474,14 @@ class _DashboardScreenState extends State<DashboardScreen>
   String? _latestUpdateVersion;
   String? _latestUpdateLink;
   String _currentAppVersion = '';
+  StreamSubscription? _updateSub;
 
   void _checkForUpdates() {
     PackageInfo.fromPlatform().then((info) {
       if (mounted) setState(() => _currentAppVersion = info.version);
     });
-    FirebaseService.firestore.collection('app_updates').orderBy('createdAt', descending: true).limit(1).snapshots().listen((snap) {
+    _updateSub?.cancel();
+    _updateSub = FirebaseService.firestore.collection('app_updates').orderBy('createdAt', descending: true).limit(1).snapshots().listen((snap) {
       if (!mounted || snap.docs.isEmpty || _currentAppVersion.isEmpty) return;
       final d = snap.docs.first.data();
       final version = d['version'] as String?;
@@ -1719,6 +1528,154 @@ class _DashboardScreenState extends State<DashboardScreen>
           ],
         ),
       ),
+    );
+  }
+}
+
+class TypingAnimatedText extends StatefulWidget {
+  const TypingAnimatedText({super.key});
+
+  @override
+  State<TypingAnimatedText> createState() => _TypingAnimatedTextState();
+}
+
+class _TypingAnimatedTextState extends State<TypingAnimatedText> {
+  static const _typingTexts = [
+    'MDCAT', 'ECAT', 'NUST', 'NET', 'FAST', 'USAT', 'NTS NAT', 'GAT',
+    'GRE', 'HAT', 'SAT', 'NED', 'NUTECH', 'CUET', 'BCAT', 'TCAT',
+    'IBA', 'LCAT', 'LSE', 'GIKI', 'BUET', 'AUET', 'VU',
+    'DUHS', 'JSMU', 'IIUI', 'NUML', 'KU', 'UAF',
+    'IELTS', 'CCE', 'CSS', 'PMS', 'KPPSC', 'PPSC', 'BPSC', 'AJKPSC',
+    'SPSC', 'GBPSC', 'ISSB', 'ASF', 'FPSC',
+    'Abroad Scholarships', 'Abroad Jobs', 'Language Learning', 'Programming',
+  ];
+
+  static const _examCategories = [
+    {'Entry Tests': ['MDCAT', 'ECAT', 'NUST', 'NET', 'FAST', 'USAT', 'NTS NAT', 'GAT', 'GRE', 'HAT', 'SAT']},
+    {'University Tests': ['NED', 'NUTECH', 'CUET', 'BCAT', 'TCAT', 'IBA', 'LSE', 'LCAT', 'GIKI', 'BUET', 'AUET', 'VU']},
+    {'Medical & Other': ['DUHS', 'JSMU', 'IIUI', 'NUML', 'KU', 'UAF', 'IELTS', 'CCE']},
+    {'CSS & Services': ['CSS', 'PMS', 'KPPSC', 'PPSC', 'BPSC', 'AJKPSC', 'SPSC', 'GBPSC', 'ISSB', 'ASF', 'FPSC']},
+    {'Global Opportunities': ['Abroad Scholarships', 'Abroad Jobs', 'Language Learning', 'Programming']},
+  ];
+
+  String _currentText = '';
+  int _textIndex = 0;
+  int _charIndex = 0;
+  Timer? _typingTimer;
+  bool _isDeleting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _startTypingAnimation();
+  }
+
+  @override
+  void dispose() {
+    _typingTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startTypingAnimation() {
+    _typingTimer?.cancel();
+    _typingTimer = Timer.periodic(const Duration(milliseconds: 85), (timer) {
+      if (!mounted) return;
+      setState(() {
+        if (!_isDeleting) {
+          if (_charIndex < _typingTexts[_textIndex].length) {
+            _currentText += _typingTexts[_textIndex][_charIndex];
+            _charIndex++;
+          } else {
+            _isDeleting = true;
+            timer.cancel();
+            Future.delayed(const Duration(seconds: 2), () {
+              if (mounted) _startTypingAnimation();
+            });
+          }
+        } else {
+          if (_currentText.isNotEmpty) {
+            _currentText = _currentText.substring(0, _currentText.length - 1);
+          } else {
+            _isDeleting = false;
+            _charIndex = 0;
+            _textIndex = (_textIndex + 1) % _typingTexts.length;
+            timer.cancel();
+            Future.delayed(const Duration(milliseconds: 300), () {
+              if (mounted) _startTypingAnimation();
+            });
+          }
+        }
+      });
+    });
+  }
+
+  String _getCategoryFor(String exam) {
+    for (final cat in _examCategories) {
+      final title = cat.keys.first;
+      final items = cat.values.first;
+      if (items.contains(exam)) return title.toUpperCase();
+    }
+    return '';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _currentText,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                decoration: TextDecoration.none,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+            AnimatedBuilder(
+              animation: const AlwaysStoppedAnimation(0),
+              builder: (_, __) => Container(
+                width: 2,
+                height: 22,
+                margin: const EdgeInsets.only(left: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF00E5FF),
+                  borderRadius: BorderRadius.circular(1),
+                ),
+              ),
+            ),
+          ],
+        ),
+        if (_currentText.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          AnimatedOpacity(
+            opacity: 1.0,
+            duration: const Duration(milliseconds: 400),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                _getCategoryFor(_currentText),
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.4),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.5,
+                  decoration: TextDecoration.none,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

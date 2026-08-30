@@ -148,13 +148,27 @@ class _AiChatScreenState extends State<AiChatScreen> with SingleTickerProviderSt
       if (mounted) setState(() => _messages.add(aiMsg));
 
       bool hasContent = false;
+      String buffer = '';
+      const int batchInterval = 50; // ms between setState calls
+      DateTime lastUpdate = DateTime.now();
+
       await for (final chunk in _aiService.sendMessageStream(messageToSend)) {
         if (!mounted) break;
-        setState(() {
-          aiMsg.text += chunk;
-          hasContent = true;
-        });
-        _scrollToBottom();
+        buffer += chunk;
+        hasContent = true;
+
+        // Batch setState calls - only update every 50ms or on last chunk
+        final now = DateTime.now();
+        if (now.difference(lastUpdate).inMilliseconds >= batchInterval) {
+          setState(() => aiMsg.text = buffer);
+          _scrollToBottom();
+          lastUpdate = now;
+        }
+      }
+
+      // Final update with complete text
+      if (mounted && buffer != aiMsg.text) {
+        setState(() => aiMsg.text = buffer);
       }
 
       if (mounted) {

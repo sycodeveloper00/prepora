@@ -3,6 +3,10 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
 
+/// Shared HTTP client for connection reuse (avoids creating new TCP connections per request).
+/// Using a single client reuses the underlying socket connection pool.
+final http.Client _sharedClient = http.Client();
+
 /// TTL in-memory cache for non-user data (settings, folders, etc.)
 class _TtlCache {
   final Duration ttl;
@@ -160,31 +164,29 @@ class SupabaseReadService {
   ) async {
     try {
       if (query != null && query.contains('limit=')) {
-        final res = await http
-            .get(_uri(url, anonKey, table, query), headers: {
-              'apikey': anonKey,
-              'Authorization': 'Bearer $anonKey',
-              'Content-Type': 'application/json',
-            })
-            .timeout(const Duration(seconds: 5));
-        return (res.statusCode == 200 || res.statusCode == 206) ? res : null;
+        final request = http.Request('GET', _uri(url, anonKey, table, query));
+        request.headers['apikey'] = anonKey;
+        request.headers['Authorization'] = 'Bearer $anonKey';
+        request.headers['Content-Type'] = 'application/json';
+        final res = await _sharedClient.send(request).timeout(const Duration(seconds: 5));
+        final body = await res.stream.bytesToString();
+        return http.Response(body, res.statusCode, headers: res.headers);
       }
 
       // Paginated query
       final all = <dynamic>[];
       var offset = 0;
       while (true) {
-        final res = await http
-            .get(_uri(url, anonKey, table, query), headers: {
-              'apikey': anonKey,
-              'Authorization': 'Bearer $anonKey',
-              'Content-Type': 'application/json',
-              'Prefer': 'count=exact',
-              'Range': '$offset-${offset + _pageSize - 1}',
-            })
-            .timeout(const Duration(seconds: 8));
+        final request = http.Request('GET', _uri(url, anonKey, table, query));
+        request.headers['apikey'] = anonKey;
+        request.headers['Authorization'] = 'Bearer $anonKey';
+        request.headers['Content-Type'] = 'application/json';
+        request.headers['Prefer'] = 'count=exact';
+        request.headers['Range'] = '$offset-${offset + _pageSize - 1}';
+        final res = await _sharedClient.send(request).timeout(const Duration(seconds: 8));
+        final bodyStr = await res.stream.bytesToString();
         if (res.statusCode != 200 && res.statusCode != 206) return null;
-        final rows = json.decode(res.body) as List<dynamic>;
+        final rows = json.decode(bodyStr) as List<dynamic>;
         all.addAll(rows);
         final cr = res.headers['content-range'];
         int? total;
@@ -303,7 +305,7 @@ class SupabaseReadService {
   static Stream<List<Map<String, dynamic>>> _poll(
     String table,
     String? query, {
-    Duration interval = const Duration(seconds: 10),
+    Duration interval = const Duration(seconds: 30),
   }) async* {
     String? lastKey;
     List<Map<String, dynamic>>? lastList;
@@ -458,53 +460,76 @@ class SupabaseReadService {
     return v.toString();
   }
 
-  /// Execute a write against ALL projects using service role key.
-  /// Returns true if at least one succeeded.
+  /// Write to primary first (fast), then async backup to remaining projects.
+  /// Returns true if primary write succeeded.
   static Future<bool> _writeAll(String table, String id, Map<String, dynamic> data, {bool delete = false}) async {
-    bool anySuccess = false;
-    final futures = <Future>[];
-    for (final p in _projects) {
-      futures.add(Future(() async {
-        try {
-          if (delete) {
-            final encodedId = Uri.encodeComponent(id);
-            final url = '${p['url']!}/rest/v1/$table?id=eq.$encodedId';
-            final res = await http.delete(Uri.parse(url), headers: {
-              'apikey': p['service']!,
-              'Authorization': 'Bearer ${p['service']!}',
-              'Prefer': 'return=minimal',
-            }).timeout(const Duration(seconds: 10));
-            // ignore: avoid_print
-            print('[WRITE_ALL] DELETE ${p['name']} $table/$id status=${res.statusCode}');
-            if (res.statusCode < 300) anySuccess = true;
-          } else {
-            final headers = {
-              'apikey': p['service']!,
-              'Authorization': 'Bearer ${p['service']!}',
-              'Content-Type': 'application/json',
-              'Prefer': 'resolution=merge-duplicates,return=minimal',
-            };
-            final body = _buildBody(table, id, data);
-            final sanitized = _sanitize(body);
-            final res = await http.post(
-              Uri.parse('${p['url']!}/rest/v1/$table'),
-              headers: headers,
-              body: json.encode(sanitized),
-            ).timeout(const Duration(seconds: 10));
-            // ignore: avoid_print
-            print('[WRITE_ALL] UPSERT ${p['name']} $table/$id status=${res.statusCode} body=${json.encode(sanitized).length}chars${res.statusCode >= 400 ? " err=${res.body.substring(0, res.body.length.clamp(0, 200))}" : ""}');
-            if (res.statusCode < 300) anySuccess = true;
-          }
-        } catch (e) {
-          // ignore: avoid_print
-          print('[WRITE_ALL] CATCH ${p['name']} $table/$id error=$e');
-        }
-      }));
+    final primary = _projects.first;
+    bool primarySuccess = false;
+
+    // Write to primary first (blocking - user waits for this)
+    try {
+      if (delete) {
+        final encodedId = Uri.encodeComponent(id);
+        final url = '${primary['url']!}/rest/v1/$table?id=eq.$encodedId';
+        final res = await http.delete(Uri.parse(url), headers: {
+          'apikey': primary['service']!,
+          'Authorization': 'Bearer ${primary['service']!}',
+          'Prefer': 'return=minimal',
+        }).timeout(const Duration(seconds: 8));
+        primarySuccess = res.statusCode < 300;
+      } else {
+        final headers = {
+          'apikey': primary['service']!,
+          'Authorization': 'Bearer ${primary['service']!}',
+          'Content-Type': 'application/json',
+          'Prefer': 'resolution=merge-duplicates,return=minimal',
+        };
+        final body = _buildBody(table, id, data);
+        final sanitized = _sanitize(body);
+        final res = await http.post(
+          Uri.parse('${primary['url']!}/rest/v1/$table'),
+          headers: headers,
+          body: json.encode(sanitized),
+        ).timeout(const Duration(seconds: 8));
+        primarySuccess = res.statusCode < 300;
+      }
+    } catch (_) {}
+
+    // Fire-and-forget backup to remaining projects (non-blocking)
+    if (primarySuccess) {
+      for (int i = 1; i < _projects.length; i++) {
+        final p = _projects[i];
+        Future(() async {
+          try {
+            if (delete) {
+              final encodedId = Uri.encodeComponent(id);
+              final url = '${p['url']!}/rest/v1/$table?id=eq.$encodedId';
+              await http.delete(Uri.parse(url), headers: {
+                'apikey': p['service']!,
+                'Authorization': 'Bearer ${p['service']!}',
+                'Prefer': 'return=minimal',
+              }).timeout(const Duration(seconds: 10));
+            } else {
+              final headers = {
+                'apikey': p['service']!,
+                'Authorization': 'Bearer ${p['service']!}',
+                'Content-Type': 'application/json',
+                'Prefer': 'resolution=merge-duplicates,return=minimal',
+              };
+              final body = _buildBody(table, id, data);
+              final sanitized = _sanitize(body);
+              await http.post(
+                Uri.parse('${p['url']!}/rest/v1/$table'),
+                headers: headers,
+                body: json.encode(sanitized),
+              ).timeout(const Duration(seconds: 10));
+            }
+          } catch (_) {}
+        });
+      }
     }
-    await Future.wait(futures);
-    // ignore: avoid_print
-    print('[WRITE_ALL] DONE $table/$id anySuccess=$anySuccess');
-    return anySuccess;
+
+    return primarySuccess;
   }
 
   /// Write to ALL projects (called by firebase_service._mirrorWrite)
@@ -588,7 +613,7 @@ class SupabaseReadService {
 
   static Stream<List<Map<String, dynamic>>> streamUsersByRole(
     String role, {
-    Duration interval = const Duration(seconds: 10),
+    Duration interval = const Duration(seconds: 30),
   }) {
     return _poll('users', 'role=eq.$role&$_sel&order=created_at.desc', interval: interval);
   }
@@ -649,7 +674,7 @@ class SupabaseReadService {
   }
 
   static Stream<List<Map<String, dynamic>>> streamFolders({
-    Duration interval = const Duration(seconds: 10),
+    Duration interval = const Duration(seconds: 30),
   }) {
     return _poll('folders', '$_sel&order=created_at.asc', interval: interval).map((list) {
       list.sort((a, b) {
@@ -704,7 +729,7 @@ class SupabaseReadService {
   static Stream<List<Map<String, dynamic>>> streamContents(
     String folderId, {
     String? parentContentId,
-    Duration interval = const Duration(seconds: 10),
+    Duration interval = const Duration(seconds: 30),
   }) {
     var q = 'folder_id=eq.$folderId&$_sel&order=created_at.asc';
     if (parentContentId != null) {
@@ -746,14 +771,14 @@ class SupabaseReadService {
   static Stream<List<Map<String, dynamic>>> streamNotifications(
     String uid,
     DateTime since, {
-    Duration interval = const Duration(seconds: 10),
+    Duration interval = const Duration(seconds: 30),
   }) {
     final iso = since.toUtc().toIso8601String();
     return _poll('notifications', 'uid=eq.$uid&created_at=gte.$iso&$_sel&order=created_at.desc', interval: interval);
   }
 
   static Stream<List<Map<String, dynamic>>> streamAdminNotifications({
-    Duration interval = const Duration(seconds: 10),
+    Duration interval = const Duration(seconds: 30),
   }) {
     return _poll('admin_notifications', '$_sel&order=created_at.desc', interval: interval);
   }
@@ -773,7 +798,7 @@ class SupabaseReadService {
   }
 
   static Stream<List<Map<String, dynamic>>> streamPendingFeedbacks({
-    Duration interval = const Duration(seconds: 10),
+    Duration interval = const Duration(seconds: 30),
   }) {
     return _poll('feedbacks', 'status=eq.pending&$_sel&order=id.desc', interval: interval);
   }
@@ -788,7 +813,7 @@ class SupabaseReadService {
 
   static Stream<List<Map<String, dynamic>>> streamStudentActivities(
     String uid, {
-    Duration interval = const Duration(seconds: 10),
+    Duration interval = const Duration(seconds: 30),
   }) {
     return _poll('student_activities', 'uid=eq.$uid&$_sel', interval: interval);
   }
@@ -833,7 +858,7 @@ class SupabaseReadService {
 
   static Stream<List<Map<String, dynamic>>> streamAssistantLogins(
     String folderId, {
-    Duration interval = const Duration(seconds: 10),
+    Duration interval = const Duration(seconds: 30),
   }) {
     return _poll('assistant_logins', 'folder_id=eq.$folderId&$_sel&order=timestamp.desc', interval: interval);
   }
@@ -867,7 +892,7 @@ class SupabaseReadService {
   // ─── app_updates ──────────────────────────────────────────────────────────
 
   static Stream<List<Map<String, dynamic>>> streamAppUpdates({
-    Duration interval = const Duration(seconds: 10),
+    Duration interval = const Duration(seconds: 30),
   }) {
     return _poll('app_updates', '$_sel&order=created_at.desc', interval: interval);
   }
@@ -875,14 +900,14 @@ class SupabaseReadService {
   // ─── web_sessions / login attempts ────────────────────────────────────────
 
   static Stream<List<Map<String, dynamic>>> streamLoginAttempts({
-    Duration interval = const Duration(seconds: 10),
+    Duration interval = const Duration(seconds: 30),
   }) {
     return _poll('login_attempts', '$_sel&order=timestamp.desc', interval: interval);
   }
 
   static Stream<List<Map<String, dynamic>>> streamLoginHistory(
     String uid, {
-    Duration interval = const Duration(seconds: 10),
+    Duration interval = const Duration(seconds: 30),
   }) {
     return _poll('login_history', 'uid=eq.$uid&$_sel&order=timestamp.desc', interval: interval);
   }
@@ -998,7 +1023,7 @@ class SupabaseReadService {
   }
 
   static Stream<List<Map<String, dynamic>>> streamAllFeedbacks({
-    Duration interval = const Duration(seconds: 10),
+    Duration interval = const Duration(seconds: 30),
   }) {
     return _poll('feedbacks', '$_sel&order=id.desc', interval: interval);
   }
@@ -1059,7 +1084,7 @@ class SupabaseReadService {
 
   static Stream<List<Map<String, dynamic>>> streamTargetedNotificationsForUser(
     String uid, {
-    Duration interval = const Duration(seconds: 10),
+    Duration interval = const Duration(seconds: 30),
   }) {
     return _poll('notifications', 'uid=eq.$uid&type=eq.targeted&$_sel', interval: interval);
   }
@@ -1074,14 +1099,14 @@ class SupabaseReadService {
 
   static Stream<Map<String, dynamic>?> streamWebSession(
     String sessionId, {
-    Duration interval = const Duration(seconds: 5),
+    Duration interval = const Duration(seconds: 10),
   }) {
     return _poll('web_sessions', 'id=eq.$sessionId&$_sel', interval: interval).map((list) => list.isEmpty ? null : list.first);
   }
 
   static Stream<List<Map<String, dynamic>>> streamWebSessionsForUser(
     String uid, {
-    Duration interval = const Duration(seconds: 10),
+    Duration interval = const Duration(seconds: 30),
   }) {
     return _poll('web_sessions', 'uid=eq.$uid&$_sel&order=created_at.desc', interval: interval);
   }
@@ -1090,7 +1115,7 @@ class SupabaseReadService {
 
   static Stream<List<Map<String, dynamic>>> streamLoginAttemptsForUser(
     String uid, {
-    Duration interval = const Duration(seconds: 10),
+    Duration interval = const Duration(seconds: 30),
   }) {
     return _poll('login_attempts', 'uid=eq.$uid&$_sel&order=timestamp.desc', interval: interval);
   }
@@ -1098,7 +1123,7 @@ class SupabaseReadService {
   // ─── notices stream ──────────────────────────────────────────────────────
 
   static Stream<List<Map<String, dynamic>>> streamNotices({
-    Duration interval = const Duration(seconds: 10),
+    Duration interval = const Duration(seconds: 30),
   }) {
     return _poll('notices', '$_sel&order=created_at.desc', interval: interval);
   }

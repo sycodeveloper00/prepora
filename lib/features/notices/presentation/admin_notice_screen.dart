@@ -1,13 +1,13 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../../core/services/firebase_service.dart';
+import '../../../core/services/supabase_read_service.dart';
 import '../../../core/utils.dart';
 import '../../../core/widgets/professional_loader.dart';
 
@@ -95,7 +95,10 @@ class _AdminNoticeScreenState extends State<AdminNoticeScreen> {
   void _showTextBoard(BuildContext context, String content, Map<String, dynamic> data) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final addedBy = data['addedBy'] as String? ?? 'Admin';
-    final time = (data['createdAt'] as Timestamp?)?.toDate();
+    final rawTime = data['createdAt'] ?? data['created_at'];
+    DateTime? time;
+    if (rawTime is DateTime) time = rawTime;
+    else if (rawTime is String) time = DateTime.tryParse(rawTime);
     final timeStr = time != null ? '${time.day}/${time.month}/${time.year} ${time.hour}:${time.minute.toString().padLeft(2, '0')}' : '';
 
     showDialog(
@@ -215,9 +218,12 @@ class _AdminNoticeScreenState extends State<AdminNoticeScreen> {
                   final data = doc.data() as Map<String, dynamic>;
                   final title = data['title'] as String? ?? '';
                   final type = data['fileType'] as String? ?? 'text';
-                  final time = (data['createdAt'] as Timestamp?)?.toDate();
+                  final rawTime = data['createdAt'] ?? data['created_at'];
+                  DateTime? time;
+                  if (rawTime is DateTime) time = rawTime;
+                  else if (rawTime is String) time = DateTime.tryParse(rawTime);
                   if (time != null && now.difference(time).inHours >= 24) {
-                    FirebaseService.firestore.collection('notices').doc(doc.id).delete();
+                    SupabaseReadService.writeToAll('notices', doc.id, {}, delete: true);
                     return const SizedBox.shrink();
                   }
                   final timeStr = time != null ? '${time.day}/${time.month}/${time.year} ${time.hour}:${time.minute.toString().padLeft(2, '0')}' : '';
@@ -282,7 +288,7 @@ class _AdminNoticeScreenState extends State<AdminNoticeScreen> {
                                     ),
                                   );
                                   if (confirm == true) {
-                                    await FirebaseService.firestore.collection('notices').doc(doc.id).delete();
+                                    await SupabaseReadService.writeToAll('notices', doc.id, {}, delete: true);
                                   }
                                 },
                               ),
@@ -319,7 +325,7 @@ class _AdminNoticeScreenState extends State<AdminNoticeScreen> {
                               ),
                             );
                             if (confirm == true) {
-                              await FirebaseService.firestore.collection('notices').doc(doc.id).delete();
+                              await SupabaseReadService.writeToAll('notices', doc.id, {}, delete: true);
                             }
                           },
                         ),
@@ -454,7 +460,7 @@ class _AdminNoticeScreenState extends State<AdminNoticeScreen> {
                   ),
                 );
                 if (confirm == true) {
-                  await FirebaseService.firestore.collection('notices').doc(docId).delete();
+                  await SupabaseReadService.writeToAll('notices', docId, {}, delete: true);
                 }
               },
             ),
@@ -477,7 +483,7 @@ class _AdminNoticeScreenState extends State<AdminNoticeScreen> {
         TextButton(onPressed: () => Navigator.pop(d), child: Text('Cancel', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54))),
         ElevatedButton(onPressed: () async {
           if (ctrl.text.trim().isEmpty) return;
-          await FirebaseService.firestore.collection('notices').doc(docId).update({'title': ctrl.text.trim()});
+          await SupabaseReadService.writeToAll('notices', docId, {'title': ctrl.text.trim()});
           if (d.mounted) Navigator.pop(d);
         }, child: const Text('Save')),
       ],

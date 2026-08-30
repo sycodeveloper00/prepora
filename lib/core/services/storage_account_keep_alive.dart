@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:uuid/uuid.dart';
@@ -57,7 +58,7 @@ class StorageAccountKeepAliveService {
         }
       }
     } catch (e) {
-      print('[StorageKeepAlive] Error pinging admin accounts: $e');
+      debugPrint('[StorageKeepAlive] Error pinging admin accounts: $e');
     }
 
     // Ping Assistant Supabase Accounts
@@ -79,7 +80,7 @@ class StorageAccountKeepAliveService {
         }
       }
     } catch (e) {
-      print('[StorageKeepAlive] Error pinging assistant accounts: $e');
+      debugPrint('[StorageKeepAlive] Error pinging assistant accounts: $e');
     }
 
     _lastPingTime = DateTime.now();
@@ -200,7 +201,7 @@ class StorageAccountKeepAliveService {
     if (!autoSwitchEnabled) return;
     if (currentUsageMB < storageLimitMB) return;
 
-    print('[StorageKeepAlive] $type account ${activeAcc['id']} hit limit ($currentUsageMB MB >= $storageLimitMB MB)');
+    debugPrint('[StorageKeepAlive] $type account ${activeAcc['id']} hit limit ($currentUsageMB MB >= $storageLimitMB MB)');
 
     // Deactivate current account
     try {
@@ -209,7 +210,7 @@ class StorageAccountKeepAliveService {
         'isActive': false,
       });
     } catch (e) {
-      print('[StorageKeepAlive] Failed to deactivate account: $e');
+      debugPrint('[StorageKeepAlive] Failed to deactivate account: $e');
       return;
     }
 
@@ -246,14 +247,14 @@ class StorageAccountKeepAliveService {
           toUrl: nextAccount!['projectUrl'] as String? ?? '',
           type: type,
         );
-        print('[StorageKeepAlive] Auto-switched from ${activeAcc['id']} to ${nextAccount['id']}');
+        debugPrint('[StorageKeepAlive] Auto-switched from ${activeAcc['id']} to ${nextAccount['id']}');
       } catch (e) {
-        print('[StorageKeepAlive] Failed to activate next account: $e');
+        debugPrint('[StorageKeepAlive] Failed to activate next account: $e');
       }
     } else {
       // No available account - notify admin
       await _notifyNoAvailableAccount(activeAcc['projectUrl'] as String? ?? '', type);
-      print('[StorageKeepAlive] No available account to switch to for $type');
+      debugPrint('[StorageKeepAlive] No available account to switch to for $type');
     }
   }
 

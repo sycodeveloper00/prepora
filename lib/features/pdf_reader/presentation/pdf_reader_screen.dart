@@ -246,29 +246,41 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
     final hasText = _textOverlay != null;
     if (!hasStrokes && !hasText) {
       // Saving an empty annotation = bookmarking the PDF in Notes.
-      await FirebaseService.saveNote(
+      final ok = await FirebaseService.saveNote(
         widget.documentId,
         'PDF: ${_fileName ?? "Document"}',
         lectureName: _fileName ?? 'PDF Note',
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('PDF added to Notes!'), backgroundColor: Colors.green),
-        );
+        if (ok) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('PDF added to Notes!'), backgroundColor: Colors.green),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to save — please check your connection and try again.'), backgroundColor: Colors.redAccent),
+          );
+        }
       }
       return;
     }
 
-    await FirebaseService.saveNote(
+    final ok = await FirebaseService.saveNote(
       widget.documentId,
       'PDF Annotation: ${_fileName ?? "Document"}\n\nStrokes: ${_strokes.length}\nText: ${_textOverlay ?? "-"}',
       lectureName: _fileName ?? 'PDF Note',
     );
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Saved to Notes!'), backgroundColor: Colors.green),
-      );
+      if (ok) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Saved to Notes!'), backgroundColor: Colors.green),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to save — please check your connection and try again.'), backgroundColor: Colors.redAccent),
+        );
+      }
     }
   }
 

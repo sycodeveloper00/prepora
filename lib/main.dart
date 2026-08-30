@@ -95,19 +95,30 @@ class _AppLifecycleState extends State<_AppLifecycle> with WidgetsBindingObserve
       _listenForDeviceLogout();
     });
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await NotificationService.initialize();
+      // Run notification + session checks in parallel
+      await Future.wait([
+        NotificationService.initialize(),
+        _initSessionData(),
+      ]);
+      // Then do sequential permission-dependent tasks
       await NotificationService.requestNotificationPermission();
       await NotificationService.ensureExactAlarmPermission();
       await NotificationService.scheduleDailyStreakReminder();
       await NotificationService.checkAndNotify();
-      final user = FirebaseService.currentUser;
-      if (user != null) {
-        await FirebaseService.updateStreak(user.uid);
-      }
-      _startSessionIfAdminOrAssistant();
-      await _checkSingleDeviceLogin();
       _listenForDeviceLogout();
     });
+  }
+
+  Future<void> _initSessionData() async {
+    try {
+      final user = FirebaseService.currentUser;
+      if (user != null) {
+        await Future.wait([
+          FirebaseService.updateStreak(user.uid),
+          _checkSingleDeviceLogin(),
+        ]);
+      }
+    } catch (_) {}
   }
 
   @override
@@ -122,9 +133,9 @@ class _AppLifecycleState extends State<_AppLifecycle> with WidgetsBindingObserve
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       NotificationService.clearBadge();
+      // Only check critical security (device login) on resume
+      // Streak/notifications are handled by the dashboard provider refresh
       _checkSingleDeviceLogin();
-      _listenForDeviceLogout();
-      _updateStreakAndNotify();
     }
   }
 
@@ -163,21 +174,6 @@ class _AppLifecycleState extends State<_AppLifecycle> with WidgetsBindingObserve
       );
       context.go('/auth/login');
     }
-  }
-
-  Future<void> _updateStreakAndNotify() async {
-    try {
-      final user = FirebaseService.currentUser;
-      if (user == null) return;
-      await NotificationService.scheduleDailyStreakReminder();
-      await NotificationService.checkAndNotify();
-      await FirebaseService.updateStreak(user.uid);
-    } catch (_) {}
-  }
-
-  Future<void> _startSessionIfAdminOrAssistant() async {
-    // SessionManager is intentionally NOT started on Android.
-    // Firebase Auth persists by default — no auto-logout needed.
   }
 
   Future<void> _checkSingleDeviceLogin() async {
