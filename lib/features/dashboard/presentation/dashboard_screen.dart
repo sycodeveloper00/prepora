@@ -1481,9 +1481,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
       if (mounted) setState(() => _currentAppVersion = info.version);
     });
     _updateSub?.cancel();
-    _updateSub = FirebaseService.firestore.collection('app_updates').orderBy('createdAt', descending: true).limit(1).snapshots().listen((snap) {
+    _updateSub = FirebaseService.getAppUpdates().listen((snap) {
       if (!mounted || snap.docs.isEmpty || _currentAppVersion.isEmpty) return;
-      final d = snap.docs.first.data();
+      final d = snap.docs.first.data() as Map<String, dynamic>;
       final version = d['version'] as String?;
       final link = d['link'] as String?;
       if (version != null && version.isNotEmpty && version != _currentAppVersion) {

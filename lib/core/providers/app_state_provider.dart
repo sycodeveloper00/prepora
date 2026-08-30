@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
+import 'package:hive_flutter/hive_flutter.dart';
 import '../services/firebase_service.dart';
+import '../services/supabase_read_service.dart';
 
 /// Cached user status (blocked, verified, paid, trial, streak).
 /// Fetched once on login, updated via Firestore snapshots.
@@ -95,14 +98,37 @@ class UserStatusNotifier extends AutoDisposeAsyncNotifier<UserStatus> {
     final uid = fb_auth.FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return UserStatus();
 
-    // Fetch all in parallel
+    // Try loading cached status from Hive for instant offline display
+    UserStatus? cached;
+    try {
+      final box = Hive.box('settings');
+      final cachedJson = box.get('user_status_$uid') as String?;
+      if (cachedJson != null) {
+        final map = json.decode(cachedJson) as Map<String, dynamic>;
+        cached = UserStatus(
+          isBlocked: map['isBlocked'] ?? false,
+          isVerified: map['isVerified'] ?? false,
+          isPaidAccess: map['isPaidAccess'] ?? false,
+          isFreeTrialActive: map['isFreeTrialActive'] ?? false,
+          trialEndsAt: map['trialEndsAt'] != null ? DateTime.tryParse(map['trialEndsAt']) : null,
+          streakCount: map['streakCount'] ?? 0,
+          totalActiveDays: map['totalActiveDays'] ?? 0,
+          userCreatedAt: map['userCreatedAt'] != null ? DateTime.tryParse(map['userCreatedAt']) ?? DateTime(2020) : DateTime(2020),
+          userName: map['userName'] ?? '',
+        );
+        // Return cached immediately so UI renders offline
+        state = AsyncData(cached);
+      }
+    } catch (_) {}
+
+    // Fetch fresh data in parallel with 10s timeout for offline resilience
     final results = await Future.wait([
-      FirebaseService.isStudentBlocked(uid),
-      FirebaseService.isStudentVerified(uid),
-      FirebaseService.getSettings(),
-      FirebaseService.getFreeTrial(uid),
-      FirebaseService.getStreak(uid),
-      FirebaseService.getUser(uid),
+      FirebaseService.isStudentBlocked(uid).timeout(const Duration(seconds: 10), onTimeout: () => cached?.isBlocked ?? false),
+      FirebaseService.isStudentVerified(uid).timeout(const Duration(seconds: 10), onTimeout: () => cached?.isVerified ?? false),
+      FirebaseService.getSettings().timeout(const Duration(seconds: 10), onTimeout: <String, dynamic>{}),
+      FirebaseService.getFreeTrial(uid).timeout(const Duration(seconds: 10), onTimeout: <String, dynamic>{}),
+      FirebaseService.getStreak(uid).timeout(const Duration(seconds: 10), onTimeout: <String, dynamic>{}),
+      FirebaseService.getUser(uid).timeout(const Duration(seconds: 10), onTimeout: null),
     ]);
 
     final blocked = results[0] as bool;
@@ -148,27 +174,27 @@ class UserStatusNotifier extends AutoDisposeAsyncNotifier<UserStatus> {
       ));
     }, onError: (_) {});
 
-    // Listen for settings changes
+    // Poll Supabase for settings changes (paidAccess etc.)
     _settingsSub?.cancel();
-    _settingsSub = FirebaseService.firestore
-        .collection('settings')
-        .doc('general')
-        .snapshots()
-        .listen((snap) {
-      if (!snap.exists) return;
-      final data = snap.data() as Map<String, dynamic>;
-      final current = state.valueOrNull ?? UserStatus();
-      state = AsyncData(current.copyWith(
-        isPaidAccess: data['paidAccess'] as bool? ?? false,
-      ));
-    }, onError: (_) {});
+    _settingsSub = Stream.periodic(const Duration(seconds: 15)).asyncMap((_) async {
+      try {
+        final data = await SupabaseReadService.getSettings('general');
+        if (data != null) {
+          final current = state.valueOrNull ?? UserStatus();
+          final newPaidAccess = data['paidAccess'] as bool? ?? false;
+          if (current.isPaidAccess != newPaidAccess) {
+            state = AsyncData(current.copyWith(isPaidAccess: newPaidAccess));
+          }
+        }
+      } catch (_) {}
+    }).listen((_) {}, onError: (_) {});
 
     ref.onDispose(() {
       _userSub?.cancel();
       _settingsSub?.cancel();
     });
 
-    return UserStatus(
+    final status = UserStatus(
       isBlocked: blocked,
       isVerified: verified,
       isPaidAccess: paidAccess,
@@ -179,6 +205,24 @@ class UserStatusNotifier extends AutoDisposeAsyncNotifier<UserStatus> {
       userCreatedAt: createdAt?.toDate() ?? DateTime(2020),
       userName: userName,
     );
+
+    // Cache status in Hive for offline use
+    try {
+      final box = Hive.box('settings');
+      await box.put('user_status_$uid', json.encode({
+        'isBlocked': status.isBlocked,
+        'isVerified': status.isVerified,
+        'isPaidAccess': status.isPaidAccess,
+        'isFreeTrialActive': status.isFreeTrialActive,
+        'trialEndsAt': status.trialEndsAt?.toIso8601String(),
+        'streakCount': status.streakCount,
+        'totalActiveDays': status.totalActiveDays,
+        'userCreatedAt': status.userCreatedAt.toIso8601String(),
+        'userName': status.userName,
+      }));
+    } catch (_) {}
+
+    return status;
   }
 
   /// Manually refresh (e.g. after payment or admin action).
@@ -205,16 +249,16 @@ class AppSettingsNotifier extends AutoDisposeAsyncNotifier<AppSettings> {
     final data = await FirebaseService.getSettings();
     final settings = AppSettings.fromMap(data);
 
+    // Poll Supabase for settings changes instead of Firestore listener
     _sub?.cancel();
-    _sub = FirebaseService.firestore
-        .collection('settings')
-        .doc('general')
-        .snapshots()
-        .listen((snap) {
-      if (!snap.exists) return;
-      final newData = snap.data() as Map<String, dynamic>;
-      state = AsyncData(AppSettings.fromMap(newData));
-    }, onError: (_) {});
+    _sub = Stream.periodic(const Duration(seconds: 15)).asyncMap((_) async {
+      try {
+        final newData = await SupabaseReadService.getSettings('general');
+        if (newData != null) {
+          state = AsyncData(AppSettings.fromMap(newData));
+        }
+      } catch (_) {}
+    }).listen((_) {}, onError: (_) {});
 
     ref.onDispose(() => _sub?.cancel());
     return settings;

@@ -18,11 +18,11 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   void _navigate() async {
-    for (int i = 0; i < 50; i++) {
+    for (int i = 0; i < 80; i++) {
       try {
         if (Firebase.apps.isNotEmpty) break;
       } catch (_) {}
-      await Future.delayed(const Duration(milliseconds: 100));
+      await Future.delayed(const Duration(milliseconds: 200));
     }
     final user = FirebaseService.currentUser;
     if (user != null) {
@@ -36,14 +36,19 @@ class _SplashScreenState extends State<SplashScreen> {
     try {
       String? role = await FirebaseService.getCachedUserRole(uid);
       if (role == null) {
-        role = await FirebaseService.getUserRole(uid);
+        role = await FirebaseService.getUserRole(uid).timeout(const Duration(seconds: 8), onTimeout: () => null);
         if (role != null) FirebaseService.cacheUserRole(uid, role);
       }
       if (!mounted) return;
+      if (role == null) {
+        // Offline or error — default to student dashboard
+        context.go('/dashboard');
+        return;
+      }
       if (role == 'admin') {
         context.go('/admin');
       } else if (role == 'assistant') {
-        final snapshot = await FirebaseService.getUser(uid);
+        final snapshot = await FirebaseService.getUser(uid).timeout(const Duration(seconds: 8), onTimeout: null);
         final data = snapshot?.data() as Map<String, dynamic>?;
         final folderIds = (data?['folderIds'] as List<dynamic>?)?.cast<String>() ?? <String>[];
         final assistantName = data?['name'] as String? ?? 'Assistant';
@@ -52,7 +57,7 @@ class _SplashScreenState extends State<SplashScreen> {
         context.go('/dashboard');
       }
     } catch (_) {
-      if (mounted) _navigateToLogin();
+      if (mounted) context.go('/dashboard');
     }
   }
 

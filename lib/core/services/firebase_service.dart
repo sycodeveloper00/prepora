@@ -78,11 +78,15 @@ class FirebaseService {
 
   static Future<void> initialize() async {
     if (_initialized) return;
-    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-    await _loadActiveSupabaseAccount();
+    try {
+      await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform).timeout(const Duration(seconds: 10));
+    } catch (_) {}
+    try {
+      await _loadActiveSupabaseAccount().timeout(const Duration(seconds: 8));
+    } catch (_) {}
     if (supabaseUrl.isNotEmpty && _supabaseAnonKey.isNotEmpty) {
       try {
-        await Supabase.initialize(url: supabaseUrl, anonKey: _supabaseAnonKey);
+        await Supabase.initialize(url: supabaseUrl, anonKey: _supabaseAnonKey).timeout(const Duration(seconds: 5));
       } catch (_) {}
     }
     _initialized = true;
@@ -2163,7 +2167,16 @@ class FirebaseService {
   }
 
   static Future<void> updateSetting(String key, dynamic value) async {
-    await firestore.collection('settings').doc('general').set({key: value}, SetOptions(merge: true));
+    SupabaseReadService.invalidateSettingsCache();
+    Map<String, dynamic>? current;
+    try { current = await SupabaseReadService.readPrimary('settings', 'general'); } catch (_) {}
+    current ??= await SupabaseReadService.getSettings('general');
+    final data = Map<String, dynamic>.from(current ?? {});
+    data[key] = value;
+    try {
+      await SupabaseReadService.writeToAll('settings', 'general', data);
+    } catch (_) {}
+    SupabaseReadService.invalidateSettingsCache();
   }
 
   // ─── AI Conversations ──────────────────────────────────────────────────────────

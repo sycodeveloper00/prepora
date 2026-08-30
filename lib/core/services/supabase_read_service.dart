@@ -234,9 +234,14 @@ class SupabaseReadService {
     List<Map<String, dynamic>>? bestResult;
     int consecutiveFailures = 0;
 
+    // These tables have RLS or need service_role for reliable reads:
+    // notes/notices/student_activities: RLS requires auth.uid() (null for Firebase users)
+    // settings/app_updates: admin writes via service_role, anon reads may be blocked
+    final readKey = (table == 'notes' || table == 'notices' || table == 'student_activities' || table == 'settings' || table == 'app_updates') ? 'service' : 'anon';
+
     for (final idx in tryOrder) {
       final p = _projects[idx];
-      final res = await _tryQuery(p['url']!, p['anon']!, table, q);
+      final res = await _tryQuery(p['url']!, p[readKey]!, table, q);
 
       if (res != null && res.statusCode == 200) {
         List<Map<String, dynamic>> casted;
@@ -372,9 +377,9 @@ class SupabaseReadService {
     'login_attempts': ['uid', 'device_id', 'device_model', 'timestamp'],
     'notifications': ['uid', 'read', 'message', 'type'],
     'admin_notifications': ['read', 'message', 'type', 'created_at'],
-    'notices': ['title', 'file_type', 'added_by'],
+    'notices': ['title', 'file_type', 'added_by', 'created_at', 'file_url'],
     'feedbacks': ['uid', 'status', 'message', 'reply'],
-    'settings': [],
+    'settings': ['paid_access', 'price'],
     'app_updates': ['version', 'link'],
     'student_activities': ['uid', 'started_at'],
     'assistant_access': ['uid', 'folder_id'],
@@ -426,6 +431,7 @@ class SupabaseReadService {
     'lectureName': 'lecture_name',
     'lastMessage': 'last_message',
     'conversationId': 'conversation_id',
+    'paidAccess': 'paid_access',
   };
 
   /// Build the upsert body: id + data JSONB + matching typed columns
