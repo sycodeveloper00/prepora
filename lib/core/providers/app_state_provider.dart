@@ -125,10 +125,10 @@ class UserStatusNotifier extends AutoDisposeAsyncNotifier<UserStatus> {
     final results = await Future.wait([
       FirebaseService.isStudentBlocked(uid).timeout(const Duration(seconds: 10), onTimeout: () => cached?.isBlocked ?? false),
       FirebaseService.isStudentVerified(uid).timeout(const Duration(seconds: 10), onTimeout: () => cached?.isVerified ?? false),
-      FirebaseService.getSettings().timeout(const Duration(seconds: 10), onTimeout: <String, dynamic>{}),
-      FirebaseService.getFreeTrial(uid).timeout(const Duration(seconds: 10), onTimeout: <String, dynamic>{}),
-      FirebaseService.getStreak(uid).timeout(const Duration(seconds: 10), onTimeout: <String, dynamic>{}),
-      FirebaseService.getUser(uid).timeout(const Duration(seconds: 10), onTimeout: null),
+      FirebaseService.getSettings().timeout(const Duration(seconds: 10), onTimeout: () => <String, dynamic>{}),
+      FirebaseService.getFreeTrial(uid).timeout(const Duration(seconds: 10), onTimeout: () => <String, dynamic>{}),
+      FirebaseService.getStreak(uid).timeout(const Duration(seconds: 10), onTimeout: () => <String, dynamic>{}),
+      FirebaseService.getUser(uid).timeout(const Duration(seconds: 10), onTimeout: () => null),
     ]);
 
     final blocked = results[0] as bool;
