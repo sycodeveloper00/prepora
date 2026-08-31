@@ -201,7 +201,6 @@ class SupabaseReadService {
       // Return a synthetic Response with the combined data
       return http.Response(json.encode(all), 200);
     } catch (e) {
-      print('[TRYQUERY] table=$table url=$url ERROR=$e');
       return null;
     }
   }
@@ -242,9 +241,7 @@ class SupabaseReadService {
 
     for (final idx in tryOrder) {
       final p = _projects[idx];
-      print('[QUERY] table=$table project=${p['name']} idx=$idx');
       final res = await _tryQuery(p['url']!, p[readKey]!, table, q);
-      print('[QUERY] table=$table project=${p['name']} res=${res?.statusCode}');
 
       if (res != null && res.statusCode == 200) {
         List<Map<String, dynamic>> casted;
@@ -327,10 +324,8 @@ class SupabaseReadService {
       List<Map<String, dynamic>>? rows;
       try {
         rows = await _query(table, query);
-        print('[POLL] table=$table rows=${rows?.length} consecutiveErrors=$consecutiveErrors');
         consecutiveErrors = 0;
       } catch (e) {
-        print('[POLL] table=$table ERROR=$e');
         // Never let a poll error kill the stream — this is what caused screens
         // to go blank after a few minutes when a single HTTP/JSON error escaped
         // the async* generator and terminated the subscription.
