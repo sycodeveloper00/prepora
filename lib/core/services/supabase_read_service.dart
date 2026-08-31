@@ -318,7 +318,7 @@ class SupabaseReadService {
 
     // Emit empty list immediately so StreamBuilder exits ConnectionState.waiting
     // right away instead of showing spinner while the first query runs.
-    yield const <Map<String, dynamic>>[];
+    yield <Map<String, dynamic>>[];
 
     while (true) {
       List<Map<String, dynamic>>? rows;
