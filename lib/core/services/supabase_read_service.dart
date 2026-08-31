@@ -353,7 +353,13 @@ class SupabaseReadService {
       }
       // On a single transient failure we silently skip this cycle and keep the
       // previously emitted data on screen (no empty re-emit).
-      await Future.delayed(interval);
+      try {
+        await Future.delayed(interval);
+      } catch (_) {
+        // Subscription cancelled (widget disposed) — exit gracefully instead of
+        // propagating a CancelledException that kills the stream.
+        return;
+      }
     }
   }
 
@@ -671,7 +677,7 @@ class SupabaseReadService {
   // ─── folders ──────────────────────────────────────────────────────────────
 
   static Future<List<Map<String, dynamic>>?> getFolders() async {
-    final rows = await _query('folders', '$_sel&order=created_at.asc');
+    final rows = await _query('folders', '$_sel&order=id.asc');
     if (rows == null) return null;
     final list = rows.map(_flatten).toList();
     list.sort((a, b) {
@@ -688,7 +694,7 @@ class SupabaseReadService {
   static Stream<List<Map<String, dynamic>>> streamFolders({
     Duration interval = const Duration(seconds: 30),
   }) {
-    return _poll('folders', '$_sel&order=created_at.asc', interval: interval).map((list) {
+    return _poll('folders', '$_sel&order=id.asc', interval: interval).map((list) {
       list.sort((a, b) {
         final ao = a['sortOrder'] as int?;
         final bo = b['sortOrder'] as int?;
@@ -714,7 +720,7 @@ class SupabaseReadService {
     String? parentContentId,
     bool fetchAll = false,
   }) async {
-    var q = 'folder_id=eq.$folderId&$_sel&order=created_at.asc';
+    var q = 'folder_id=eq.$folderId&$_sel&order=id.asc';
     if (!fetchAll) {
       if (parentContentId != null) {
         q += '&parent_content_id=eq.$parentContentId';
@@ -743,7 +749,7 @@ class SupabaseReadService {
     String? parentContentId,
     Duration interval = const Duration(seconds: 30),
   }) {
-    var q = 'folder_id=eq.$folderId&$_sel&order=created_at.asc';
+    var q = 'folder_id=eq.$folderId&$_sel&order=id.asc';
     if (parentContentId != null) {
       q += '&parent_content_id=eq.$parentContentId';
     } else {
