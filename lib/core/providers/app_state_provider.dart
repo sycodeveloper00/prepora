@@ -121,14 +121,40 @@ class UserStatusNotifier extends AutoDisposeAsyncNotifier<UserStatus> {
       }
     } catch (_) {}
 
-    // Fetch fresh data in parallel with 10s timeout for offline resilience
+    // Fetch fresh data in parallel with 10s timeout for offline resilience.
+    // Each call is wrapped in try-catch so DNS errors don't kill the whole provider.
+    Future<bool> safeBlocked() async {
+      try { return await FirebaseService.isStudentBlocked(uid).timeout(const Duration(seconds: 10)); }
+      catch (_) { return cached?.isBlocked ?? false; }
+    }
+    Future<bool> safeVerified() async {
+      try { return await FirebaseService.isStudentVerified(uid).timeout(const Duration(seconds: 10)); }
+      catch (_) { return cached?.isVerified ?? false; }
+    }
+    Future<Map<String, dynamic>> safeSettings() async {
+      try { return await FirebaseService.getSettings().timeout(const Duration(seconds: 10)); }
+      catch (_) { return <String, dynamic>{}; }
+    }
+    Future<Map<String, dynamic>> safeTrial() async {
+      try { return await FirebaseService.getFreeTrial(uid).timeout(const Duration(seconds: 10)); }
+      catch (_) { return <String, dynamic>{}; }
+    }
+    Future<Map<String, dynamic>> safeStreak() async {
+      try { return await FirebaseService.getStreak(uid).timeout(const Duration(seconds: 10)); }
+      catch (_) { return <String, dynamic>{}; }
+    }
+    Future<dynamic> safeUser() async {
+      try { return await FirebaseService.getUser(uid).timeout(const Duration(seconds: 10)); }
+      catch (_) { return null; }
+    }
+
     final results = await Future.wait([
-      FirebaseService.isStudentBlocked(uid).timeout(const Duration(seconds: 10), onTimeout: () => cached?.isBlocked ?? false),
-      FirebaseService.isStudentVerified(uid).timeout(const Duration(seconds: 10), onTimeout: () => cached?.isVerified ?? false),
-      FirebaseService.getSettings().timeout(const Duration(seconds: 10), onTimeout: () => <String, dynamic>{}),
-      FirebaseService.getFreeTrial(uid).timeout(const Duration(seconds: 10), onTimeout: () => <String, dynamic>{}),
-      FirebaseService.getStreak(uid).timeout(const Duration(seconds: 10), onTimeout: () => <String, dynamic>{}),
-      FirebaseService.getUser(uid).timeout(const Duration(seconds: 10), onTimeout: () => null),
+      safeBlocked(),
+      safeVerified(),
+      safeSettings(),
+      safeTrial(),
+      safeStreak(),
+      safeUser(),
     ]);
 
     final blocked = results[0] as bool;
@@ -144,7 +170,7 @@ class UserStatusNotifier extends AutoDisposeAsyncNotifier<UserStatus> {
 
     // Expire trial if needed
     if (trialActive && trialEnd != null && !trialEnd.isAfter(DateTime.now())) {
-      FirebaseService.expireFreeTrial(uid);
+      try { FirebaseService.expireFreeTrial(uid); } catch (_) {}
     }
 
     final createdAt = (userDoc?.data() as Map<String, dynamic>?)?['createdAt'] as Timestamp?;
@@ -152,27 +178,29 @@ class UserStatusNotifier extends AutoDisposeAsyncNotifier<UserStatus> {
 
     // Listen for real-time user doc changes (blocked/verified)
     _userSub?.cancel();
-    _userSub = FirebaseService.firestore
-        .collection('users')
-        .doc(uid)
-        .snapshots()
-        .listen((snap) {
-      if (!snap.exists) return;
-      final data = snap.data() as Map<String, dynamic>;
-      final newBlocked = data['blocked'] as bool? ?? false;
-      final newVerified = data['verified'] as bool? ?? false;
-      final newTrialActive = data['freeTrialActive'] == true;
-      final endsAt = data['freeTrialEndsAt'];
-      final newTrialEnd = endsAt is Timestamp ? endsAt.toDate() : null;
+    try {
+      _userSub = FirebaseService.firestore
+          .collection('users')
+          .doc(uid)
+          .snapshots()
+          .listen((snap) {
+        if (!snap.exists) return;
+        final data = snap.data() as Map<String, dynamic>;
+        final newBlocked = data['blocked'] as bool? ?? false;
+        final newVerified = data['verified'] as bool? ?? false;
+        final newTrialActive = data['freeTrialActive'] == true;
+        final endsAt = data['freeTrialEndsAt'];
+        final newTrialEnd = endsAt is Timestamp ? endsAt.toDate() : null;
 
-      final current = state.valueOrNull ?? UserStatus();
-      state = AsyncData(current.copyWith(
-        isBlocked: newBlocked,
-        isVerified: newVerified,
-        isFreeTrialActive: newTrialActive && (newTrialEnd?.isAfter(DateTime.now()) ?? false),
-        trialEndsAt: newTrialEnd,
-      ));
-    }, onError: (_) {});
+        final current = state.valueOrNull ?? UserStatus();
+        state = AsyncData(current.copyWith(
+          isBlocked: newBlocked,
+          isVerified: newVerified,
+          isFreeTrialActive: newTrialActive && (newTrialEnd?.isAfter(DateTime.now()) ?? false),
+          trialEndsAt: newTrialEnd,
+        ));
+      }, onError: (_) {});
+    } catch (_) {}
 
     // Poll Supabase for settings changes (paidAccess etc.)
     _settingsSub?.cancel();
