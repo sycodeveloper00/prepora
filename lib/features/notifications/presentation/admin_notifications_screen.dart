@@ -84,6 +84,9 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
                 case 'feedback': icon = Icons.support_agent_rounded; iconColor = Colors.orange; break;
                 case 'login': icon = Icons.login_rounded; iconColor = Colors.blue; break;
                 case 'auto_block': icon = Icons.block_rounded; iconColor = Colors.red; break;
+                case 'supabase_failover': icon = Icons.sync_problem_rounded; iconColor = Colors.deepOrange; break;
+                case 'storage_auto_switch': icon = Icons.swap_horiz_rounded; iconColor = Colors.teal; break;
+                case 'storage_no_account': icon = Icons.storage_rounded; iconColor = Colors.redAccent; break;
                 default: icon = Icons.circle_rounded; iconColor = Colors.grey;
               }
               return Container(

@@ -214,12 +214,12 @@ class _NotepadViewState extends State<NotepadView> {
               child: GestureDetector(
                 onPanStart: (details) {
                   setState(() {
-                    _currentStroke = [DrawPoint(details.localPosition, _isEraser ? Colors.white : _penColor, _isEraser ? 20 : _strokeWidth)];
+                    _currentStroke = [DrawPoint(details.localPosition, _isEraser ? Colors.white : _penColor, _isEraser ? _strokeWidth * 2 : _strokeWidth)];
                   });
                 },
                 onPanUpdate: (details) {
                   setState(() {
-                    _currentStroke.add(DrawPoint(details.localPosition, _isEraser ? Colors.white : _penColor, _isEraser ? 20 : _strokeWidth));
+                    _currentStroke.add(DrawPoint(details.localPosition, _isEraser ? Colors.white : _penColor, _isEraser ? _strokeWidth * 2 : _strokeWidth));
                   });
                 },
                 onPanEnd: (_) {
@@ -360,6 +360,7 @@ class _DrawingPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _DrawingPainter old) => true;
+  bool shouldRepaint(covariant _DrawingPainter old) =>
+      old.strokes != strokes || old.currentStroke != currentStroke;
 }
 

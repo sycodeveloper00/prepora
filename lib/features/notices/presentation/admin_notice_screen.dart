@@ -211,11 +211,25 @@ class _AdminNoticeScreenState extends State<AdminNoticeScreen> {
               if (snap.connectionState == ConnectionState.waiting) return const Center(child: ProfessionalLoader());
               if (!snap.hasData || snap.data!.docs.isEmpty) return Center(child: Text('No notices', style: TextStyle(color: listDark ? Colors.white38 : Colors.black54)));
               final now = DateTime.now();
+              final validDocs = <QueryDocumentSnapshot>[];
+              for (final doc in snap.data!.docs) {
+                final data = doc.data() as Map<String, dynamic>;
+                final rawTime = data['createdAt'] ?? data['created_at'];
+                DateTime? time;
+                if (rawTime is DateTime) time = rawTime;
+                else if (rawTime is String) time = DateTime.tryParse(rawTime);
+                if (time != null && now.difference(time).inHours >= 24) {
+                  SupabaseReadService.writeToAll('notices', doc.id, {}, delete: true);
+                } else {
+                  validDocs.add(doc);
+                }
+              }
+              if (validDocs.isEmpty) return Center(child: Text('No notices', style: TextStyle(color: listDark ? Colors.white38 : Colors.black54)));
               return ListView.builder(
                 padding: const EdgeInsets.all(16),
-                itemCount: snap.data!.docs.length,
+                itemCount: validDocs.length,
                 itemBuilder: (context, i) {
-                  final doc = snap.data!.docs[i];
+                  final doc = validDocs[i];
                   final data = doc.data() as Map<String, dynamic>;
                   final title = data['title'] as String? ?? '';
                   final type = data['fileType'] as String? ?? 'text';
@@ -223,10 +237,6 @@ class _AdminNoticeScreenState extends State<AdminNoticeScreen> {
                   DateTime? time;
                   if (rawTime is DateTime) time = rawTime;
                   else if (rawTime is String) time = DateTime.tryParse(rawTime);
-                  if (time != null && now.difference(time).inHours >= 24) {
-                    SupabaseReadService.writeToAll('notices', doc.id, {}, delete: true);
-                    return const SizedBox.shrink();
-                  }
                   final timeStr = time != null ? '${time.day}/${time.month}/${time.year} ${time.hour}:${time.minute.toString().padLeft(2, '0')}' : '';
 
                   if (type == 'text') {

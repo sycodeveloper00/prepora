@@ -26,8 +26,21 @@ class _NotesListScreenState extends State<NotesListScreen> {
   }
 
   Future<void> _delete(String id) async {
-    await FirebaseService.deleteNote(id);
-    _load();
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Note?'),
+        content: const Text('Are you sure you want to delete this note? This cannot be undone.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent), child: const Text('Delete', style: TextStyle(color: Colors.white))),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      await FirebaseService.deleteNote(id);
+      _load();
+    }
   }
 
   Future<void> _rename(String id, String currentName) async {
@@ -43,6 +56,7 @@ class _NotesListScreenState extends State<NotesListScreen> {
         ],
       ),
     );
+    c.dispose();
     if (newName != null && newName.isNotEmpty && newName != currentName) {
       await FirebaseService.renameNote(id, newName);
       _load();

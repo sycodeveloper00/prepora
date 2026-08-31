@@ -109,7 +109,9 @@ class FirebaseService {
     if (supabaseUrl.isNotEmpty && _supabaseAnonKey.isNotEmpty) {
       try {
         await Supabase.initialize(url: supabaseUrl, anonKey: _supabaseAnonKey);
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('[reinitializeSupabase] Failed: $e');
+      }
     }
   }
 
@@ -1499,19 +1501,21 @@ class FirebaseService {
           final fileName = 'notices/${DateTime.now().millisecondsSinceEpoch}.$ext';
           supabaseUrl = await uploadFileToSupabase('notices', fileName, file);
         } catch (e) {
-          print('[addNotice] Supabase file upload failed: $e');
+          debugPrint('[addNotice] Supabase file upload failed: $e');
           supabaseUrl = null;
         }
       }
+      final userName = currentUser?.displayName ?? 'Admin';
       await SupabaseReadService.writeToAll('notices', docId, {
         'title': title,
         'fileUrl': supabaseUrl,
         'fileType': fileType,
+        'addedBy': userName,
         'createdAt': DateTime.now().toIso8601String(),
       });
       return docId;
     } catch (e) {
-      print('[addNotice] Supabase write failed: $e');
+      debugPrint('[addNotice] Supabase write failed: $e');
       return null;
     }
   }
@@ -2054,7 +2058,7 @@ class FirebaseService {
   static Future<void> renameNote(String id, String newName) async {
     final uid = currentUser?.uid;
     if (uid == null) return;
-    await SupabaseReadService.writeToAll('notes', id, {'uid': uid, 'lectureName': newName});
+    await SupabaseReadService.writeToAll('notes', id, {'uid': uid, 'lectureName': newName, 'updatedAt': DateTime.now().toIso8601String()});
   }
 
   // ─── Assistant Access ─────────────────────────────────────────────────────────────

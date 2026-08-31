@@ -315,6 +315,11 @@ class SupabaseReadService {
     String? lastKey;
     List<Map<String, dynamic>>? lastList;
     var consecutiveErrors = 0;
+
+    // Emit empty list immediately so StreamBuilder exits ConnectionState.waiting
+    // right away instead of showing spinner while the first query runs.
+    yield const <Map<String, dynamic>>[];
+
     while (true) {
       List<Map<String, dynamic>>? rows;
       try {
@@ -407,6 +412,7 @@ class SupabaseReadService {
     'sortOrder': 'sort_order',
     'itemCount': 'item_count',
     'fileType': 'file_type',
+    'fileUrl': 'file_url',
     'addedBy': 'added_by',
     'freeTrialActive': 'free_trial_active',
     'freeTrialEndsAt': 'free_trial_ends_at',
