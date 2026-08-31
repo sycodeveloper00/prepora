@@ -200,7 +200,8 @@ class SupabaseReadService {
       }
       // Return a synthetic Response with the combined data
       return http.Response(json.encode(all), 200);
-    } catch (_) {
+    } catch (e) {
+      print('[TRYQUERY] table=$table url=$url ERROR=$e');
       return null;
     }
   }
@@ -392,7 +393,7 @@ class SupabaseReadService {
     'login_attempts': ['uid', 'device_id', 'device_model', 'timestamp'],
     'notifications': ['uid', 'read', 'message', 'type'],
     'admin_notifications': ['read', 'message', 'type', 'created_at'],
-    'notices': ['title', 'file_type', 'added_by', 'created_at', 'file_url'],
+    'notices': [],
     'feedbacks': ['uid', 'status', 'message', 'reply'],
     'settings': ['paid_access', 'price'],
     'app_updates': ['version', 'link'],
@@ -783,7 +784,7 @@ class SupabaseReadService {
   // ─── notices ──────────────────────────────────────────────────────────────
 
   static Future<List<Map<String, dynamic>>?> getNotices() async {
-    final rows = await _query('notices', '$_sel&order=created_at.desc');
+    final rows = await _query('notices', 'order=data->>created_at.desc&$_sel');
     if (rows == null) return null;
     return rows.map(_flatten).toList();
   }
@@ -1147,7 +1148,7 @@ class SupabaseReadService {
   static Stream<List<Map<String, dynamic>>> streamNotices({
     Duration interval = const Duration(seconds: 30),
   }) {
-    return _poll('notices', '$_sel&order=created_at.desc', interval: interval);
+    return _poll('notices', 'order=data->>created_at.desc&$_sel', interval: interval);
   }
 
   // ─── FOP allowed emails ──────────────────────────────────────────────────
