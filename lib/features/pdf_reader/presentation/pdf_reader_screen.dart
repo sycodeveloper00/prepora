@@ -245,11 +245,13 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
     final hasStrokes = _strokes.isNotEmpty;
     final hasText = _textOverlay != null;
     if (!hasStrokes && !hasText) {
-      // Saving an empty annotation = bookmarking the PDF in Notes.
+      final lectureId = 'pdf_${DateTime.now().millisecondsSinceEpoch}';
       final ok = await FirebaseService.saveNote(
-        widget.documentId,
-        'PDF: ${_fileName ?? "Document"}',
+        lectureId,
+        'PDF bookmarked for later reference.',
         lectureName: _fileName ?? 'PDF Note',
+        source: 'pdf',
+        pdfUrl: widget.documentId,
       );
       if (mounted) {
         if (ok) {
@@ -265,8 +267,9 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
       return;
     }
 
-    final ok =     await FirebaseService.saveNote(
-      widget.documentId,
+    final lectureId = 'pdf_${DateTime.now().millisecondsSinceEpoch}';
+    final ok = await FirebaseService.saveNote(
+      lectureId,
       'PDF Annotation: ${_fileName ?? "Document"}\n\nStrokes: ${_strokes.length}\nText: ${_textOverlay ?? "-"}',
       lectureName: _fileName ?? 'PDF Note',
       source: 'pdf',

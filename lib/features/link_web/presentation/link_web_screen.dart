@@ -24,6 +24,7 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
   StreamSubscription? _activeSub;
   StreamSubscription? _historySub;
   Timer? _staleCheckTimer;
+  final Set<String> _notifiedSessionIds = {};
 
   static const int _maxWebSessions = 3;
   DateTime? _lastScanTime;
@@ -62,7 +63,8 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
       final elapsed = now.difference(lastActive);
       if (elapsed.inMinutes >= 60) {
         final sid = session['sessionId'] as String?;
-        if (sid != null) {
+        if (sid != null && !_notifiedSessionIds.contains(sid)) {
+          _notifiedSessionIds.add(sid);
           await _disconnectSession(sid);
           try {
             await NotificationService.showDisconnectNotification(

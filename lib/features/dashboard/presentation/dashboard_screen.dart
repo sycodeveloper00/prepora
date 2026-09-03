@@ -1783,7 +1783,13 @@ class _DashboardGridState extends State<_DashboardGrid> {
         }
         final docs = snapshot.data!.docs.where((doc) {
           final d = doc.data() as Map<String, dynamic>;
-          return d['invisible'] != true;
+          if (d['invisible'] == true) return false;
+          if (d['enabled'] == false) return false;
+          final name = d['name'] as String?;
+          if (name == null || name.trim().isEmpty) return false;
+          final sortOrder = d['sortOrder'] as int?;
+          if (sortOrder == -1) return false;
+          return true;
         }).toList();
         final colors = [Colors.purple, Colors.teal, Colors.blue, Colors.orange, Colors.pink, Colors.indigo, Colors.green, Colors.amber];
         final screenWidth = MediaQuery.of(context).size.width;

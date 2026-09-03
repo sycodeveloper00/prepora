@@ -2076,7 +2076,17 @@ class FirebaseService {
   static Future<void> renameNote(String id, String newName) async {
     final uid = currentUser?.uid;
     if (uid == null) return;
-    await SupabaseReadService.writeToAll('notes', id, {'uid': uid, 'lectureName': newName, 'updatedAt': DateTime.now().toIso8601String()});
+    Map<String, dynamic> existing = {};
+    try {
+      final note = await SupabaseReadService.getNote(id, uid);
+      if (note != null) existing = Map<String, dynamic>.from(note);
+    } catch (_) {}
+    await SupabaseReadService.writeToAll('notes', id, {
+      ...existing,
+      'uid': uid,
+      'lectureName': newName,
+      'updatedAt': DateTime.now().toIso8601String(),
+    });
   }
 
   // ─── Assistant Access ─────────────────────────────────────────────────────────────
