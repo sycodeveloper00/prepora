@@ -272,8 +272,8 @@ class NotificationService {
         if (change.type == DocumentChangeType.added) {
           final data = change.doc.data() as Map<String, dynamic>;
           final read = data['read'] as bool? ?? false;
-          if (!read) {
-            final message = data['message'] as String? ?? '';
+          final message = data['message'] as String? ?? '';
+          if (!read && !message.contains('Web app disconnected')) {
             final userName = data['userName'] as String? ?? 'Admin';
             await _showStudentNotification(message, userName);
           }
