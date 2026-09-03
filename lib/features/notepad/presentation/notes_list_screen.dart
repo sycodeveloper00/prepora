@@ -83,6 +83,9 @@ class _NotesListScreenState extends State<NotesListScreen> {
                     final id = note['id'] as String;
                     final lectureName = note['lectureName'] as String? ?? 'Unknown Lecture';
                     final content = note['content'] as String? ?? '';
+                    final source = note['source'] as String? ?? 'notepad';
+                    final pdfUrl = note['pdfUrl'] as String? ?? '';
+                    final isPdf = source == 'pdf' && pdfUrl.isNotEmpty;
                     final preview = content.length > 100 ? '${content.substring(0, 100)}...' : content;
                     final timeStrRaw = note['updatedAt'] as String?;
                     final time = timeStrRaw != null ? DateTime.tryParse(timeStrRaw) : null;
@@ -92,9 +95,11 @@ class _NotesListScreenState extends State<NotesListScreen> {
                       margin: const EdgeInsets.only(bottom: 12),
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         ListTile(
-                          leading: Icon(Icons.note_rounded, color: isDark ? const Color(0xFF00B8D4) : const Color(0xFF4A148C)),
+                          leading: Icon(isPdf ? Icons.picture_as_pdf_rounded : Icons.note_rounded, color: isPdf ? Colors.redAccent : (isDark ? const Color(0xFF00B8D4) : const Color(0xFF4A148C))),
                           title: Text(lectureName, style: TextStyle(fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87)),
-                          subtitle: Text(preview, style: TextStyle(color: isDark ? Colors.white54 : Colors.black54, fontSize: 12), maxLines: 2, overflow: TextOverflow.ellipsis),
+                          subtitle: content.isEmpty
+                              ? Text(isPdf ? 'Tap to open PDF' : 'Tap to edit', style: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontSize: 12, fontStyle: FontStyle.italic))
+                              : Text(isPdf ? 'PDF: $preview' : preview, style: TextStyle(color: isDark ? Colors.white54 : Colors.black54, fontSize: 12), maxLines: 2, overflow: TextOverflow.ellipsis),
                           trailing: PopupMenuButton<String>(
                             icon: Icon(Icons.more_vert_rounded, color: isDark ? Colors.white70 : Colors.black54),
                             onSelected: (v) {
@@ -106,7 +111,13 @@ class _NotesListScreenState extends State<NotesListScreen> {
                               const PopupMenuItem(value: 'delete', child: ListTile(leading: Icon(Icons.delete_rounded, color: Colors.redAccent), title: Text('Delete', style: TextStyle(color: Colors.redAccent)), dense: true)),
                             ],
                           ),
-                          onTap: () => context.push('/notepad/$id', extra: {'name': lectureName}),
+                          onTap: () {
+                            if (isPdf) {
+                              context.push('/pdf_reader/view', extra: {'url': pdfUrl, 'title': lectureName});
+                            } else {
+                              context.push('/notepad/$id', extra: {'name': lectureName});
+                            }
+                          },
                         ),
                         if (timeStr.isNotEmpty)
                           Padding(

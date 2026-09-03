@@ -34,6 +34,7 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
   double _paidAmount = 0;
   List<Map<String, dynamic>> _feedbacks = [];
   bool _loadingUser = true;
+  List<Map<String, dynamic>> _mainFolders = [];
 
   int _streakCount = 0;
   int _totalActiveDays = 0;
@@ -84,11 +85,13 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
         FirebaseService.getStudentFeedbacks(uid),
         FirebaseService.getStreak(uid),
         FirebaseService.getFreeTrial(uid),
+        SupabaseReadService.getFolders() ?? Future.value(null),
       ]);
       final userData = results[0] as Map<String, dynamic>?;
       final feedbacks = results[1] as List<Map<String, dynamic>>;
       final streak = results[2] as Map<String, dynamic>;
       final trial = results[3] as Map<String, dynamic>;
+      final folders = results[4] as List<Map<String, dynamic>>?;
       final trialActive = trial['active'] == true;
       final endsAt = trial['endsAt'];
       final trialEnd = endsAt is String ? DateTime.tryParse(endsAt) : (endsAt as DateTime?);
@@ -107,6 +110,7 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
           _streakBest = (userData?['streakBest'] as int?) ?? (userData?['streak_best'] as int?) ?? _streakCount;
           _freeTrialActive = isTrialActive;
           _freeTrialEndsAt = trialEnd;
+          _mainFolders = (folders ?? []).where((f) => f['parentFolderId'] == null && f['invisible'] != true && f['enabled'] != false).toList();
           _loadingUser = false;
         });
         if (isTrialActive) {
@@ -489,10 +493,23 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
     final maxMonthly = monthlyCounts.isNotEmpty ? monthlyCounts.reduce((a, b) => a > b ? a : b).toDouble() : 5.0;
 
     final subjectMap = <String, int>{};
+    final mainFolderNames = _mainFolders.map((f) => (f['name'] as String? ?? '').trim()).where((n) => n.isNotEmpty).toList();
     for (final data in docs) {
       final folderPath = data['folderPath'] as String? ?? '';
       final name = data['name'] as String? ?? 'Unknown';
-      final subject = folderPath.isNotEmpty ? folderPath.split('>').first.trim() : name;
+      final firstPart = folderPath.isNotEmpty ? folderPath.split('>').first.trim() : '';
+      String subject;
+      if (firstPart.isNotEmpty && mainFolderNames.contains(firstPart)) {
+        subject = firstPart;
+      } else if (firstPart.isNotEmpty) {
+        final matched = mainFolderNames.firstWhere(
+          (mf) => mf.toLowerCase() == firstPart.toLowerCase(),
+          orElse: () => '',
+        );
+        subject = matched.isNotEmpty ? matched : (firstPart.isNotEmpty ? firstPart : name);
+      } else {
+        subject = name;
+      }
       subjectMap[subject] = (subjectMap[subject] ?? 0) + 1;
     }
     final sortedSubjects = subjectMap.entries.toList()..sort((a, b) => b.value.compareTo(a.value));

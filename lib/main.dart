@@ -104,6 +104,7 @@ class _AppLifecycleState extends State<_AppLifecycle> with WidgetsBindingObserve
       await NotificationService.requestNotificationPermission();
       await NotificationService.ensureExactAlarmPermission();
       await NotificationService.scheduleDailyStreakReminder();
+      await NotificationService.scheduleStreakEveningReminder();
       await NotificationService.checkAndNotify();
       _listenForDeviceLogout();
     });

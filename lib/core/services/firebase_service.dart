@@ -1512,6 +1512,7 @@ class FirebaseService {
         'fileType': fileType,
         'addedBy': userName,
         'createdAt': DateTime.now().toIso8601String(),
+        'isPinned': false,
       });
       return docId;
     } catch (e) {
@@ -1996,10 +1997,24 @@ class FirebaseService {
 
   static Future<void> updateFeedbackStatus(String id, String status) async {
     await firestore.collection('feedbacks').doc(id).update({'status': status});
+    Map<String, dynamic>? existing;
+    try { existing = await SupabaseReadService.readPrimary('feedbacks', id); } catch (_) {}
+    final merged = <String, dynamic>{
+      if (existing != null) ...existing,
+      'status': status,
+    };
+    await _mirrorWrite('feedbacks', id, merged);
   }
 
   static Future<void> updateFeedbackReply(String id, String reply) async {
     await firestore.collection('feedbacks').doc(id).update({'reply': reply});
+    Map<String, dynamic>? existing;
+    try { existing = await SupabaseReadService.readPrimary('feedbacks', id); } catch (_) {}
+    final merged = <String, dynamic>{
+      if (existing != null) ...existing,
+      'reply': reply,
+    };
+    await _mirrorWrite('feedbacks', id, merged);
   }
 
   // ─── Notes ─────────────────────────────────────────────────────────────────────
@@ -2016,17 +2031,20 @@ class FirebaseService {
     return null;
   }
 
-  static Future<bool> saveNote(String lectureId, String content, {String? lectureName}) async {
+  static Future<bool> saveNote(String lectureId, String content, {String? lectureName, String? source, String? pdfUrl}) async {
     final uid = currentUser?.uid;
     if (uid == null) return false;
     try {
-      await SupabaseReadService.writeToAll('notes', lectureId, {
+      final ok = await SupabaseReadService.writeToAll('notes', lectureId, {
         'uid': uid,
         'content': content,
         'lectureName': lectureName ?? '',
+        'source': source ?? 'notepad',
+        'pdfUrl': pdfUrl ?? '',
         'updatedAt': DateTime.now().toIso8601String(),
       });
-      return true;
+      debugPrint('[saveNote] writeToAll returned: $ok');
+      return ok;
     } catch (e) {
       debugPrint('[saveNote] Supabase write failed: $e');
       return false;
@@ -2172,14 +2190,16 @@ class FirebaseService {
 
   static Future<void> updateSetting(String key, dynamic value) async {
     SupabaseReadService.invalidateSettingsCache();
-    Map<String, dynamic>? current;
-    try { current = await SupabaseReadService.readPrimary('settings', 'general'); } catch (_) {}
-    current ??= await SupabaseReadService.getSettings('general');
+    final current = await SupabaseReadService.getSettings('general');
     final data = Map<String, dynamic>.from(current ?? {});
     data[key] = value;
+    debugPrint('[UPDATE_SETTING] key=$key value=$value writeData.keys=${data.keys.toList()}');
     try {
-      await SupabaseReadService.writeToAll('settings', 'general', data);
-    } catch (_) {}
+      final ok = await SupabaseReadService.writeToAll('settings', 'general', data);
+      debugPrint('[UPDATE_SETTING] writeToAll completed ok=$ok');
+    } catch (e) {
+      debugPrint('[UPDATE_SETTING] writeToAll ERROR: $e');
+    }
     SupabaseReadService.invalidateSettingsCache();
   }
 

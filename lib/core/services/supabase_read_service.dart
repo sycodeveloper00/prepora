@@ -164,29 +164,31 @@ class SupabaseReadService {
   ) async {
     try {
       if (query != null && query.contains('limit=')) {
-        final request = http.Request('GET', _uri(url, anonKey, table, query));
-        request.headers['apikey'] = anonKey;
-        request.headers['Authorization'] = 'Bearer $anonKey';
-        request.headers['Content-Type'] = 'application/json';
-        final res = await _sharedClient.send(request).timeout(const Duration(seconds: 5));
-        final body = await res.stream.bytesToString();
-        return http.Response(body, res.statusCode, headers: res.headers);
+        final res = await http
+            .get(_uri(url, anonKey, table, query), headers: {
+              'apikey': anonKey,
+              'Authorization': 'Bearer $anonKey',
+              'Content-Type': 'application/json',
+            })
+            .timeout(const Duration(seconds: 5));
+        return (res.statusCode == 200 || res.statusCode == 206) ? res : null;
       }
 
       // Paginated query
       final all = <dynamic>[];
       var offset = 0;
       while (true) {
-        final request = http.Request('GET', _uri(url, anonKey, table, query));
-        request.headers['apikey'] = anonKey;
-        request.headers['Authorization'] = 'Bearer $anonKey';
-        request.headers['Content-Type'] = 'application/json';
-        request.headers['Prefer'] = 'count=exact';
-        request.headers['Range'] = '$offset-${offset + _pageSize - 1}';
-        final res = await _sharedClient.send(request).timeout(const Duration(seconds: 8));
-        final bodyStr = await res.stream.bytesToString();
+        final res = await http
+            .get(_uri(url, anonKey, table, query), headers: {
+              'apikey': anonKey,
+              'Authorization': 'Bearer $anonKey',
+              'Content-Type': 'application/json',
+              'Prefer': 'count=exact',
+              'Range': '$offset-${offset + _pageSize - 1}',
+            })
+            .timeout(const Duration(seconds: 8));
         if (res.statusCode != 200 && res.statusCode != 206) return null;
-        final rows = json.decode(bodyStr) as List<dynamic>;
+        final rows = json.decode(res.body) as List<dynamic>;
         all.addAll(rows);
         final cr = res.headers['content-range'];
         int? total;
@@ -198,7 +200,6 @@ class SupabaseReadService {
         if (rows.isEmpty || total == null || offset + rows.length >= total) break;
         offset += rows.length;
       }
-      // Return a synthetic Response with the combined data
       return http.Response(json.encode(all), 200);
     } catch (e) {
       return null;
@@ -237,7 +238,7 @@ class SupabaseReadService {
     // These tables have RLS or need service_role for reliable reads:
     // notes/notices/student_activities: RLS requires auth.uid() (null for Firebase users)
     // settings/app_updates: admin writes via service_role, anon reads may be blocked
-    final readKey = (table == 'notes' || table == 'notices' || table == 'student_activities' || table == 'settings' || table == 'app_updates') ? 'service' : 'anon';
+    final readKey = (table == 'notes' || table == 'notices' || table == 'student_activities' || table == 'settings' || table == 'app_updates' || table == 'feedbacks') ? 'service' : 'anon';
 
     for (final idx in tryOrder) {
       final p = _projects[idx];
@@ -365,7 +366,15 @@ class SupabaseReadService {
 
   /// Merges a row's `data` jsonb column (if present) with its scalar columns.
   static Map<String, dynamic> _flatten(Map<String, dynamic> r) {
-    final data = (r['data'] as Map<String, dynamic>?) ?? const <String, dynamic>{};
+    dynamic raw = r['data'];
+    Map<String, dynamic> data;
+    if (raw is Map<String, dynamic>) {
+      data = raw;
+    } else if (raw is String) {
+      try { data = jsonDecode(raw) as Map<String, dynamic>; } catch (_) { data = const {}; }
+    } else {
+      data = const {};
+    }
     final flat = <String, dynamic>{'id': r['id']};
     flat.addAll(data);
     for (final entry in r.entries) {
@@ -390,7 +399,7 @@ class SupabaseReadService {
     'admin_notifications': ['read', 'message', 'type', 'created_at'],
     'notices': [],
     'feedbacks': ['uid', 'status', 'message', 'reply'],
-    'settings': ['paid_access', 'price'],
+    'settings': [],
     'app_updates': ['version', 'link'],
     'student_activities': ['uid', 'started_at'],
     'assistant_access': ['uid', 'folder_id'],
@@ -494,6 +503,7 @@ class SupabaseReadService {
           'Authorization': 'Bearer ${primary['service']!}',
           'Prefer': 'return=minimal',
         }).timeout(const Duration(seconds: 8));
+        debugPrint('[WRITE_ALL] DELETE ${primary['name']} $table/$id status=${res.statusCode}');
         primarySuccess = res.statusCode < 300;
       } else {
         final headers = {
@@ -509,9 +519,12 @@ class SupabaseReadService {
           headers: headers,
           body: json.encode(sanitized),
         ).timeout(const Duration(seconds: 8));
+        debugPrint('[WRITE_ALL] UPSERT ${primary['name']} $table/$id status=${res.statusCode}${res.statusCode >= 400 ? " err=${res.body.substring(0, res.body.length.clamp(0, 200))}" : ""}');
         primarySuccess = res.statusCode < 300;
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[WRITE_ALL] CATCH ${primary['name']} $table/$id error=$e');
+    }
 
     // Fire-and-forget backup to remaining projects (non-blocking)
     if (primarySuccess) {
@@ -896,13 +909,13 @@ class SupabaseReadService {
   }
 
   static Future<List<Map<String, dynamic>>?> getNotes(String uid) async {
-    final rows = await _query('notes', 'uid=eq.$uid&$_sel&order=updated_at.desc');
+    final rows = await _query('notes', 'data->>uid=eq.$uid&order=data->>updated_at.desc&$_sel');
     if (rows == null) return null;
     return rows.map(_flatten).toList();
   }
 
   static Future<Map<String, dynamic>?> getNote(String lectureId, String uid) async {
-    final rows = await _query('notes', 'id=eq.$lectureId&uid=eq.$uid&limit=1&$_sel');
+    final rows = await _query('notes', 'id=eq.$lectureId&data->>uid=eq.$uid&limit=1&$_sel');
     if (rows == null || rows.isEmpty) return null;
     return _flatten(rows.first);
   }

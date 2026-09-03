@@ -15,6 +15,7 @@ class NotificationService {
   static const String _adminChannelId = 'admin_notifications';
   static const int _badgeNotificationId = 9999;
   static const int _dailyStreakNotificationId = 8888;
+  static const int _streakEveningNotificationId = 8889;
   static StreamSubscription? _studentSub;
   static StreamSubscription? _adminSub;
 
@@ -178,6 +179,72 @@ class NotificationService {
   static Future<void> cancelDailyStreakReminder() async {
     if (kIsWeb) return;
     await _plugin.cancel(id: _dailyStreakNotificationId);
+  }
+
+  // ─── Streak Evening Reminder (8 PM daily) ──────────────────────────────────
+
+  static Future<void> scheduleStreakEveningReminder() async {
+    if (kIsWeb) return;
+    try {
+      final user = FirebaseService.currentUser;
+      if (user == null) return;
+
+      await _plugin.cancel(id: _streakEveningNotificationId);
+
+      final nowTz = tz.TZDateTime.now(tz.local);
+      final today8PM = tz.TZDateTime(tz.local, nowTz.year, nowTz.month, nowTz.day, 20, 0, 0);
+
+      tz.TZDateTime scheduledDate;
+      if (nowTz.isBefore(today8PM)) {
+        scheduledDate = today8PM;
+      } else {
+        final tomorrow = nowTz.add(const Duration(days: 1));
+        scheduledDate = tz.TZDateTime(tz.local, tomorrow.year, tomorrow.month, tomorrow.day, 20, 0, 0);
+      }
+
+      const androidDetails = AndroidNotificationDetails(
+        'streak_channel', 'Daily Streak',
+        channelDescription: 'Daily streak reminders',
+        importance: Importance.high,
+        priority: Priority.high,
+        icon: '@drawable/ic_notification',
+      );
+      const details = NotificationDetails(android: androidDetails, iOS: DarwinNotificationDetails());
+
+      final androidPlugin = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+      bool exactGranted = false;
+      try {
+        final canExact = await androidPlugin?.canScheduleExactNotifications();
+        exactGranted = canExact == true;
+      } catch (_) {}
+
+      if (exactGranted) {
+        await _plugin.zonedSchedule(
+          id: _streakEveningNotificationId,
+          title: "Don't forget to study!",
+          body: 'Open PrePora now to keep your streak alive. A few minutes of study is all it takes!',
+          scheduledDate: scheduledDate,
+          notificationDetails: details,
+          androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+          matchDateTimeComponents: DateTimeComponents.time,
+        );
+      } else {
+        await _plugin.zonedSchedule(
+          id: _streakEveningNotificationId,
+          title: "Don't forget to study!",
+          body: 'Open PrePora now to keep your streak alive. A few minutes of study is all it takes!',
+          scheduledDate: scheduledDate,
+          notificationDetails: details,
+          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+          matchDateTimeComponents: DateTimeComponents.time,
+        );
+      }
+    } catch (_) {}
+  }
+
+  static Future<void> cancelStreakEveningReminder() async {
+    if (kIsWeb) return;
+    await _plugin.cancel(id: _streakEveningNotificationId);
   }
 
   // ΓöÇΓöÇΓöÇ Student Notification Listener (badge + mobile panel) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
@@ -357,6 +424,24 @@ class NotificationService {
  channelDescription: 'Daily streak reminders', importance: Importance.high, priority: Priority.high, icon: '@drawable/ic_notification');
     const details = NotificationDetails(android: androidDetails, iOS: DarwinNotificationDetails());
     await _plugin.show(id: DateTime.now().millisecondsSinceEpoch ~/ 1000, title: title, body: body, notificationDetails: details);
+  }
+
+  static Future<void> showDisconnectNotification(String message) async {
+    if (kIsWeb) return;
+    const androidDetails = AndroidNotificationDetails(
+      _studentChannelId, 'Student Notifications',
+      channelDescription: 'Notifications from admin',
+      importance: Importance.high,
+      priority: Priority.high,
+      icon: '@drawable/ic_notification',
+    );
+    const details = NotificationDetails(android: androidDetails, iOS: DarwinNotificationDetails());
+    await _plugin.show(
+      id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      title: 'PrePora',
+      body: message,
+      notificationDetails: details,
+    );
   }
 
   static Future<void> showFeedbackNotification(String studentName, String message) async {

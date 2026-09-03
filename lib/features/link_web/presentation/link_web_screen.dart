@@ -6,6 +6,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:intl/intl.dart';
 import 'dart:io' show Platform;
 import '../../../core/services/firebase_service.dart';
+import '../../../core/services/notification_service.dart';
 import '../../../core/services/supabase_read_service.dart';
 
 class LinkWebScreen extends StatefulWidget {
@@ -64,8 +65,7 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
         if (sid != null) {
           await _disconnectSession(sid);
           try {
-            await FirebaseService.addTargetedNotification(
-              user.uid,
+            await NotificationService.showDisconnectNotification(
               'Web app disconnected due to no activity found',
             );
           } catch (_) {}

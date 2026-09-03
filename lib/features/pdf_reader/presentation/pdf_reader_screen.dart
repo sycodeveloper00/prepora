@@ -265,10 +265,12 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
       return;
     }
 
-    final ok = await FirebaseService.saveNote(
+    final ok =     await FirebaseService.saveNote(
       widget.documentId,
       'PDF Annotation: ${_fileName ?? "Document"}\n\nStrokes: ${_strokes.length}\nText: ${_textOverlay ?? "-"}',
       lectureName: _fileName ?? 'PDF Note',
+      source: 'pdf',
+      pdfUrl: widget.documentId,
     );
 
     if (mounted) {
