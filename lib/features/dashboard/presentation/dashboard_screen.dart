@@ -40,6 +40,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   late AnimationController _floatController;
   late Animation<double> _floatAnim;
   late AnimationController _colorFlowController;
+  late AnimationController _bellShakeController;
+  bool _wasPreviouslyEmpty = true;
 
   // Stable key to prevent unnecessary rebuilds
   final GlobalKey<_DashboardGridState> _gridKey = GlobalKey<_DashboardGridState>();
@@ -68,6 +70,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
       vsync: this,
       duration: const Duration(seconds: 3),
     )..repeat();
+
+    _bellShakeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
   }
 
   @override
@@ -82,6 +89,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     NotificationService.dispose();
     _floatController.dispose();
     _colorFlowController.dispose();
+    _bellShakeController.dispose();
     _searchController.dispose();
     _searchDebounce?.cancel();
     _notifOverlay?.remove();
@@ -444,22 +452,42 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
               final docs = snap.data?.docs ?? [];
               _latestNotificationDocs = docs;
               final unread = docs.where((d) => (d.data() as Map<String, dynamic>)['read'] == false).length;
+              if (unread > 0 && _wasPreviouslyEmpty) {
+                _bellShakeController.forward(from: 0);
+              }
+              _wasPreviouslyEmpty = unread == 0;
               return IconButton(
                 key: _bellKey,
-                icon: Stack(
-                  children: [
-                    Icon(Icons.notifications_none_rounded, color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87),
-                    if (unread > 0)
-                      Positioned(
-                        right: -2, top: -2,
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: const BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle),
-                          constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-                          child: Text('$unread', style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
-                        ),
+                icon: AnimatedBuilder(
+                  animation: _bellShakeController,
+                  builder: (context, child) {
+                    final shake = _bellShakeController.value < 0.8
+                        ? ((_bellShakeController.value * 5) % 1 - 0.5) * 0.3
+                        : 0.0;
+                    return Transform.rotate(
+                      angle: shake,
+                      child: Stack(
+                        children: [
+                          Icon(
+                            unread > 0 ? Icons.notifications_rounded : Icons.notifications_none_rounded,
+                            color: unread > 0
+                                ? const Color(0xFF00B8D4)
+                                : (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87),
+                          ),
+                          if (unread > 0)
+                            Positioned(
+                              right: -2, top: -2,
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: const BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle),
+                                constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                                child: Text('$unread', style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+                              ),
+                            ),
+                        ],
                       ),
-                  ],
+                    );
+                  },
                 ),
                 onPressed: _toggleNotifOverlay,
                 tooltip: 'Notifications',

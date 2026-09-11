@@ -322,8 +322,8 @@ class NotificationService {
       if (exactGranted) {
         await _plugin.zonedSchedule(
           id: _dailyStreakNotificationId,
-          title: 'Time to study!',
-          body: 'Your learning journey is waiting. Open PrePora and continue where you left off.',
+          title: '🔥 Don\'t break your streak!',
+          body: 'You\'re on a roll! Keep studying — your future self will thank you.',
           scheduledDate: scheduledDate,
           notificationDetails: details,
           androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
@@ -332,8 +332,8 @@ class NotificationService {
       } else {
         await _plugin.zonedSchedule(
           id: _dailyStreakNotificationId,
-          title: 'Time to study!',
-          body: 'Your learning journey is waiting. Open PrePora and continue where you left off.',
+          title: '🔥 Don\'t break your streak!',
+          body: 'You\'re on a roll! Keep studying — your future self will thank you.',
           scheduledDate: scheduledDate,
           notificationDetails: details,
           androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
@@ -399,8 +399,8 @@ class NotificationService {
       if (exactGranted) {
         await _plugin.zonedSchedule(
           id: _streakEveningNotificationId,
-          title: "Don't forget to study!",
-          body: 'Open PrePora now to keep your streak alive. A few minutes of study is all it takes!',
+          title: '🌙 Night owl study time!',
+          body: 'A quick revision before bed = better retention. Open PrePora for 10 mins!',
           scheduledDate: scheduledDate,
           notificationDetails: details,
           androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
@@ -409,8 +409,8 @@ class NotificationService {
       } else {
         await _plugin.zonedSchedule(
           id: _streakEveningNotificationId,
-          title: "Don't forget to study!",
-          body: 'Open PrePora now to keep your streak alive. A few minutes of study is all it takes!',
+          title: '🌙 Night owl study time!',
+          body: 'A quick revision before bed = better retention. Open PrePora for 10 mins!',
           scheduledDate: scheduledDate,
           notificationDetails: details,
           androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
@@ -430,6 +430,7 @@ class NotificationService {
   static void startStudentNotificationListener(String uid, DateTime userCreatedAt) {
     if (kIsWeb) return;
     _studentSub?.cancel();
+    bool _isFirstSnapshot = true;
     _studentSub = FirebaseService.firestore
         .collection('notifications')
         .where('uid', isEqualTo: uid)
@@ -443,6 +444,10 @@ class NotificationService {
         if (data['read'] != true) unreadCount++;
       }
       await setBadgeCount(unreadCount);
+      if (_isFirstSnapshot) {
+        _isFirstSnapshot = false;
+        return;
+      }
       final androidPlugin = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
       final enabled = await androidPlugin?.areNotificationsEnabled() ?? true;
       if (!enabled) return;
@@ -576,26 +581,18 @@ class NotificationService {
 
       // Duolingo style: 1 day gap = streak needs attention, 2+ days = streak reset
       if (daysSinceLogin >= 2) {
-        await _showStreakNotification(
-          'Your streak was reset!',
-          'You missed a day. Start a new streak today — open PrePora now!',
-        );
-        // Also send live push notification
+        // Only send FCM push — don't show local notification (user is in-app)
         await sendStreakNotification(
           uid: user.uid,
-          title: 'Your streak was reset!',
+          title: 'Your streak was reset! 🔥',
           body: 'You missed a day. Start a new streak today — open PrePora now!',
           type: 'streak_reset',
         );
       } else {
-        await _showStreakNotification(
-          'Keep your streak alive!',
-          'Don\'t let your progress slip away. Open PrePora today!',
-        );
-        // Also send live push notification
+        // Only send FCM push — don't show local notification (user is in-app)
         await sendStreakNotification(
           uid: user.uid,
-          title: 'Keep your streak alive!',
+          title: 'Keep your streak alive! 🔥',
           body: 'Don\'t let your progress slip away. Open PrePora today!',
           type: 'streak_warning',
         );
