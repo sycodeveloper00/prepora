@@ -750,7 +750,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     final results = <_SearchResult>[];
 
     try {
-      final folders = await SupabaseReadService.getAllFolders();
+      final folders = await SupabaseReadService.getFolders();
       if (folders == null) {
         if (mounted) setState(() { _searchResults = []; _isSearching = false; });
         return;

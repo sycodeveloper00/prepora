@@ -483,9 +483,8 @@ class FirebaseService {
     try {
       final mirror = await SupabaseReadService.getSettings('notification_config');
       if (mirror != null) return {...defaults, ...mirror};
-    } catch (_) {
-      return defaults;
-    }
+    } catch (_) {}
+    return defaults;
   }
 
   static Future<List<Map<String, dynamic>>> getAllStudents() async {
