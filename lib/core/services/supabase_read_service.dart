@@ -696,33 +696,29 @@ class SupabaseReadService {
   // ─── folders ──────────────────────────────────────────────────────────────
 
   static Future<List<Map<String, dynamic>>?> getFolders() async {
-    final cache = Hive.box('settings');
-    final cached = cache.get('cached_folders') as List?;
-    final cachedAt = cache.get('cached_folders_at') as int? ?? 0;
-    final isFresh = DateTime.now().millisecondsSinceEpoch - cachedAt < 300000;
-
-    if (cached != null && isFresh) {
-      return cached.cast<Map<String, dynamic>>();
-    }
-
     final rows = await _query('folders', '$_sel&order=id.asc');
-    if (rows == null) return cached?.cast<Map<String, dynamic>>();
-    final list = rows.map(_flatten).toList();
-    list.sort((a, b) {
-      final ao = a['sortOrder'] as int?;
-      final bo = b['sortOrder'] as int?;
-      if (ao != null && bo != null) return ao.compareTo(bo);
-      if (ao != null) return -1;
-      if (bo != null) return 1;
-      return 0;
-    });
-
+    final list = rows?.map(_flatten).toList();
+    if (list != null) {
+      list.sort((a, b) {
+        final ao = a['sortOrder'] as int?;
+        final bo = b['sortOrder'] as int?;
+        if (ao != null && bo != null) return ao.compareTo(bo);
+        if (ao != null) return -1;
+        if (bo != null) return 1;
+        return 0;
+      });
+      try {
+        final cache = Hive.box('settings');
+        await cache.put('cached_folders', list);
+      } catch (_) {}
+      return list;
+    }
     try {
-      await cache.put('cached_folders', list);
-      await cache.put('cached_folders_at', DateTime.now().millisecondsSinceEpoch);
+      final cache = Hive.box('settings');
+      final cached = cache.get('cached_folders') as List?;
+      if (cached != null) return cached.cast<Map<String, dynamic>>();
     } catch (_) {}
-
-    return list;
+    return null;
   }
 
   static Stream<List<Map<String, dynamic>>> streamFolders({
@@ -770,39 +766,33 @@ class SupabaseReadService {
       }
     }
 
-    final cacheKey = 'cc_${folderId}_${parentContentId ?? "root"}';
-    final atKey = '${cacheKey}_at';
-    final cache = Hive.box('settings');
-    final cached = cache.get(cacheKey) as List?;
-    final cachedAt = cache.get(atKey) as int? ?? 0;
-    final isFresh = DateTime.now().millisecondsSinceEpoch - cachedAt < 300000;
-
-    if (cached != null && isFresh) {
-      final list = cached.cast<Map<String, dynamic>>();
+    final rows = await _query('contents', q);
+    if (rows != null) {
+      final list = rows.map(_flatten).toList();
+      list.sort((a, b) {
+        final ao = a['order'] as int?;
+        final bo = b['order'] as int?;
+        if (ao != null && bo != null) return ao.compareTo(bo);
+        if (ao != null) return -1;
+        if (bo != null) return 1;
+        final ac = a['createdAt'] as String? ?? '';
+        final bc = b['createdAt'] as String? ?? '';
+        return ac.compareTo(bc);
+      });
+      try {
+        final cacheKey = 'cc_${folderId}_${parentContentId ?? "root"}';
+        final cache = Hive.box('settings');
+        await cache.put(cacheKey, list);
+      } catch (_) {}
       return list;
     }
-
-    final rows = await _query('contents', q);
-    if (rows == null && cached != null) return cached.cast<Map<String, dynamic>>();
-    if (rows == null) return null;
-    final list = rows.map(_flatten).toList();
-    list.sort((a, b) {
-      final ao = a['order'] as int?;
-      final bo = b['order'] as int?;
-      if (ao != null && bo != null) return ao.compareTo(bo);
-      if (ao != null) return -1;
-      if (bo != null) return 1;
-      final ac = a['createdAt'] as String? ?? '';
-      final bc = b['createdAt'] as String? ?? '';
-      return ac.compareTo(bc);
-    });
-
     try {
-      await cache.put(cacheKey, list);
-      await cache.put(atKey, DateTime.now().millisecondsSinceEpoch);
+      final cacheKey = 'cc_${folderId}_${parentContentId ?? "root"}';
+      final cache = Hive.box('settings');
+      final cached = cache.get(cacheKey) as List?;
+      if (cached != null) return cached.cast<Map<String, dynamic>>();
     } catch (_) {}
-
-    return list;
+    return null;
   }
 
   static Stream<List<Map<String, dynamic>>> streamContents(
