@@ -140,8 +140,8 @@ class AiService {
     await loadActiveKey();
     _messages.add({'role': 'user', 'content': message});
 
-    if (_messages.length > 11) {
-      _messages.removeRange(1, _messages.length - 10);
+    if (_messages.length > 21) {
+      _messages.removeRange(1, _messages.length - 20);
     }
 
     final pool = [..._keyPool];
@@ -169,11 +169,11 @@ class AiService {
               body: jsonEncode({
                 'model': _model,
                 'messages': _messages,
-                'max_tokens': 1500,
+                'max_tokens': 4096,
                 'temperature': 0.3,
               }),
             )
-            .timeout(const Duration(seconds: 30));
+            .timeout(const Duration(seconds: 90));
 
         if (response.statusCode == 200) {
           final data = jsonDecode(response.body);
@@ -215,7 +215,7 @@ class AiService {
             {'text': _baseSystemPrompt}
           ]
         },
-        'generationConfig': {'temperature': 0.3, 'maxOutputTokens': 1500},
+        'generationConfig': {'temperature': 0.3, 'maxOutputTokens': 4096},
       }),
     );
 
@@ -764,8 +764,8 @@ class AiService {
   Stream<String> sendMessageStream(String message) async* {
     await loadActiveKey();
     _messages.add({'role': 'user', 'content': message});
-    if (_messages.length > 11) {
-      _messages.removeRange(1, _messages.length - 10);
+    if (_messages.length > 21) {
+      _messages.removeRange(1, _messages.length - 20);
     }
 
     final pool = [..._keyPool];
@@ -869,11 +869,11 @@ class AiService {
     request.body = jsonEncode({
       'model': _model,
       'messages': _messages,
-      'max_tokens': 1500,
+      'max_tokens': 4096,
       'temperature': 0.3,
       'stream': true,
     });
-    return client.send(request).timeout(const Duration(seconds: 30));
+    return client.send(request).timeout(const Duration(seconds: 90));
   }
 
   /// Sends one Gemini native SSE streaming request.
@@ -901,9 +901,9 @@ class AiService {
           {'text': _baseSystemPrompt}
         ]
       },
-      'generationConfig': {'temperature': 0.3, 'maxOutputTokens': 1500},
+      'generationConfig': {'temperature': 0.3, 'maxOutputTokens': 4096},
     });
-    return client.send(request).timeout(const Duration(seconds: 30));
+    return client.send(request).timeout(const Duration(seconds: 90));
   }
 
   /// Static caches so the heavy catalog/student-info reads happen at most once
