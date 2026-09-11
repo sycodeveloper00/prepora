@@ -2017,6 +2017,54 @@ class _DashboardGridState extends State<_DashboardGrid> {
       return true;
     }).toList());
   }
+
+  void _showShareLinkDialog(String link, String title) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1E1E2F) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(children: [
+          Icon(Icons.share_rounded, color: const Color(0xFF4A148C), size: 22),
+          const SizedBox(width: 8),
+          Text('Share', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
+        ]),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontSize: 13)),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.04),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(link, style: TextStyle(color: const Color(0xFF00B8D4), fontSize: 12), maxLines: 3, overflow: TextOverflow.ellipsis),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Link copied to clipboard!'), backgroundColor: Color(0xFF4A148C)),
+              );
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4A148C)),
+            child: const Text('Copy Link', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _SearchResult {
