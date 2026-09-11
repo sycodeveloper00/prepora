@@ -443,11 +443,12 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
 
   // ─── Stats Content (from activities) ────────────────────────────────────────
   Widget _buildStatsContent(List<Map<String, dynamic>> docs, Color cardColor, Color textColor, Color dimColor, bool isDark) {
-    final totalCount = docs.length;
+    final filteredDocs = docs.where((d) => (d['type'] as String? ?? '') != 'subfolder').toList();
+    final totalCount = filteredDocs.length;
     final now = DateTime.now();
 
     int totalMinutes = 0;
-    for (final data in docs) {
+    for (final data in filteredDocs) {
       final startedAt = _parseActivityDate(data['startedAt']);
       final endedAt = _parseActivityDate(data['endedAt']);
       if (startedAt != null && endedAt != null) {
@@ -457,9 +458,9 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
     final hours = totalMinutes ~/ 60;
     final mins = totalMinutes % 60;
 
-    final lectures = docs.where((d) => d['type'] == 'lecture').length;
-    final files = docs.where((d) => d['type'] == 'file').length;
-    final mockTests = docs.where((d) {
+    final lectures = filteredDocs.where((d) => d['type'] == 'lecture').length;
+    final files = filteredDocs.where((d) => d['type'] == 'file').length;
+    final mockTests = filteredDocs.where((d) {
       final t = d['type'] as String? ?? '';
       return t.contains('mocktest');
     }).length;
@@ -468,7 +469,7 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
     final dailyCounts = <int>[];
     for (final day in last7Days) {
       int count = 0;
-      for (final data in docs) {
+      for (final data in filteredDocs) {
         final startedAt = _parseActivityDate(data['startedAt']);
         if (startedAt != null && startedAt.year == day.year && startedAt.month == day.month && startedAt.day == day.day) {
           count++;
@@ -482,7 +483,7 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
     final monthlyCounts = <int>[];
     for (final day in last30Days) {
       int count = 0;
-      for (final data in docs) {
+      for (final data in filteredDocs) {
         final startedAt = _parseActivityDate(data['startedAt']);
         if (startedAt != null && startedAt.year == day.year && startedAt.month == day.month && startedAt.day == day.day) {
           count++;
@@ -494,7 +495,7 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
 
     final subjectMap = <String, int>{};
     final mainFolderNames = _mainFolders.map((f) => (f['name'] as String? ?? '').trim()).where((n) => n.isNotEmpty).toList();
-    for (final data in docs) {
+    for (final data in filteredDocs) {
       final folderPath = data['folderPath'] as String? ?? '';
       final name = data['name'] as String? ?? 'Unknown';
       final firstPart = folderPath.isNotEmpty ? folderPath.split('>').first.trim() : '';
@@ -518,6 +519,8 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
 
     final grouped = <String, List<Map<String, dynamic>>>{};
     for (final data in docs) {
+      final type = data['type'] as String? ?? '';
+      if (type == 'subfolder') continue;
       final startedAt = _parseActivityDate(data['startedAt']);
       if (startedAt == null) continue;
       final key = DateFormat('EEE, MMM d, yyyy').format(startedAt);
@@ -526,7 +529,7 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
     }
 
     final uniqueContentIds = <String>{};
-    for (final data in docs) {
+    for (final data in filteredDocs) {
       final contentId = data['contentId'] as String?;
       if (contentId != null) uniqueContentIds.add(contentId);
     }

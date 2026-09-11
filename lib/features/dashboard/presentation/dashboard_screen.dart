@@ -287,47 +287,39 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.baseline,
-                          textBaseline: TextBaseline.alphabetic,
-                          children: [
-                            Text(
-                              'Prepare for ',
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.9),
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
-                                decoration: TextDecoration.none,
-                              ),
-                            ),
-                            TypingAnimatedText(
-                              onCategoryChanged: (text) {
-                                setState(() => _typingExamText = text);
-                              },
-                            ),
-                          ],
+                        Text(
+                          'Prepare for',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.9),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            decoration: TextDecoration.none,
+                          ),
                         ),
-                        if (_typingExamText.isNotEmpty) ...[
-                          const SizedBox(height: 14),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.05),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              _getCategoryForTyping(_typingExamText),
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.4),
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 1.5,
-                                decoration: TextDecoration.none,
-                              ),
+                        const SizedBox(height: 6),
+                        TypingAnimatedText(
+                          onCategoryChanged: (text) {
+                            setState(() => _typingExamText = text);
+                          },
+                        ),
+                        const SizedBox(height: 14),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.05),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            _typingExamText.isNotEmpty ? _getCategoryForTyping(_typingExamText) : '',
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.4),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 1.5,
+                              decoration: TextDecoration.none,
                             ),
                           ),
-                        ],
+                        ),
                       ],
                     ),
                   ],
@@ -929,10 +921,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     final link = shortId != null
         ? 'https://prepora-coral.vercel.app/s/$shortId/$slug'
         : 'https://prepora-coral.vercel.app/s/$id/$slug';
-    final appLink = shortId != null
-        ? 'prepora://s/$shortId/$slug'
-        : 'prepora://s/$id/$slug';
-    Share.share('${r.title}\n$appLink\n$link');
+    Share.share('${r.title}\n$link');
   }
 
   Widget _buildBlockedScreen(BuildContext context) {
@@ -2000,10 +1989,7 @@ class _DashboardGridState extends State<_DashboardGrid> {
                           final link = shortId != null
                               ? 'https://prepora-coral.vercel.app/s/$shortId/$slug'
                               : 'https://prepora-coral.vercel.app/s/$folderId/$slug';
-                          final appLink = shortId != null
-                              ? 'prepora://s/$shortId/$slug'
-                              : 'prepora://s/$folderId/$slug';
-                          Share.share('$folderName\n$appLink\n$link');
+                          Share.share('$folderName\n$link');
                         }
                       },
                       itemBuilder: (_) => [

@@ -133,10 +133,19 @@ class _DeepLinkScreenState extends State<DeepLinkScreen> {
         context.go('/dashboard');
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
-            context.push('/folders/$parentFolderId/sub/$id', extra: {
+            context.push('/folders/$parentFolderId', extra: {
               'canEdit': false,
               'canManage': false,
               'isAdmin': false,
+            });
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                context.push('/folders/$parentFolderId/sub/$id', extra: {
+                  'canEdit': false,
+                  'canManage': false,
+                  'isAdmin': false,
+                });
+              }
             });
           }
         });

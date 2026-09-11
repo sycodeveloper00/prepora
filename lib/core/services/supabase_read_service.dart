@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:uuid/uuid.dart';
 
 /// Shared HTTP client for connection reuse (avoids creating new TCP connections per request).
@@ -171,7 +172,7 @@ class SupabaseReadService {
               'Authorization': 'Bearer $anonKey',
               'Content-Type': 'application/json',
             })
-            .timeout(const Duration(seconds: 5));
+            .timeout(const Duration(seconds: 3));
         return (res.statusCode == 200 || res.statusCode == 206) ? res : null;
       }
 
@@ -695,8 +696,17 @@ class SupabaseReadService {
   // ─── folders ──────────────────────────────────────────────────────────────
 
   static Future<List<Map<String, dynamic>>?> getFolders() async {
+    final cache = Hive.box('settings');
+    final cached = cache.get('cached_folders') as List?;
+    final cachedAt = cache.get('cached_folders_at') as int? ?? 0;
+    final isFresh = DateTime.now().millisecondsSinceEpoch - cachedAt < 300000;
+
+    if (cached != null && isFresh) {
+      return cached.cast<Map<String, dynamic>>();
+    }
+
     final rows = await _query('folders', '$_sel&order=id.asc');
-    if (rows == null) return null;
+    if (rows == null) return cached?.cast<Map<String, dynamic>>();
     final list = rows.map(_flatten).toList();
     list.sort((a, b) {
       final ao = a['sortOrder'] as int?;
@@ -706,6 +716,12 @@ class SupabaseReadService {
       if (bo != null) return 1;
       return 0;
     });
+
+    try {
+      await cache.put('cached_folders', list);
+      await cache.put('cached_folders_at', DateTime.now().millisecondsSinceEpoch);
+    } catch (_) {}
+
     return list;
   }
 
@@ -753,7 +769,21 @@ class SupabaseReadService {
         q += '&parent_content_id=is.null';
       }
     }
+
+    final cacheKey = 'cc_${folderId}_${parentContentId ?? "root"}';
+    final atKey = '${cacheKey}_at';
+    final cache = Hive.box('settings');
+    final cached = cache.get(cacheKey) as List?;
+    final cachedAt = cache.get(atKey) as int? ?? 0;
+    final isFresh = DateTime.now().millisecondsSinceEpoch - cachedAt < 300000;
+
+    if (cached != null && isFresh) {
+      final list = cached.cast<Map<String, dynamic>>();
+      return list;
+    }
+
     final rows = await _query('contents', q);
+    if (rows == null && cached != null) return cached.cast<Map<String, dynamic>>();
     if (rows == null) return null;
     final list = rows.map(_flatten).toList();
     list.sort((a, b) {
@@ -766,6 +796,12 @@ class SupabaseReadService {
       final bc = b['createdAt'] as String? ?? '';
       return ac.compareTo(bc);
     });
+
+    try {
+      await cache.put(cacheKey, list);
+      await cache.put(atKey, DateTime.now().millisecondsSinceEpoch);
+    } catch (_) {}
+
     return list;
   }
 
@@ -1151,7 +1187,7 @@ class SupabaseReadService {
     String uid, {
     Duration interval = const Duration(seconds: 30),
   }) {
-    return _poll('web_sessions', 'uid=eq.$uid&$_sel&order=created_at.desc', interval: interval);
+    return _poll('web_sessions', 'uid=eq.$uid&status=eq.connected&$_sel&order=created_at.desc', interval: interval);
   }
 
   // ─── login attempts stream ───────────────────────────────────────────────

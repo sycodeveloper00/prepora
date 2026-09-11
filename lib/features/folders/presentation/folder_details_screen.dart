@@ -1254,10 +1254,7 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
     final link = shortId != null
         ? 'https://prepora-coral.vercel.app/s/$shortId/$slug'
         : 'https://prepora-coral.vercel.app/s/$contentId/$slug';
-    final appLink = shortId != null
-        ? 'prepora://s/$shortId/$slug'
-        : 'prepora://s/$contentId/$slug';
-    Share.share('$contentName\n$appLink\n$link');
+    Share.share('$contentName\n$link');
   }
 
   bool _isDisabled(Map<String, dynamic> data, String contentId) {
