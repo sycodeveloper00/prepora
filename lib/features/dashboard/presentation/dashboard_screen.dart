@@ -852,10 +852,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   }
 
   void _shareSearchResult(_SearchResult r) async {
-    final id = r.isFolder ? r.folderId : r.contentId;
+    final id = (r.isFolder ? r.folderId : r.contentId) ?? '';
     final type = r.isFolder ? 'folder' : 'content';
     final slug = r.title.replaceAll(RegExp(r'[^a-zA-Z0-9\s-]'), '').replaceAll(RegExp(r'\s+'), '-').toLowerCase();
-    final parentParam = r.isFolder ? '' : r.folderId;
+    final parentParam = r.isFolder ? '' : (r.folderId ?? '');
     final shortId = await SupabaseReadService.createShareLink(
       contentId: id,
       contentType: type,
