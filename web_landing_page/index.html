@@ -3,115 +3,63 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PrePora - Open in App</title>
+  <title>PrePora</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: linear-gradient(135deg, #0A0E1A 0%, #1a1040 50%, #0D0D2E 100%);
+      background: #0A0E1A;
       min-height: 100vh;
       display: flex;
       align-items: center;
       justify-content: center;
       color: #fff;
     }
-    .card {
-      background: rgba(255,255,255,0.05);
-      backdrop-filter: blur(20px);
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 24px;
-      padding: 48px 40px;
-      max-width: 420px;
-      width: 90%;
+    .container {
       text-align: center;
+      padding: 32px;
     }
-    .logo {
-      width: 80px;
-      height: 80px;
-      border-radius: 20px;
-      margin: 0 auto 24px;
+    .icon {
+      width: 64px;
+      height: 64px;
+      border-radius: 16px;
+      margin: 0 auto 20px;
       background: linear-gradient(135deg, #00B8D4, #7C4DFF);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 36px;
+      font-size: 30px;
     }
-    h1 { font-size: 24px; margin-bottom: 8px; }
-    .subtitle { color: rgba(255,255,255,0.5); font-size: 14px; margin-bottom: 32px; }
-    .btn {
-      display: inline-block;
-      padding: 14px 32px;
-      border-radius: 12px;
-      font-size: 16px;
+    h1 {
+      font-size: 18px;
       font-weight: 600;
-      text-decoration: none;
-      transition: all 0.3s;
-      border: none;
-      cursor: pointer;
-      width: 100%;
+      margin-bottom: 8px;
+      color: #fff;
     }
-    .btn-primary {
+    p {
+      font-size: 14px;
+      color: rgba(255,255,255,0.45);
+      margin-bottom: 24px;
+    }
+    a {
+      display: inline-block;
+      padding: 12px 28px;
       background: linear-gradient(135deg, #4A148C, #7C4DFF);
       color: #fff;
-      margin-bottom: 12px;
+      text-decoration: none;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 600;
     }
-    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(74,20,140,0.4); }
-    .btn-secondary {
-      background: transparent;
-      color: #00B8D4;
-      border: 1px solid rgba(0,184,212,0.3);
-    }
-    .btn-secondary:hover { background: rgba(0,184,212,0.1); }
-    .divider { color: rgba(255,255,255,0.3); font-size: 12px; margin: 16px 0; }
-    .footer { color: rgba(255,255,255,0.3); font-size: 12px; margin-top: 24px; }
+    a:hover { box-shadow: 0 6px 20px rgba(74,20,140,0.4); }
   </style>
 </head>
 <body>
-  <div class="card">
-    <div class="logo">&#128218;</div>
-    <h1>PrePora</h1>
-    <p class="subtitle">Open this link in the PrePora app for the best experience</p>
-    
-    <a id="openApp" class="btn btn-primary" href="#">Open in PrePora App</a>
-    <div class="divider">or</div>
-    <a id="webLink" class="btn btn-secondary" href="https://prepora.pages.dev">Continue on Web</a>
-    
-    <p class="footer">Get the app from Play Store</p>
+  <div class="container">
+    <div class="icon">&#128218;</div>
+    <h1>PrePora App Not Found</h1>
+    <p>Please install the PrePora app to view this content.</p>
+    <a href="https://prepora.pages.dev">Click here to install</a>
   </div>
-
-  <script>
-    // Parse current URL to extract path and query params
-    const url = new URL(window.location.href);
-    const path = url.pathname; // e.g. /folder/123/my-lecture/share
-    const search = url.search; // e.g. ?id=abc&type=content&parent=xyz
-
-    // Build deep link for the app
-    // Try custom scheme first (prepora://), then fallback to web
-    const deepLinkCustom = 'prepora://' + path.substring(1) + search;
-    const deepLinkWeb = 'https://prepora.pages.dev' + path + search;
-
-    // Set the open app button
-    document.getElementById('openApp').href = deepLinkCustom;
-    document.getElementById('webLink').href = deepLinkWeb;
-
-    // Auto-try opening the app
-    let appOpened = false;
-    
-    // Try custom scheme
-    window.location.href = deepLinkCustom;
-    
-    // If still on page after 2s, app is not installed
-    setTimeout(function() {
-      if (!appOpened) {
-        // Show fallback UI - already visible by default
-        document.title = 'PrePora - App Not Found';
-      }
-    }, 2000);
-
-    // Track if page loses focus (app opened)
-    window.addEventListener('blur', function() {
-      appOpened = true;
-    });
-  </script>
 </body>
 </html>
