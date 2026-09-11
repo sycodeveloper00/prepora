@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.prepora.academy.prepora",
+      "sha256_cert_fingerprints": [
+        "64:2F:91:DD:89:75:A1:85:33:D9:C3:52:3E:47:36:62:51:8D:4A:91:1E:87:E6:6E:7A:9A:35:C5:8C:7A:C8:1A"
+      ]
+    }
+  }
+]

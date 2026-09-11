@@ -35,15 +35,20 @@ class AppRouter {
     initialLocation: '/splash',
     errorBuilder: (context, state) {
       final uri = state.uri.toString();
-      final path = state.matchedLocation;
+      final host = state.uri.host;
       final fullPath = state.uri.path;
-      final effectivePath = fullPath.isNotEmpty ? fullPath : uri;
-      if (effectivePath.startsWith('/s/') || path.startsWith('/s/')) {
+      String effectivePath = fullPath;
+      if (host.isNotEmpty && !fullPath.startsWith('/$host')) {
+        effectivePath = '/$host$fullPath';
+      }
+      if (uri.contains('://s/') || effectivePath.startsWith('/s/')) {
         final segments = effectivePath.split('/').where((s) => s.isNotEmpty).toList();
         final shortId = segments.length > 1 ? segments[1] : '';
+        final slug = segments.length > 2 ? segments[2] : '';
         if (shortId.isNotEmpty) {
+          final target = slug.isNotEmpty ? '/s/$shortId/$slug' : '/s/$shortId';
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            context.go('/s/$shortId');
+            context.go(target);
           });
           return const Scaffold(
             backgroundColor: Color(0xFF0A0E1A),

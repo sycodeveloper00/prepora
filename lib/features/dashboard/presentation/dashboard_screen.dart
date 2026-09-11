@@ -35,6 +35,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   Timer? _searchDebounce;
 
   bool _hasStarted = false;
+  String _typingExamText = '';
 
   late AnimationController _floatController;
   late Animation<double> _floatAnim;
@@ -275,20 +276,51 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                       ),
                     ),
                     const SizedBox(height: 28),
-                    Row(
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          'Prepare for ',
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.9),
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            decoration: TextDecoration.none,
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.baseline,
+                          textBaseline: TextBaseline.alphabetic,
+                          children: [
+                            Text(
+                              'Prepare for ',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.9),
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                decoration: TextDecoration.none,
+                              ),
+                            ),
+                            TypingAnimatedText(
+                              onCategoryChanged: (text) {
+                                setState(() => _typingExamText = text);
+                              },
+                            ),
+                          ],
+                        ),
+                        if (_typingExamText.isNotEmpty) ...[
+                          const SizedBox(height: 14),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.05),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              _getCategoryForTyping(_typingExamText),
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.4),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 1.5,
+                                decoration: TextDecoration.none,
+                              ),
+                            ),
                           ),
-                        ),
-                        const Flexible(
-                          child: TypingAnimatedText(),
-                        ),
+                        ],
                       ],
                     ),
                   ],
@@ -302,6 +334,22 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
         ),
       ],
     );
+  }
+
+  String _getCategoryForTyping(String exam) {
+    const examCategories = [
+      {'Entry Tests': ['MDCAT', 'ECAT', 'NUST', 'NET', 'FAST', 'USAT', 'NTS NAT', 'GAT', 'GRE', 'HAT', 'SAT']},
+      {'University Tests': ['NED', 'NUTECH', 'CUET', 'BCAT', 'TCAT', 'IBA', 'LSE', 'LCAT', 'GIKI', 'BUET', 'AUET', 'VU']},
+      {'Medical & Other': ['DUHS', 'JSMU', 'IIUI', 'NUML', 'KU', 'UAF', 'IELTS', 'CCE']},
+      {'CSS & Services': ['CSS', 'PMS', 'KPPSC', 'PPSC', 'BPSC', 'AJKPSC', 'SPSC', 'GBPSC', 'ISSB', 'ASF', 'FPSC']},
+      {'Global Opportunities': ['Abroad Scholarships', 'Abroad Jobs', 'Language Learning', 'Programming']},
+    ];
+    for (final cat in examCategories) {
+      final title = cat.keys.first;
+      final items = cat.values.first;
+      if (items.contains(exam)) return title.toUpperCase();
+    }
+    return '';
   }
 
   Widget _buildArrowButton() {
@@ -865,7 +913,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     final link = shortId != null
         ? 'https://prepora-coral.vercel.app/s/$shortId/$slug'
         : 'https://prepora-coral.vercel.app/s/$id/$slug';
-    Share.share('${r.title}\n$link');
+    final appLink = shortId != null
+        ? 'prepora://s/$shortId/$slug'
+        : 'prepora://s/$id/$slug';
+    Share.share('${r.title}\n$appLink\n$link');
   }
 
   Widget _buildBlockedScreen(BuildContext context) {
@@ -1574,7 +1625,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
 }
 
 class TypingAnimatedText extends StatefulWidget {
-  const TypingAnimatedText({super.key});
+  final ValueChanged<String>? onCategoryChanged;
+  const TypingAnimatedText({super.key, this.onCategoryChanged});
 
   @override
   State<TypingAnimatedText> createState() => _TypingAnimatedTextState();
@@ -1647,6 +1699,7 @@ class _TypingAnimatedTextState extends State<TypingAnimatedText> {
           }
         }
       });
+      widget.onCategoryChanged?.call(_currentText);
     });
   }
 
@@ -1661,64 +1714,37 @@ class _TypingAnimatedTextState extends State<TypingAnimatedText> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    return Row(
       mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
       children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              _currentText,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                decoration: TextDecoration.none,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-            AnimatedBuilder(
-              animation: const AlwaysStoppedAnimation(0),
-              builder: (_, __) => Container(
-                width: 2,
-                height: 22,
-                margin: const EdgeInsets.only(left: 3),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF00E5FF),
-                  borderRadius: BorderRadius.circular(1),
-                ),
-              ),
-            ),
-          ],
+        Text(
+          _currentText,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            decoration: TextDecoration.none,
+          ),
+          overflow: TextOverflow.ellipsis,
         ),
-        if (_currentText.isNotEmpty) ...[
-          const SizedBox(height: 14),
-          AnimatedOpacity(
-            opacity: 1.0,
-            duration: const Duration(milliseconds: 400),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.05),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                _getCategoryFor(_currentText),
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.4),
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 1.5,
-                  decoration: TextDecoration.none,
-                ),
-              ),
+        AnimatedBuilder(
+          animation: const AlwaysStoppedAnimation(0),
+          builder: (_, __) => Container(
+            width: 2,
+            height: 22,
+            margin: const EdgeInsets.only(left: 3),
+            decoration: BoxDecoration(
+              color: const Color(0xFF00E5FF),
+              borderRadius: BorderRadius.circular(1),
             ),
           ),
-        ],
+        ),
       ],
     );
   }
+
 }
 
 class ShimmerText extends StatefulWidget {
@@ -1959,7 +1985,10 @@ class _DashboardGridState extends State<_DashboardGrid> {
                           final link = shortId != null
                               ? 'https://prepora-coral.vercel.app/s/$shortId/$slug'
                               : 'https://prepora-coral.vercel.app/s/$folderId/$slug';
-                          Share.share('$folderName\n$link');
+                          final appLink = shortId != null
+                              ? 'prepora://s/$shortId/$slug'
+                              : 'prepora://s/$folderId/$slug';
+                          Share.share('$folderName\n$appLink\n$link');
                         }
                       },
                       itemBuilder: (_) => [
