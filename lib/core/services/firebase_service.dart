@@ -8,6 +8,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_storage/firebase_storage.dart' as fb_storage;
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthenticatedClient;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'notification_service.dart';
 import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
 import 'package:device_info_plus/device_info_plus.dart';
@@ -1546,12 +1547,13 @@ class FirebaseService {
   // ─── Admin Notifications ───────────────────────────────────────────────────────
 
   static Future<void> addAdminNotification(String type, String message, {String? relatedUid}) async {
-    await firestore.collection('admin_notifications').add({
+    final id = 'an_${DateTime.now().millisecondsSinceEpoch}';
+    await SupabaseReadService.writeToAll('admin_notifications', id, {
       'type': type,
       'message': message,
       'relatedUid': relatedUid,
       'read': false,
-      'createdAt': FieldValue.serverTimestamp(),
+      'createdAt': DateTime.now().toIso8601String(),
     });
   }
 
@@ -1560,30 +1562,27 @@ class FirebaseService {
   }
 
   static Future<int> getAdminUnreadCount() async {
-    try {
-      final mirror = await SupabaseReadService.getAdminUnreadCount();
-      if (mirror >= 0) return mirror;
-    } catch (_) {}
-    final snap = await firestore.collection('admin_notifications').where('read', isEqualTo: false).get();
-    return snap.docs.length;
+    final mirror = await SupabaseReadService.getAdminUnreadCount();
+    return mirror >= 0 ? mirror : 0;
   }
 
   static Future<void> markAdminNotificationsRead() async {
-    final snap = await firestore.collection('admin_notifications').where('read', isEqualTo: false).get();
-    final batch = firestore.batch();
-    for (final d in snap.docs) {
-      batch.update(d.reference, {'read': true});
+    final rows = await SupabaseReadService.getUnreadAdminNotifications();
+    if (rows != null) {
+      for (final row in rows) {
+        final id = row['id'] as String?;
+        if (id != null && id.isNotEmpty) {
+          await SupabaseReadService.writeToAll('admin_notifications', id, {
+            ...row,
+            'read': true,
+          });
+        }
+      }
     }
-    await batch.commit();
   }
 
   static Future<void> clearAdminNotifications() async {
-    final snap = await firestore.collection('admin_notifications').get();
-    final batch = firestore.batch();
-    for (final d in snap.docs) {
-      batch.delete(d.reference);
-    }
-    await batch.commit();
+    await SupabaseReadService.clearAllAdminNotifications();
   }
 
   // ─── Login Tracking & Auto-Block ──────────────────────────────────────────────
@@ -1779,51 +1778,65 @@ class FirebaseService {
 
   static Future<String?> addNotification(String message, {String? folderId, String? parentContentId, Map<String, dynamic>? contentData}) async {
     if (await _isNotificationBlocked(folderId, parentContentId, contentData)) return null;
-    final users = await firestore.collection('users').get();
-    final batch = firestore.batch();
-    for (final u in users.docs) {
-      final ref = firestore.collection('notifications').doc();
-      batch.set(ref, {
-        'uid': u.id,
+    final users = await SupabaseReadService.getAllUsers();
+    if (users == null || users.isEmpty) return null;
+    final List<String> userUids = [];
+    for (final u in users) {
+      final uid = u['id'] as String? ?? '';
+      if (uid.isEmpty) continue;
+      final notifId = 'notif_${DateTime.now().millisecondsSinceEpoch}_$uid';
+      await SupabaseReadService.writeToAll('notifications', notifId, {
+        'uid': uid,
         'message': message,
         'folderId': folderId,
         'read': false,
-        'createdAt': FieldValue.serverTimestamp(),
+        'createdAt': DateTime.now().toIso8601String(),
         'type': folderId != null ? 'folder_update' : 'general',
       });
+      userUids.add(uid);
     }
-    await batch.commit();
+    for (final uid in userUids) {
+      NotificationService.sendPushToUser(targetUid: uid, title: 'PrePora', body: message, type: 'notification');
+    }
     return 'batch';
   }
 
   static Future<String?> addTargetedNotification(String uid, String message, {String? folderId, String? parentContentId, Map<String, dynamic>? contentData}) async {
     if (await _isNotificationBlocked(folderId, parentContentId, contentData)) return null;
-    final doc = await firestore.collection('notifications').add({
+    final notifId = 'notif_${DateTime.now().millisecondsSinceEpoch}_$uid';
+    await SupabaseReadService.writeToAll('notifications', notifId, {
       'uid': uid,
       'message': message,
       'read': false,
-      'createdAt': FieldValue.serverTimestamp(),
+      'createdAt': DateTime.now().toIso8601String(),
       'type': 'targeted',
     });
-    return doc.id;
+    NotificationService.sendPushToUser(targetUid: uid, title: 'PrePora', body: message, type: 'notification');
+    return notifId;
   }
 
   static Future<int> addNotificationToAllStudents(String message) async {
-    final users = await firestore.collection('users').where('role', isEqualTo: 'student').get();
-    final batch = firestore.batch();
+    final students = await SupabaseReadService.getUsersByRole('student');
+    if (students == null || students.isEmpty) return 0;
     int count = 0;
-    for (final u in users.docs) {
-      final ref = firestore.collection('notifications').doc();
-      batch.set(ref, {
-        'uid': u.id,
+    final List<String> userUids = [];
+    for (final u in students) {
+      final uid = u['id'] as String? ?? '';
+      if (uid.isEmpty) continue;
+      final notifId = 'notif_${DateTime.now().millisecondsSinceEpoch}_$uid';
+      await SupabaseReadService.writeToAll('notifications', notifId, {
+        'uid': uid,
         'message': message,
         'read': false,
-        'createdAt': FieldValue.serverTimestamp(),
+        'createdAt': DateTime.now().toIso8601String(),
         'type': 'general',
       });
+      userUids.add(uid);
       count++;
     }
-    if (count > 0) await batch.commit();
+    for (final uid in userUids) {
+      NotificationService.sendPushToUser(targetUid: uid, title: 'PrePora', body: message, type: 'notification');
+    }
     return count;
   }
 

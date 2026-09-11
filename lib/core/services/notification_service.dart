@@ -5,9 +5,9 @@ import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest_all.dart' as tz_data;
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'firebase_service.dart';
+import 'supabase_read_service.dart';
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -157,9 +157,9 @@ class NotificationService {
     try {
       final user = FirebaseService.currentUser;
       if (user == null) return;
-      await FirebaseService.firestore.collection('users').doc(user.uid).update({
+      await SupabaseReadService.writeToAll('users', user.uid, {
         'fcmToken': token,
-        'fcmTokenUpdatedAt': FieldValue.serverTimestamp(),
+        'fcmTokenUpdatedAt': DateTime.now().toIso8601String(),
       });
     } catch (e) {
       debugPrint('FCM: save token FAILED: $e');
@@ -238,8 +238,6 @@ class NotificationService {
     debugPrint('FCM tap: type=$type, data=$data');
   }
 
-  /// Send a push notification to a specific user via Firestore
-  /// (backend/admin triggers this by writing to fcm_notifications collection)
   static Future<void> sendPushToUser({
     required String targetUid,
     required String title,
@@ -248,13 +246,14 @@ class NotificationService {
     Map<String, dynamic>? extraData,
   }) async {
     try {
-      await FirebaseService.firestore.collection('fcm_notifications').add({
+      final id = 'fcm_${DateTime.now().millisecondsSinceEpoch}_${targetUid.substring(0, 8.clamp(0, targetUid.length))}';
+      await SupabaseReadService.writeToAll('fcm_notifications', id, {
         'targetUid': targetUid,
         'title': title,
         'body': body,
         'type': type,
         'data': extraData ?? {},
-        'createdAt': FieldValue.serverTimestamp(),
+        'createdAt': DateTime.now().toIso8601String(),
         'sent': false,
       });
     } catch (e) {
@@ -431,35 +430,33 @@ class NotificationService {
     if (kIsWeb) return;
     _studentSub?.cancel();
     bool _isFirstSnapshot = true;
-    _studentSub = FirebaseService.firestore
-        .collection('notifications')
-        .where('uid', isEqualTo: uid)
-        .where('createdAt', isGreaterThanOrEqualTo: userCreatedAt)
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .listen((snap) async {
+    Set<String> _seenIds = {};
+    _studentSub = SupabaseReadService.streamNotifications(uid, userCreatedAt, interval: const Duration(seconds: 15))
+        .listen((rows) async {
       int unreadCount = 0;
-      for (final doc in snap.docs) {
-        final data = doc.data();
-        if (data['read'] != true) unreadCount++;
+      for (final row in rows) {
+        if (row['read'] != true) unreadCount++;
       }
       await setBadgeCount(unreadCount);
       if (_isFirstSnapshot) {
         _isFirstSnapshot = false;
+        for (final row in rows) {
+          _seenIds.add(row['id'] as String? ?? '');
+        }
         return;
       }
       final androidPlugin = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
       final enabled = await androidPlugin?.areNotificationsEnabled() ?? true;
       if (!enabled) return;
-      for (final change in snap.docChanges) {
-        if (change.type == DocumentChangeType.added) {
-          final data = change.doc.data() as Map<String, dynamic>;
-          final read = data['read'] as bool? ?? false;
-          final message = data['message'] as String? ?? '';
-          if (!read && !message.contains('Web app disconnected')) {
-            final userName = data['userName'] as String? ?? 'Admin';
-            await _showStudentNotification(message, userName);
-          }
+      for (final row in rows) {
+        final id = row['id'] as String? ?? '';
+        if (_seenIds.contains(id)) continue;
+        _seenIds.add(id);
+        final read = row['read'] as bool? ?? false;
+        final message = row['message'] as String? ?? '';
+        if (!read && !message.contains('Web app disconnected')) {
+          final userName = row['userName'] as String? ?? 'Admin';
+          await _showStudentNotification(message, userName);
         }
       }
     });
@@ -488,26 +485,31 @@ class NotificationService {
   static void startAdminNotificationListener() {
     if (kIsWeb) return;
     _adminSub?.cancel();
-    _adminSub = FirebaseService.firestore
-        .collection('admin_notifications')
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .listen((snap) async {
+    bool _isFirstSnapshot = true;
+    Set<String> _seenIds = {};
+    _adminSub = SupabaseReadService.streamAdminNotifications(interval: const Duration(seconds: 15))
+        .listen((rows) async {
       int unreadCount = 0;
-      for (final doc in snap.docs) {
-        final data = doc.data();
-        if (data['read'] != true) unreadCount++;
+      for (final row in rows) {
+        if (row['read'] != true) unreadCount++;
       }
       await setBadgeCount(unreadCount);
-      for (final change in snap.docChanges) {
-        if (change.type == DocumentChangeType.added) {
-          final data = change.doc.data() as Map<String, dynamic>;
-          final read = data['read'] as bool? ?? false;
-          if (!read) {
-            final message = data['message'] as String? ?? '';
-            final type = data['type'] as String? ?? '';
-            await _showAdminNotification(message, type);
-          }
+      if (_isFirstSnapshot) {
+        _isFirstSnapshot = false;
+        for (final row in rows) {
+          _seenIds.add(row['id'] as String? ?? '');
+        }
+        return;
+      }
+      for (final row in rows) {
+        final id = row['id'] as String? ?? '';
+        if (_seenIds.contains(id)) continue;
+        _seenIds.add(id);
+        final read = row['read'] as bool? ?? false;
+        if (!read) {
+          final message = row['message'] as String? ?? '';
+          final type = row['type'] as String? ?? '';
+          await _showAdminNotification(message, type);
         }
       }
     });
@@ -548,20 +550,20 @@ class NotificationService {
       final user = FirebaseService.currentUser;
       if (user == null) return;
 
-      final doc = await FirebaseService.firestore.collection('users').doc(user.uid).get();
-      if (!doc.exists) return;
+      final userData = await SupabaseReadService.getUser(user.uid);
+      if (userData == null) return;
 
-      final userData = doc.data();
       final now = DateTime.now();
       final today = DateTime(now.year, now.month, now.day);
 
-      final lastLogin = (userData?['lastLogin'] as Timestamp?)?.toDate();
-      final lastStreakNotified = (userData?['lastStreakNotified'] as Timestamp?)?.toDate();
+      final lastLoginStr = userData['lastLogin'] as String?;
+      final lastStreakNotifiedStr = userData['lastStreakNotified'] as String?;
+      final lastLogin = lastLoginStr != null ? DateTime.tryParse(lastLoginStr) : null;
+      final lastStreakNotified = lastStreakNotifiedStr != null ? DateTime.tryParse(lastStreakNotifiedStr) : null;
       final lastStreakDate = lastStreakNotified != null
           ? DateTime(lastStreakNotified.year, lastStreakNotified.month, lastStreakNotified.day)
           : null;
 
-      // Always reschedule 9 AM daily reminder for next occurrence
       await scheduleDailyStreakReminder();
 
       if (lastLogin == null) return;
@@ -569,39 +571,33 @@ class NotificationService {
       final lastLoginDate = DateTime(lastLogin.year, lastLogin.month, lastLogin.day);
       final daysSinceLogin = today.difference(lastLoginDate).inDays;
 
-      // Same day ΓåÆ no notification needed
       if (daysSinceLogin < 1) return;
-
-      // Already notified today ΓåÆ skip
       if (lastStreakDate != null && !lastStreakDate.isBefore(today)) return;
 
       final plugin = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
       final enabled = await plugin?.areNotificationsEnabled() ?? true;
       if (!enabled) return;
 
-      // Duolingo style: 1 day gap = streak needs attention, 2+ days = streak reset
       if (daysSinceLogin >= 2) {
-        // Only send FCM push — don't show local notification (user is in-app)
         await sendStreakNotification(
           uid: user.uid,
-          title: 'Your streak was reset! 🔥',
+          title: 'Your streak was reset!',
           body: 'You missed a day. Start a new streak today — open PrePora now!',
           type: 'streak_reset',
         );
       } else {
-        // Only send FCM push — don't show local notification (user is in-app)
         await sendStreakNotification(
           uid: user.uid,
-          title: 'Keep your streak alive! 🔥',
+          title: 'Keep your streak alive!',
           body: 'Don\'t let your progress slip away. Open PrePora today!',
           type: 'streak_warning',
         );
       }
 
       try {
-        await FirebaseService.firestore.collection('users').doc(user.uid).update({
-          'lastStreakNotified': Timestamp.fromDate(now),
-          'lastLogin': Timestamp.fromDate(now),
+        await SupabaseReadService.writeToAll('users', user.uid, {
+          'lastStreakNotified': now.toIso8601String(),
+          'lastLogin': now.toIso8601String(),
         });
       } catch (_) {}
     } catch (_) {}

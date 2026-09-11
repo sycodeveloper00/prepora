@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 
 class NotificationBellBox extends StatefulWidget {
-  final List<QueryDocumentSnapshot> docs;
+  final List<Map<String, dynamic>> docs;
   final VoidCallback? onClear;
   final bool showDelete;
-  final ValueChanged<QueryDocumentSnapshot>? onDelete;
+  final ValueChanged<Map<String, dynamic>>? onDelete;
 
   const NotificationBellBox({
     super.key,
@@ -21,11 +20,10 @@ class NotificationBellBox extends StatefulWidget {
 }
 
 class _NotificationBellBoxState extends State<NotificationBellBox> {
-  late List<QueryDocumentSnapshot> _docs;
+  late List<Map<String, dynamic>> _docs;
 
   static DateTime? _parseCreatedAt(dynamic value) {
     if (value == null) return null;
-    if (value is Timestamp) return value.toDate();
     if (value is DateTime) return value;
     if (value is String) return DateTime.tryParse(value);
     return null;
@@ -36,8 +34,8 @@ class _NotificationBellBoxState extends State<NotificationBellBox> {
     super.initState();
     _docs = List.from(widget.docs)
       ..sort((a, b) {
-        final aTime = _parseCreatedAt((a.data() as Map<String, dynamic>)['createdAt'] ?? (a.data() as Map<String, dynamic>)['created_at']);
-        final bTime = _parseCreatedAt((b.data() as Map<String, dynamic>)['createdAt'] ?? (b.data() as Map<String, dynamic>)['created_at']);
+        final aTime = _parseCreatedAt(a['createdAt'] ?? a['created_at']);
+        final bTime = _parseCreatedAt(b['createdAt'] ?? b['created_at']);
         return (bTime ?? DateTime(0)).compareTo(aTime ?? DateTime(0));
       });
   }
@@ -48,8 +46,8 @@ class _NotificationBellBoxState extends State<NotificationBellBox> {
     if (widget.docs != oldWidget.docs) {
       _docs = List.from(widget.docs)
         ..sort((a, b) {
-          final aTime = _parseCreatedAt((a.data() as Map<String, dynamic>)['createdAt'] ?? (a.data() as Map<String, dynamic>)['created_at']);
-          final bTime = _parseCreatedAt((b.data() as Map<String, dynamic>)['createdAt'] ?? (b.data() as Map<String, dynamic>)['created_at']);
+          final aTime = _parseCreatedAt(a['createdAt'] ?? a['created_at']);
+          final bTime = _parseCreatedAt(b['createdAt'] ?? b['created_at']);
           return (bTime ?? DateTime(0)).compareTo(aTime ?? DateTime(0));
         });
     }
@@ -130,7 +128,7 @@ class _NotificationBellBoxState extends State<NotificationBellBox> {
                   padding: const EdgeInsets.symmetric(vertical: 6),
                   itemCount: _docs.length,
                   itemBuilder: (context, index) {
-                    final data = _docs[index].data() as Map<String, dynamic>;
+                    final data = _docs[index];
                     final message = data['message'] as String? ?? '';
                     final time = _parseCreatedAt(data['createdAt'] ?? data['created_at']);
                     final isRead = data['read'] == true;
@@ -169,7 +167,7 @@ class _NotificationBellBoxState extends State<NotificationBellBox> {
                           ),
                           if (widget.showDelete && widget.onDelete != null)
                             GestureDetector(
-                              onTap: () => widget.onDelete!(_docs[index]),
+                              onTap: () => widget.onDelete!(data),
                               child: Icon(Icons.close_rounded, color: mutedColor.withValues(alpha: 0.5), size: 16),
                             ),
                         ],

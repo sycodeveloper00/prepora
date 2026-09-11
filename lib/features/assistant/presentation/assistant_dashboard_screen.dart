@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/widgets/glassmorphic_container.dart';
 import '../../../core/services/firebase_service.dart';
+import '../../../core/services/supabase_read_service.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/widgets/notification_bell_box.dart';
 import '../../../core/widgets/professional_loader.dart';
@@ -95,11 +95,11 @@ class _AssistantDashboardScreenState extends State<AssistantDashboardScreen> {
                   ]),
                 ),
                 const SizedBox(width: 8),
-                StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseService.getNotificationsForUser(FirebaseService.currentUser?.uid ?? '', DateTime(2020)),
+                StreamBuilder<List<Map<String, dynamic>>>(
+                  stream: SupabaseReadService.streamNotifications(FirebaseService.currentUser?.uid ?? '', DateTime(2020), interval: const Duration(seconds: 15)),
                   builder: (context, snap) {
-                    final docs = snap.data?.docs ?? [];
-                    final unread = docs.where((d) => (d.data() as Map<String, dynamic>)['read'] == false).length;
+                    final docs = snap.data ?? [];
+                    final unread = docs.where((d) => d['read'] == false).length;
                     return IconButton(
                       key: _bellKey,
                       icon: Stack(clipBehavior: Clip.none, children: [
@@ -183,9 +183,14 @@ class _AssistantDashboardScreenState extends State<AssistantDashboardScreen> {
                       try {
                         final user = FirebaseService.currentUser;
                         if (user != null) {
-                          await FirebaseFirestore.instance.collection('web_sessions').where('uid', isEqualTo: user.uid).get().then((snap) {
-                            for (final doc in snap.docs) {
-                              doc.reference.delete();
+                          await SupabaseReadService.getWebSessionsForUser(user.uid).then((sessions) async {
+                            if (sessions != null) {
+                              for (final session in sessions) {
+                                final id = session['id'] as String? ?? '';
+                                if (id.isNotEmpty) {
+                                  await SupabaseReadService.writeToAll('web_sessions', id, {'status': 'disconnected'});
+                                }
+                              }
                             }
                           });
                         }
@@ -362,9 +367,8 @@ class _AssistantDashboardScreenState extends State<AssistantDashboardScreen> {
       final extraFolderIds = _contentAccess.keys.where((fid) => !accessibleIds.contains(fid)).toList();
       final allIds = {...accessibleIds, ...extraFolderIds};
       for (final folderId in allIds) {
-        final folderDoc = await FirebaseService.firestore.collection('folders').doc(folderId).get();
-        if (!folderDoc.exists) continue;
-        final folderData = folderDoc.data() as Map<String, dynamic>;
+        final folderData = await SupabaseReadService.getFolder(folderId);
+        if (folderData == null) continue;
         if (folderData['invisible'] == true) continue;
         if (folderData['locked'] == true || folderData['updating'] == true) continue;
         final folderName = folderData['name'] as String? ?? '';
@@ -374,14 +378,14 @@ class _AssistantDashboardScreenState extends State<AssistantDashboardScreen> {
             'subtitle': 'Folder',
           });
         }
-        final contentSnap = await FirebaseService.firestore
-            .collection('folders').doc(folderId).collection('contents').get();
+        final contents = await SupabaseReadService.getFolderContents(folderId, fetchAll: true);
         final contentMap = <String, Map<String, dynamic>>{};
-        for (final cd in contentSnap.docs) {
-          contentMap[cd.id] = cd.data();
+        if (contents != null) {
+          for (final cd in contents) {
+            contentMap[cd['id'] as String? ?? ''] = cd;
+          }
         }
-        for (final contentDoc in contentSnap.docs) {
-          final contentData = contentDoc.data();
+        for (final contentData in contents ?? []) {
           if (contentData['invisible'] == true) continue;
           if (contentData['locked'] == true || contentData['updating'] == true) continue;
           final contentParentId = contentData['parentContentId'] as String?;
@@ -406,17 +410,16 @@ class _AssistantDashboardScreenState extends State<AssistantDashboardScreen> {
     final allIds = [...accessibleIds, ...extraFolderIds];
     final colors = [Colors.purple, Colors.teal, Colors.blue, Colors.orange, Colors.pink, Colors.indigo];
 
-    return FutureBuilder<List<DocumentSnapshot>>(
-      future: Future.wait(allIds.map((id) => FirebaseService.firestore.collection('folders').doc(id).get())),
+    return FutureBuilder<List<Map<String, dynamic>?>?>(
+      future: Future.wait(allIds.map((id) => SupabaseReadService.getFolder(id))),
       builder: (context, snapshot) {
         final isDark = Theme.of(context).brightness == Brightness.dark;
         if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: ProfessionalLoader());
         if (!snapshot.hasData) return Center(child: Text('Error loading folders', style: TextStyle(color: isDark ? Colors.white38 : Colors.black54)));
-        final docs = snapshot.data!.where((d) => d.exists).toList();
+        final docs = (snapshot.data ?? []).whereType<Map<String, dynamic>>().toList();
         final filtered = _searchQuery.isNotEmpty
             ? docs.where((d) {
-                final data = d.data() as Map<String, dynamic>;
-                final name = (data['name'] as String? ?? '').toLowerCase();
+                final name = (d['name'] as String? ?? '').toLowerCase();
                 return name.contains(_searchQuery.toLowerCase());
               }).toList()
             : docs;
@@ -424,8 +427,8 @@ class _AssistantDashboardScreenState extends State<AssistantDashboardScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 16),
           itemCount: filtered.length,
           itemBuilder: (context, index) {
-            final data = filtered[index].data() as Map<String, dynamic>;
-            final folderId = filtered[index].id;
+            final data = filtered[index];
+            final folderId = data['id'] as String? ?? '';
             final name = data['name'] as String? ?? 'Folder';
             final count = data['itemCount'] ?? 0;
             final color = colors[index % colors.length];

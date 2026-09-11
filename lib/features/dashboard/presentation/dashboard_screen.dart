@@ -4,7 +4,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
@@ -50,7 +49,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   bool _isProcessing = false;
 
   // Real-time listener for notifications
-  Stream<QuerySnapshot>? _notificationStream;
+  Stream<List<Map<String, dynamic>>>? _notificationStream;
   DateTime _userCreatedAt = DateTime(2020);
 
   @override
@@ -102,7 +101,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     final statusAsync = ref.read(userStatusProvider);
     final createdAt = statusAsync.valueOrNull?.userCreatedAt ?? DateTime(2020);
     _userCreatedAt = createdAt;
-    _notificationStream = FirebaseService.getNotificationsForUser(uid, createdAt);
+    _notificationStream = SupabaseReadService.streamNotifications(uid, createdAt, interval: const Duration(seconds: 15));
     NotificationService.startStudentNotificationListener(uid, createdAt);
   }
 
@@ -126,16 +125,16 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     }
     
     // No cached docs - wait for stream (max 1.5s)
-    final completer = Completer<List<QueryDocumentSnapshot>>();
+    final completer = Completer<List<Map<String, dynamic>>>();
     StreamSubscription? sub;
     bool completed = false;
     
-    sub = (_notificationStream ?? FirebaseService.getNotificationsForUser(uid, _userCreatedAt)).listen(
-      (snapshot) {
+    sub = (_notificationStream ?? SupabaseReadService.streamNotifications(uid, _userCreatedAt, interval: const Duration(seconds: 15))).listen(
+      (rows) {
         if (!completed) {
           completed = true;
           sub?.cancel();
-          completer.complete(snapshot.docs);
+          completer.complete(rows);
         }
       },
       onError: (e) {
@@ -162,7 +161,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     });
   }
 
-  void _showNotifOverlay(List<QueryDocumentSnapshot> docs, String uid) {
+  void _showNotifOverlay(List<Map<String, dynamic>> docs, String uid) {
     final renderBox = _bellKey.currentContext?.findRenderObject() as RenderBox?;
     if (renderBox == null) return;
     final pos = renderBox.localToGlobal(Offset.zero);
@@ -193,7 +192,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     Overlay.of(context).insert(_notifOverlay!);
   }
 
-  List<QueryDocumentSnapshot> _latestNotificationDocs = [];
+  List<Map<String, dynamic>> _latestNotificationDocs = [];
 
   Widget _buildIntroScreen() {
     return Stack(
@@ -446,12 +445,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
       ),
       actions: [
         if (showFullMenu)
-          StreamBuilder<QuerySnapshot>(
-            stream: _notificationStream ?? FirebaseService.getNotificationsForUser(FirebaseService.currentUser?.uid ?? '', _userCreatedAt),
+          StreamBuilder<List<Map<String, dynamic>>>(
+            stream: _notificationStream ?? SupabaseReadService.streamNotifications(FirebaseService.currentUser?.uid ?? '', _userCreatedAt, interval: const Duration(seconds: 15)),
             builder: (context, snap) {
-              final docs = snap.data?.docs ?? [];
+              final docs = snap.data ?? [];
               _latestNotificationDocs = docs;
-              final unread = docs.where((d) => (d.data() as Map<String, dynamic>)['read'] == false).length;
+              final unread = docs.where((d) => d['read'] == false).length;
               if (unread > 0 && _wasPreviouslyEmpty) {
                 _bellShakeController.forward(from: 0);
               }
@@ -494,16 +493,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
               );
             },
           ),
-        StreamBuilder<QuerySnapshot>(
+        StreamBuilder<List<Map<String, dynamic>>>(
           stream: FirebaseService.currentUser != null
-              ? FirebaseService.firestore
-                  .collection('web_sessions')
-                  .where('uid', isEqualTo: FirebaseService.currentUser!.uid)
-                  .where('status', isEqualTo: 'connected')
-                  .snapshots()
+              ? SupabaseReadService.streamWebSessionsForUser(FirebaseService.currentUser!.uid)
               : const Stream.empty(),
           builder: (context, sessionSnap) {
-            final isConnected = sessionSnap.hasData && sessionSnap.data!.docs.isNotEmpty;
+            final isConnected = sessionSnap.hasData && (sessionSnap.data?.isNotEmpty ?? false);
             if (!isConnected) return const SizedBox.shrink();
             return IconButton(
               icon: Stack(
@@ -523,10 +518,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
             );
           },
         ),
-        StreamBuilder<QuerySnapshot>(
-          stream: FirebaseService.getNotices(),
+        StreamBuilder<List<Map<String, dynamic>>>(
+          stream: SupabaseReadService.streamNotices(),
           builder: (context, noticeSnap) {
-            final noticeCount = noticeSnap.hasData ? noticeSnap.data!.docs.length : 0;
+            final noticeCount = noticeSnap.data?.length ?? 0;
             return PopupMenuButton<String>(
               icon: Stack(
                 clipBehavior: Clip.none,
@@ -755,54 +750,47 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     final results = <_SearchResult>[];
 
     try {
-      final foldersSnap = await FirebaseService.firestore
-          .collection('folders')
-          .limit(50)
-          .get();
+      final folders = await SupabaseReadService.getAllFolders();
+      if (folders == null) {
+        if (mounted) setState(() { _searchResults = []; _isSearching = false; });
+        return;
+      }
 
-      for (final folderDoc in foldersSnap.docs) {
-        final data = folderDoc.data();
-        if (data['invisible'] == true) continue;
-        if (data['locked'] == true) continue;
-        if (data['updating'] == true) continue;
-        if (data['enabled'] == false) continue;
-        final sortOrder = data['sortOrder'] as int?;
+      final visibleFolders = <Map<String, dynamic>>[];
+      for (final folder in folders) {
+        if (folder['invisible'] == true) continue;
+        if (folder['locked'] == true) continue;
+        if (folder['updating'] == true) continue;
+        if (folder['enabled'] == false) continue;
+        final sortOrder = folder['sortOrder'] as int?;
         if (sortOrder == -1) continue;
-        final folderName = data['name'] as String? ?? '';
+        final folderName = folder['name'] as String? ?? '';
         if (folderName.trim().isEmpty) continue;
         if (folderName.toLowerCase().contains(q)) {
           results.add(_SearchResult(
-            title: folderName, folderId: folderDoc.id, isFolder: true,
+            title: folderName, folderId: folder['id'] as String? ?? '', isFolder: true,
           ));
         }
+        visibleFolders.add(folder);
       }
 
-      final visibleFolders = foldersSnap.docs.where((d) {
-        final data = d.data();
-        return data['invisible'] != true && data['locked'] != true && data['updating'] != true && data['enabled'] != false;
-      }).take(10).toList();
-
-      final contentsFutures = visibleFolders.map((folderDoc) async {
+      final contentsFutures = visibleFolders.take(10).map((folder) async {
         try {
-          final contentsSnap = await FirebaseService.firestore
-              .collection('folders').doc(folderDoc.id)
-              .collection('contents')
-              .limit(100)
-              .get();
-          return MapEntry(folderDoc, contentsSnap);
+          final folderId = folder['id'] as String? ?? '';
+          final contents = await SupabaseReadService.getAllContents(folderId);
+          return MapEntry(folder, contents);
         } catch (_) {
-          return MapEntry(folderDoc, null);
+          return MapEntry(folder, null);
         }
       }).toList();
 
       final contentsResults = await Future.wait(contentsFutures);
       for (final entry in contentsResults) {
         if (entry.value == null) continue;
-        final folderData = entry.key.data();
+        final folderData = entry.key;
         final folderName = folderData['name'] as String? ?? '';
-        final folderId = entry.key.id;
-        for (final contentDoc in entry.value!.docs) {
-          final contentData = contentDoc.data();
+        final folderId = folderData['id'] as String? ?? '';
+        for (final contentData in entry.value!) {
           if (contentData['invisible'] == true) continue;
           if (contentData['locked'] == true) continue;
           if (contentData['updating'] == true) continue;
@@ -816,7 +804,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
               title: contentName,
               folderId: folderId,
               folderName: folderName,
-              contentId: contentDoc.id,
+              contentId: contentData['id'] as String? ?? '',
               isFolder: false,
               isSubfolder: isSubfolder,
               parentContentId: contentData['parentContentId'] as String?,
@@ -1601,9 +1589,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
       if (mounted) setState(() => _currentAppVersion = info.version);
     });
     _updateSub?.cancel();
-    _updateSub = FirebaseService.getAppUpdates().listen((snap) {
-      if (!mounted || snap.docs.isEmpty || _currentAppVersion.isEmpty) return;
-      final d = snap.docs.first.data() as Map<String, dynamic>;
+    _updateSub = SupabaseReadService.streamAppUpdates().listen((rows) {
+      if (!mounted || rows.isEmpty || _currentAppVersion.isEmpty) return;
+      final d = rows.first;
       final version = d['version'] as String?;
       final link = d['link'] as String?;
       if (version != null && version.isNotEmpty && version != _currentAppVersion) {
@@ -1824,14 +1812,14 @@ class _DashboardGrid extends StatefulWidget {
 }
 
 class _DashboardGridState extends State<_DashboardGrid> {
-  late Stream<QuerySnapshot> _folderStream;
+  late Stream<List<Map<String, dynamic>>> _folderStream;
   List<Map<String, dynamic>> _cachedFolders = [];
   bool _showingCache = false;
 
   @override
   void initState() {
     super.initState();
-    _folderStream = FirebaseService.getAllFolders();
+    _folderStream = SupabaseReadService.streamFolders();
     _loadCachedFolders();
   }
 
@@ -1849,23 +1837,23 @@ class _DashboardGridState extends State<_DashboardGrid> {
     } catch (_) {}
   }
 
-  Future<void> _cacheFolders(List<QueryDocumentSnapshot> docs) async {
+  Future<void> _cacheFolders(List<Map<String, dynamic>> docs) async {
     try {
       final box = Hive.box('settings');
-      final data = docs.map((d) => d.data() as Map<String, dynamic>).toList();
+      final data = docs.map((d) => d).toList();
       await box.put('cached_folders', json.encode(data));
     } catch (_) {}
   }
 
   void _refreshFolderStream() {
     setState(() {
-      _folderStream = FirebaseService.getAllFolders();
+      _folderStream = SupabaseReadService.streamFolders();
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<QuerySnapshot>(
+    return StreamBuilder<List<Map<String, dynamic>>>(
       stream: _folderStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -1894,14 +1882,13 @@ class _DashboardGridState extends State<_DashboardGrid> {
             ),
           ]));
         }
-        final docs = snapshot.data!.docs;
+        final docs = snapshot.data ?? [];
         if (docs.isNotEmpty) {
           _cacheFolders(docs);
-          _cachedFolders = docs.map((d) => d.data() as Map<String, dynamic>).toList();
+          _cachedFolders = docs;
           _showingCache = false;
         }
-        final visibleDocs = docs.where((doc) {
-          final d = doc.data() as Map<String, dynamic>;
+        final visibleDocs = docs.where((d) {
           if (d['invisible'] == true) return false;
           if (d['enabled'] == false) return false;
           final name = d['name'] as String?;
@@ -1936,7 +1923,7 @@ class _DashboardGridState extends State<_DashboardGrid> {
             ),
           );
         }
-        return _buildFolderGrid(visibleDocs.map((d) => d.data() as Map<String, dynamic>).toList());
+        return _buildFolderGrid(visibleDocs);
       },
     );
   }

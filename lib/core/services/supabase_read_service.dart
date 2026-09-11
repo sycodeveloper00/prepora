@@ -729,6 +729,13 @@ class SupabaseReadService {
 
   // ─── contents ─────────────────────────────────────────────────────────────
 
+  static Future<List<Map<String, dynamic>>?> getAllContents(String folderId) async {
+    final q = 'folder_id=eq.$folderId&$_sel&order=id.asc&limit=5000';
+    final rows = await _query('contents', q);
+    if (rows == null) return null;
+    return rows.map(_flatten).toList();
+  }
+
   static Future<List<Map<String, dynamic>>?> getFolderContents(
     String folderId, {
     String? parentContentId,

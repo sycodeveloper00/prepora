@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteUser = void 0;
+exports.onNotificationCreated = exports.onFcmNotification = exports.deleteUser = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 admin.initializeApp();
@@ -53,5 +53,74 @@ exports.deleteUser = functions.https.onCall(async (data, context) => {
     }
     await admin.auth().deleteUser(uid);
     return { success: true };
+});
+exports.onFcmNotification = functions.firestore
+    .document("fcm_notifications/{docId}")
+    .onCreate(async (snap, context) => {
+    const data = snap.data();
+    if (!data || data.sent)
+        return;
+    const targetUid = data.targetUid;
+    const title = data.title;
+    const body = data.body;
+    const type = data.type || "general";
+    try {
+        const userDoc = await admin.firestore().collection("users").doc(targetUid).get();
+        const fcmToken = userDoc.data()?.fcmToken;
+        if (!fcmToken) {
+            await snap.ref.update({ sent: true, error: "no_fcm_token" });
+            return;
+        }
+        await admin.messaging().send({
+            token: fcmToken,
+            notification: { title, body },
+            data: { type },
+            android: {
+                priority: "high",
+                notification: {
+                    channelId: type === "streak" || type === "streak_warning" || type === "streak_reset"
+                        ? "streak_channel"
+                        : "student_channel",
+                    priority: "high",
+                },
+            },
+        });
+        await snap.ref.update({ sent: true, sentAt: admin.firestore.FieldValue.serverTimestamp() });
+    }
+    catch (e) {
+        await snap.ref.update({ sent: true, error: e.message || "send_failed" });
+    }
+});
+exports.onNotificationCreated = functions.firestore
+    .document("notifications/{docId}")
+    .onCreate(async (snap, context) => {
+    const data = snap.data();
+    if (!data)
+        return;
+    const uid = data.uid;
+    const message = data.message;
+    if (!uid || !message)
+        return;
+    try {
+        const userDoc = await admin.firestore().collection("users").doc(uid).get();
+        const fcmToken = userDoc.data()?.fcmToken;
+        if (!fcmToken)
+            return;
+        await admin.messaging().send({
+            token: fcmToken,
+            notification: { title: "PrePora", body: message },
+            data: { type: "notification" },
+            android: {
+                priority: "high",
+                notification: {
+                    channelId: "student_channel",
+                    priority: "high",
+                },
+            },
+        });
+    }
+    catch (e) {
+        // silent fail — app-side Firestore listener will handle in-app display
+    }
 });
 //# sourceMappingURL=index.js.map
