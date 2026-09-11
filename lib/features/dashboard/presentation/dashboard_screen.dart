@@ -2115,20 +2115,20 @@ class _StudyRoomAnimationState extends State<_StudyRoomAnimation>
 }
 
 class _StudyRoomPainter extends CustomPainter {
-  final double clockHourAngle;
-  final double clockMinuteAngle;
-  final double clockSecondAngle;
-  final double breathValue;
-  final double lampGlow;
-  final bool isDark;
+  double clockHourAngle;
+  double clockMinuteAngle;
+  double clockSecondAngle;
+  double breathValue;
+  double lampGlow;
+  bool isDark;
 
   _StudyRoomPainter({
-    this.clockHourAngle = 0,
-    this.clockMinuteAngle = 0,
-    this.clockSecondAngle = 0,
-    this.breathValue = 0,
-    this.lampGlow = 0,
-    this.isDark = false,
+    required this.clockHourAngle,
+    required this.clockMinuteAngle,
+    required this.clockSecondAngle,
+    required this.breathValue,
+    required this.lampGlow,
+    required this.isDark,
   });
 
   @override
