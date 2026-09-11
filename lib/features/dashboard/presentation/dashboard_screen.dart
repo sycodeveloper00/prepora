@@ -2017,6 +2017,7 @@ class _DashboardGridState extends State<_DashboardGrid> {
       return true;
     }).toList());
   }
+}
 
 class _SearchResult {
   final String title;
@@ -2115,12 +2116,12 @@ class _StudyRoomAnimationState extends State<_StudyRoomAnimation>
 }
 
 class _StudyRoomPainter extends CustomPainter {
-  double clockHourAngle;
-  double clockMinuteAngle;
-  double clockSecondAngle;
-  double breathValue;
-  double lampGlow;
-  bool isDark;
+  final double clockHourAngle;
+  final double clockMinuteAngle;
+  final double clockSecondAngle;
+  final double breathValue;
+  final double lampGlow;
+  final bool isDark;
 
   _StudyRoomPainter({
     required this.clockHourAngle,
