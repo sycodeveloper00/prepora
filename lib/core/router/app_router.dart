@@ -225,6 +225,13 @@ class AppRouter {
         },
       ),
       GoRoute(
+        path: '/s/:shortId/:slug',
+        builder: (c, s) {
+          final shortId = s.pathParameters['shortId'] ?? '';
+          return ShortLinkResolver(shortId: shortId);
+        },
+      ),
+      GoRoute(
         path: '/s/:shortId',
         builder: (c, s) {
           final shortId = s.pathParameters['shortId'] ?? '';
