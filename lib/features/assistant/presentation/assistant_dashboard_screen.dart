@@ -394,7 +394,7 @@ class _AssistantDashboardScreenState extends State<AssistantDashboardScreen> {
           if (contentName.toLowerCase().contains(q)) {
             results.add({
               'name': contentName, 'type': 'content', 'folderId': folderId,
-              'contentId': contentDoc.id,
+              'contentId': contentData['id'] ?? '',
               'subtitle': '$folderName > ${contentData['type'] ?? 'item'}',
             });
           }

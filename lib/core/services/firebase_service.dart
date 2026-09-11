@@ -483,7 +483,6 @@ class FirebaseService {
     try {
       final mirror = await SupabaseReadService.getSettings('notification_config');
       if (mirror != null) return {...defaults, ...mirror};
-    } catch (_) {}
     } catch (_) {
       return defaults;
     }
