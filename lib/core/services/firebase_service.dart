@@ -1735,9 +1735,13 @@ class FirebaseService {
   static Future<bool> _isAnyAncestorRestricted(String folderId, String? contentId) async {
     if (contentId == null) return false;
     try {
-      final doc = await firestore.collection('folders').doc(folderId).collection('contents').doc(contentId).get();
-      if (!doc.exists) return false;
-      final data = doc.data();
+      final contents = await SupabaseReadService.getFolderContents(folderId, fetchAll: true);
+      if (contents == null) return false;
+      final contentMap = <String, Map<String, dynamic>>{};
+      for (final c in contents) {
+        contentMap[c['id'] as String? ?? ''] = c;
+      }
+      final data = contentMap[contentId];
       if (data == null) return false;
       final locked = data['locked'] as bool? ?? false;
       final invisible = data['invisible'] as bool? ?? false;
@@ -1759,15 +1763,12 @@ class FirebaseService {
       if (locked || updating || invisible) return true;
     }
     if (folderId != null) {
-      final folderDoc = await firestore.collection('folders').doc(folderId).get();
-      if (folderDoc.exists) {
-        final folderData = folderDoc.data();
-        if (folderData != null) {
-          final folderLocked = folderData['locked'] as bool? ?? false;
-          final folderInvisible = folderData['invisible'] as bool? ?? false;
-          final folderUpdating = folderData['updating'] as bool? ?? false;
-          if (folderLocked || folderInvisible || folderUpdating) return true;
-        }
+      final folderData = await SupabaseReadService.getFolder(folderId);
+      if (folderData != null) {
+        final folderLocked = folderData['locked'] as bool? ?? false;
+        final folderInvisible = folderData['invisible'] as bool? ?? false;
+        final folderUpdating = folderData['updating'] as bool? ?? false;
+        if (folderLocked || folderInvisible || folderUpdating) return true;
       }
       if (parentContentId != null) {
         if (await _isAnyAncestorRestricted(folderId, parentContentId)) return true;

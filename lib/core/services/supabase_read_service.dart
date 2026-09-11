@@ -239,7 +239,8 @@ class SupabaseReadService {
     // These tables have RLS or need service_role for reliable reads:
     // notes/notices/student_activities: RLS requires auth.uid() (null for Firebase users)
     // settings/app_updates: admin writes via service_role, anon reads may be blocked
-    final readKey = (table == 'notes' || table == 'notices' || table == 'student_activities' || table == 'settings' || table == 'app_updates' || table == 'feedbacks') ? 'service' : 'anon';
+    // notifications/admin_notifications: RLS may block anon reads
+    final readKey = (table == 'notes' || table == 'notices' || table == 'student_activities' || table == 'settings' || table == 'app_updates' || table == 'feedbacks' || table == 'notifications' || table == 'admin_notifications') ? 'service' : 'anon';
 
     for (final idx in tryOrder) {
       final p = _projects[idx];
@@ -391,7 +392,7 @@ class SupabaseReadService {
   // inside the data JSONB and must NOT be listed here — sending them as
   // typed columns causes the entire UPSERT to fail with PGRST204.
   static const Map<String, List<String>> _typedColumns = {
-    'users': ['role', 'email', 'name', 'blocked', 'verified', 'free_trial_active', 'free_trial_ends_at', 'last_login', 'fcm_token'],
+    'users': ['role', 'email', 'name', 'blocked', 'verified', 'free_trial_active', 'free_trial_ends_at', 'last_login'],
     'folders': ['name', 'invisible', 'restrict_chat'],
     'contents': ['folder_id', 'parent_content_id', 'name', 'type', 'url', 'group_link'],
     'web_sessions': ['uid', 'status', 'last_active', 'web_browser'],

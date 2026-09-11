@@ -34,7 +34,7 @@ export default async function handler(req, res) {
 
   try {
     const userRes = await fetch(
-      `${supabaseUrl}/rest/v1/users?id=eq.${targetUid}&select=fcm_token,data&limit=1`,
+      `${supabaseUrl}/rest/v1/users?id=eq.${targetUid}&select=data&limit=1`,
       {
         headers: {
           apikey: supabaseKey,
@@ -43,7 +43,7 @@ export default async function handler(req, res) {
       }
     );
     const users = await userRes.json();
-    const fcmToken = users?.[0]?.fcm_token || users?.[0]?.data?.fcmToken || users?.[0]?.data?.fcm_token;
+    const fcmToken = users?.[0]?.data?.fcmToken || users?.[0]?.data?.fcm_token;
     if (!fcmToken) {
       return res.status(200).json({ sent: false, reason: "no_fcm_token" });
     }

@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/firebase_service.dart';
 
 enum NotificationPanelType { student, admin, assistant }
 
 class NotificationPopupBox extends StatelessWidget {
-  final List<QueryDocumentSnapshot> docs;
+  final List<Map<String, dynamic>> docs;
   final NotificationPanelType panelType;
   final VoidCallback? onDismiss;
 
@@ -19,7 +18,7 @@ class NotificationPopupBox extends StatelessWidget {
 
   static void show({
     required BuildContext context,
-    required List<QueryDocumentSnapshot> docs,
+    required List<Map<String, dynamic>> docs,
     required NotificationPanelType panelType,
     VoidCallback? onDismiss,
     VoidCallback? onRead,
@@ -48,7 +47,7 @@ class NotificationPopupBox extends StatelessWidget {
 }
 
 class _NotificationPopupDialog extends StatelessWidget {
-  final List<QueryDocumentSnapshot> docs;
+  final List<Map<String, dynamic>> docs;
   final NotificationPanelType panelType;
   final VoidCallback? onDismiss;
 
@@ -130,7 +129,7 @@ class _NotificationPopupDialog extends StatelessWidget {
                       itemCount: docs.length,
                       separatorBuilder: (_, __) => const SizedBox(height: 6),
                       itemBuilder: (_, i) {
-                        final d = docs[i].data() as Map<String, dynamic>;
+                        final d = docs[i];
                         return _buildNotificationCard(d, isDark, baseColor, dimColor, cardBg, context);
                       },
                     ),
@@ -150,8 +149,7 @@ class _NotificationPopupDialog extends StatelessWidget {
     final role = d['role'] as String? ?? '';
     final rawTime = d['createdAt'] ?? d['created_at'];
     DateTime? time;
-    if (rawTime is Timestamp) time = rawTime.toDate();
-    else if (rawTime is DateTime) time = rawTime;
+    if (rawTime is DateTime) time = rawTime;
     else if (rawTime is String) time = DateTime.tryParse(rawTime);
     final timeStr = time != null ? _formatTimestamp(time) : '';
 
