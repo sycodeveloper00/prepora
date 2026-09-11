@@ -5,7 +5,9 @@ import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest_all.dart' as tz_data;
+import 'dart:convert';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:http/http.dart' as http;
 import 'firebase_service.dart';
 import 'supabase_read_service.dart';
 
@@ -246,16 +248,17 @@ class NotificationService {
     Map<String, dynamic>? extraData,
   }) async {
     try {
-      final id = 'fcm_${DateTime.now().millisecondsSinceEpoch}_${targetUid.substring(0, 8.clamp(0, targetUid.length))}';
-      await SupabaseReadService.writeToAll('fcm_notifications', id, {
-        'targetUid': targetUid,
-        'title': title,
-        'body': body,
-        'type': type,
-        'data': extraData ?? {},
-        'createdAt': DateTime.now().toIso8601String(),
-        'sent': false,
-      });
+      final response = await http.post(
+        Uri.parse('https://prepora-coral.vercel.app/api/send-push'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'targetUid': targetUid,
+          'title': title,
+          'body': body,
+          'type': type,
+        }),
+      ).timeout(const Duration(seconds: 10));
+      debugPrint('FCM: Vercel API response=${response.statusCode} body=${response.body}');
     } catch (e) {
       debugPrint('FCM: sendPushToUser FAILED: $e');
     }

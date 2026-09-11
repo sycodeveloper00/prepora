@@ -391,12 +391,12 @@ class SupabaseReadService {
   // inside the data JSONB and must NOT be listed here — sending them as
   // typed columns causes the entire UPSERT to fail with PGRST204.
   static const Map<String, List<String>> _typedColumns = {
-    'users': ['role', 'email', 'name', 'blocked', 'verified', 'free_trial_active', 'free_trial_ends_at', 'last_login'],
+    'users': ['role', 'email', 'name', 'blocked', 'verified', 'free_trial_active', 'free_trial_ends_at', 'last_login', 'fcm_token'],
     'folders': ['name', 'invisible', 'restrict_chat'],
     'contents': ['folder_id', 'parent_content_id', 'name', 'type', 'url', 'group_link'],
     'web_sessions': ['uid', 'status', 'last_active', 'web_browser'],
     'login_attempts': ['uid', 'device_id', 'device_model', 'timestamp'],
-    'notifications': ['uid', 'read', 'message', 'type'],
+    'notifications': ['uid', 'read', 'message', 'type', 'created_at'],
     'admin_notifications': ['read', 'message', 'type', 'created_at'],
     'notices': [],
     'feedbacks': ['uid', 'status', 'message', 'reply'],
@@ -454,6 +454,9 @@ class SupabaseReadService {
     'lastMessage': 'last_message',
     'conversationId': 'conversation_id',
     'paidAccess': 'paid_access',
+    'fcmToken': 'fcm_token',
+    'fcmTokenUpdatedAt': 'fcm_token_updated_at',
+    'lastStreakNotified': 'last_streak_notified',
   };
 
   /// Build the upsert body: id + data JSONB + matching typed columns
