@@ -144,7 +144,10 @@ class _DeepLinkScreenState extends State<DeepLinkScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      setState(() { _error = 'Failed to load link'; _processing = false; });
+      final msg = e.toString().contains('timeout')
+          ? 'Network slow — please check your internet'
+          : 'Failed to load link: ${e.toString().substring(0, (e.toString().length > 80 ? 80 : e.toString().length))}';
+      setState(() { _error = msg; _processing = false; });
     }
   }
 
