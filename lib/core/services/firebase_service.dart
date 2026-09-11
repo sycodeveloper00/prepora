@@ -484,11 +484,6 @@ class FirebaseService {
       final mirror = await SupabaseReadService.getSettings('notification_config');
       if (mirror != null) return {...defaults, ...mirror};
     } catch (_) {}
-    try {
-      final doc = await firestore.collection('settings').doc('notification_config').get();
-      if (!doc.exists) return defaults;
-      final data = doc.data() ?? {};
-      return {...defaults, ...data};
     } catch (_) {
       return defaults;
     }
