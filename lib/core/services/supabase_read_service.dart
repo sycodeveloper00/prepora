@@ -706,7 +706,7 @@ class SupabaseReadService {
   }
 
   static Stream<List<Map<String, dynamic>>> streamFolders({
-    Duration interval = const Duration(seconds: 30),
+    Duration interval = const Duration(seconds: 5),
   }) {
     return _poll('folders', '$_sel&order=id.asc', interval: interval).map((list) {
       list.sort((a, b) {
@@ -761,7 +761,7 @@ class SupabaseReadService {
   static Stream<List<Map<String, dynamic>>> streamContents(
     String folderId, {
     String? parentContentId,
-    Duration interval = const Duration(seconds: 30),
+    Duration interval = const Duration(seconds: 5),
   }) {
     var q = 'folder_id=eq.$folderId&$_sel&order=id.asc';
     if (parentContentId != null) {

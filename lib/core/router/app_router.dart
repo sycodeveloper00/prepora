@@ -206,6 +206,15 @@ class AppRouter {
         },
       ),
       GoRoute(
+        path: '/folder/:folderId/:slug/share',
+        builder: (c, s) {
+          final id = s.uri.queryParameters['id'];
+          final type = s.uri.queryParameters['type'];
+          final parent = s.uri.queryParameters['parent'];
+          return DeepLinkScreen(id: id, type: type, parent: parent);
+        },
+      ),
+      GoRoute(
         path: '/webview',
         builder: (c, s) {
           final extra = s.extra as Map<String, dynamic>?;

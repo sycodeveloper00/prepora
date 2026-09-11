@@ -76,6 +76,7 @@ dependencies:
   archive: ^4.0.9
   connectivity_plus: ^6.0.3
   mobile_scanner: ^5.2.3
+  share_plus: ^10.1.4
 
   markdown: any
 dev_dependencies:

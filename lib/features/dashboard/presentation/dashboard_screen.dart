@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../../../core/widgets/glassmorphic_container.dart';
 import '../../../core/widgets/animated_pressable.dart';
@@ -852,57 +853,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   void _shareSearchResult(_SearchResult r) {
     final id = r.isFolder ? r.folderId : r.contentId;
     final type = r.isFolder ? 'folder' : 'content';
-    final parent = r.isFolder ? '' : '&parent=${r.folderId}';
-    final link = 'https://prepora.pages.dev/open?id=$id&type=$type$parent';
-    _showShareLinkDialog(link, r.title);
-  }
-
-  void _showShareLinkDialog(String link, String title) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF1E1E2F) : Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(children: [
-          Icon(Icons.share_rounded, color: const Color(0xFF4A148C), size: 22),
-          const SizedBox(width: 8),
-          Text('Share', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
-        ]),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontSize: 13)),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.04),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(link, style: TextStyle(color: const Color(0xFF00B8D4), fontSize: 12), maxLines: 3, overflow: TextOverflow.ellipsis),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Close', style: TextStyle(color: Colors.grey)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Link copied to clipboard!'), backgroundColor: Color(0xFF4A148C)),
-              );
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4A148C)),
-            child: const Text('Copy Link', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
+    final slug = r.title.replaceAll(RegExp(r'[^a-zA-Z0-9\s-]'), '').replaceAll(RegExp(r'\s+'), '-').toLowerCase();
+    final parentParam = r.isFolder ? '' : '&parent=${r.folderId}';
+    final link = 'https://prepora.vercel.app/folder/${r.folderId}/$slug/share?id=$id&type=$type$parentParam';
+    Share.share('${r.title}\n$link');
   }
 
   Widget _buildBlockedScreen(BuildContext context) {
@@ -1986,8 +1940,9 @@ class _DashboardGridState extends State<_DashboardGrid> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       onSelected: (value) {
                         if (value == 'share') {
-                          final link = 'https://prepora.pages.dev/open?id=$folderId&type=folder';
-                          _showShareLinkDialog(link, folderName);
+                          final slug = folderName.replaceAll(RegExp(r'[^a-zA-Z0-9\s-]'), '').replaceAll(RegExp(r'\s+'), '-').toLowerCase();
+                          final link = 'https://prepora.vercel.app/folder/$folderId/$slug/share?id=$folderId&type=folder';
+                          Share.share('$folderName\n$link');
                         }
                       },
                       itemBuilder: (_) => [
@@ -2016,54 +1971,6 @@ class _DashboardGridState extends State<_DashboardGrid> {
       if (sortOrder == -1) return false;
       return true;
     }).toList());
-  }
-
-  void _showShareLinkDialog(String link, String title) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF1E1E2F) : Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(children: [
-          Icon(Icons.share_rounded, color: const Color(0xFF4A148C), size: 22),
-          const SizedBox(width: 8),
-          Text('Share', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
-        ]),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontSize: 13)),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.04),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(link, style: TextStyle(color: const Color(0xFF00B8D4), fontSize: 12), maxLines: 3, overflow: TextOverflow.ellipsis),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Close', style: TextStyle(color: Colors.grey)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Link copied to clipboard!'), backgroundColor: Color(0xFF4A148C)),
-              );
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4A148C)),
-            child: const Text('Copy Link', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
   }
 }
 

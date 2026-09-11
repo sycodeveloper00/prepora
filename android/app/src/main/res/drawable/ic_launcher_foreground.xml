@@ -1,10 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item
+        android:drawable="@drawable/splash_logo"
         android:width="66dp"
         android:height="66dp"
-        android:gravity="center">
-        <bitmap
-            android:src="@drawable/splash_logo"
-            android:gravity="fill" />
-    </item>
+        android:gravity="center" />
 </layer-list>

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +8,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import '../../../core/widgets/glassmorphic_container.dart';
 import '../../../core/widgets/professional_loader.dart';
 import '../../../core/services/firebase_service.dart';
@@ -94,6 +97,7 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
   // ─── Cached futures & streams to prevent blinking rebuild loops ───
   late Future<Map<String, dynamic>?> _folderFuture;
   late Stream<List<Map<String, dynamic>>> _contentsStream;
+  List<Map<String, dynamic>> _cachedContents = [];
 
   @override
   void initState() {
@@ -104,6 +108,8 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
     if (widget.assistantContentAccess != null) {
       _assistantAccess = widget.assistantContentAccess!;
     }
+    // Load cached contents from Hive for instant display
+    _loadCachedContents();
     // Use Supabase mirror for fast single-query folder fetch
     _folderFuture = SupabaseReadService.getFolder(widget.folderId);
     // Use Supabase mirror stream for contents
@@ -113,6 +119,30 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
     _loadGroupLink();
     _loadSortMode();
     UploadManager.instance.resumePending();
+  }
+
+  void _loadCachedContents() {
+    if (kIsWeb) return;
+    try {
+      final box = Hive.box('settings');
+      final key = 'cached_contents_${widget.folderId}_${widget.parentContentId ?? 'root'}';
+      final cached = box.get(key) as String?;
+      if (cached != null && cached.isNotEmpty) {
+        final list = (jsonDecode(cached) as List).cast<Map<String, dynamic>>();
+        if (list.isNotEmpty && mounted) {
+          setState(() => _cachedContents = list);
+        }
+      }
+    } catch (_) {}
+  }
+
+  void _saveCachedContents(List<Map<String, dynamic>> contents) {
+    if (kIsWeb || contents.isEmpty) return;
+    try {
+      final box = Hive.box('settings');
+      final key = 'cached_contents_${widget.folderId}_${widget.parentContentId ?? 'root'}';
+      box.put(key, jsonEncode(contents));
+    } catch (_) {}
   }
 
   void _loadSubfolderName() async {
@@ -1214,56 +1244,9 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
   }
 
   void _shareContent(String contentId, String contentName, String type) {
-    final link = 'https://prepora.pages.dev/open?id=$contentId&type=$type&parent=${widget.folderId}';
-    _showShareLinkDialog(link, contentName);
-  }
-
-  void _showShareLinkDialog(String link, String title) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF1E1E2F) : Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(children: [
-          const Icon(Icons.share_rounded, color: Color(0xFF4A148C), size: 22),
-          const SizedBox(width: 8),
-          Text('Share', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
-        ]),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontSize: 13)),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.04),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(link, style: const TextStyle(color: Color(0xFF00B8D4), fontSize: 12), maxLines: 3, overflow: TextOverflow.ellipsis),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Close', style: TextStyle(color: Colors.grey)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Link copied to clipboard!'), backgroundColor: Color(0xFF4A148C)),
-              );
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4A148C)),
-            child: const Text('Copy Link', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
+    final slug = contentName.replaceAll(RegExp(r'[^a-zA-Z0-9\s-]'), '').replaceAll(RegExp(r'\s+'), '-').toLowerCase();
+    final link = 'https://prepora.vercel.app/folder/${widget.folderId}/$slug/share?id=$contentId&type=$type&parent=${widget.folderId}';
+    Share.share('$contentName\n$link');
   }
 
   bool _isDisabled(Map<String, dynamic> data, String contentId) {
@@ -1691,7 +1674,9 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                 child: StreamBuilder<List<Map<String, dynamic>>>(
                   stream: _contentsStream,
                   builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: ProfessionalLoader());
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: ProfessionalLoader());
+                    }
                     if (!snapshot.hasData || snapshot.data!.isEmpty) {
                       return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                         const Icon(Icons.folder_open_rounded, size: 80, color: Colors.white12),
@@ -1702,6 +1687,8 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                     }
 
                     final docs = snapshot.data!;
+                    // Cache contents for instant load next time
+                    _saveCachedContents(docs);
                     final parentFiltered = docs.where((doc) {
                       final docParentId = doc['parentContentId'] as String?;
                       if (widget.parentContentId != null) {
@@ -2272,8 +2259,7 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                 if (invisible)
                   const Row(children: [Icon(Icons.visibility_off_rounded, color: Colors.purple, size: 12), SizedBox(width: 4), Text('Hidden', style: TextStyle(color: Colors.purple, fontSize: 11))]),
               ])),
-              if (widget.isAdmin || widget.canEdit) ...[
-                PopupMenuButton<String>(
+              PopupMenuButton<String>(
                   icon: Icon(Icons.more_vert, size: 20, color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87),
                   color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2D2D2D) : Colors.white,
                   onSelected: (value) {
@@ -2310,14 +2296,12 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                         value: 'Assistant',
                         child: ListTile(leading: Icon(Icons.people_alt_rounded, color: Colors.orange), title: Text('Assistant Access')),
                       ),
+                      const PopupMenuItem(value: 'edit', child: ListTile(leading: Icon(Icons.edit, color: Colors.green), title: Text('Edit'))),
+                      const PopupMenuItem(value: 'rename', child: ListTile(leading: Icon(Icons.drive_file_rename_outline, color: Colors.blue), title: Text('Rename'))),
+                      const PopupMenuItem(value: 'delete', child: ListTile(leading: Icon(Icons.delete, color: Colors.red), title: Text('Delete', style: TextStyle(color: Colors.red)))),
                     ],
-                    const PopupMenuItem(value: 'edit', child: ListTile(leading: Icon(Icons.edit, color: Colors.green), title: Text('Edit'))),
-                    const PopupMenuItem(value: 'rename', child: ListTile(leading: Icon(Icons.drive_file_rename_outline, color: Colors.blue), title: Text('Rename'))),
-                    const PopupMenuItem(value: 'delete', child: ListTile(leading: Icon(Icons.delete, color: Colors.red), title: Text('Delete', style: TextStyle(color: Colors.red)))),
                   ],
                 ),
-              ] else if (!disabled)
-                const Icon(Icons.chevron_right, color: Colors.white38),
             ]),
           ),
         ),
@@ -2397,8 +2381,7 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                 if (invisible)
                   const Row(children: [Icon(Icons.visibility_off_rounded, color: Colors.purple, size: 12), SizedBox(width: 4), Text('Hidden', style: TextStyle(color: Colors.purple, fontSize: 11))]),
               ])),
-              if (widget.isAdmin || widget.canEdit) ...[
-                PopupMenuButton<String>(
+              PopupMenuButton<String>(
                   icon: Icon(Icons.more_vert, size: 20, color: isDark ? Colors.white : Colors.black87),
                   color: isDark ? const Color(0xFF2D2D2D) : Colors.white,
                   onSelected: (value) {
@@ -2437,14 +2420,12 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                         value: 'group',
                         child: ListTile(leading: Icon(Icons.groups_rounded, color: Colors.amber), title: Text('Group Link')),
                       ),
+                      const PopupMenuItem(value: 'edit', child: ListTile(leading: Icon(Icons.edit, color: Colors.green), title: Text('Edit'))),
+                      const PopupMenuItem(value: 'rename', child: ListTile(leading: Icon(Icons.drive_file_rename_outline, color: Colors.blue), title: Text('Rename'))),
+                      const PopupMenuItem(value: 'delete', child: ListTile(leading: Icon(Icons.delete, color: Colors.red), title: Text('Delete', style: TextStyle(color: Colors.red)))),
                     ],
-                    const PopupMenuItem(value: 'edit', child: ListTile(leading: Icon(Icons.edit, color: Colors.green), title: Text('Edit'))),
-                    const PopupMenuItem(value: 'rename', child: ListTile(leading: Icon(Icons.drive_file_rename_outline, color: Colors.blue), title: Text('Rename'))),
-                    const PopupMenuItem(value: 'delete', child: ListTile(leading: Icon(Icons.delete, color: Colors.red), title: Text('Delete', style: TextStyle(color: Colors.red)))),
                   ],
                 ),
-              ] else if (!disabled)
-                const Icon(Icons.chevron_right, color: Colors.white38),
             ]),
           ),
         ),
@@ -2489,8 +2470,7 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                 if (invisible)
                   const Row(children: [Icon(Icons.visibility_off_rounded, color: Colors.purple, size: 12), SizedBox(width: 4), Text('Hidden', style: TextStyle(color: Colors.purple, fontSize: 11))]),
               ])),
-              if (widget.isAdmin || widget.canEdit) ...[
-                PopupMenuButton<String>(
+              PopupMenuButton<String>(
                   icon: Icon(Icons.more_vert, size: 20, color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87),
                   color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2D2D2D) : Colors.white,
                   onSelected: (value) {
@@ -2527,14 +2507,12 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                         value: 'Assistant',
                         child: ListTile(leading: Icon(Icons.people_alt_rounded, color: Colors.orange), title: Text('Assistant Access')),
                       ),
+                      const PopupMenuItem(value: 'edit', child: ListTile(leading: Icon(Icons.edit, color: Colors.green), title: Text('Edit'))),
+                      const PopupMenuItem(value: 'rename', child: ListTile(leading: Icon(Icons.drive_file_rename_outline, color: Colors.blue), title: Text('Rename'))),
+                      const PopupMenuItem(value: 'delete', child: ListTile(leading: Icon(Icons.delete, color: Colors.red), title: Text('Delete', style: TextStyle(color: Colors.red)))),
                     ],
-                    const PopupMenuItem(value: 'edit', child: ListTile(leading: Icon(Icons.edit, color: Colors.green), title: Text('Edit'))),
-                    const PopupMenuItem(value: 'rename', child: ListTile(leading: Icon(Icons.drive_file_rename_outline, color: Colors.blue), title: Text('Rename'))),
-                    const PopupMenuItem(value: 'delete', child: ListTile(leading: Icon(Icons.delete, color: Colors.red), title: Text('Delete', style: TextStyle(color: Colors.red)))),
                   ],
                 ),
-              ] else if (!disabled)
-                const Icon(Icons.chevron_right, color: Colors.orange, size: 20),
             ]),
           ),
         ),
@@ -2579,8 +2557,7 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                 if (invisible)
                   const Row(children: [Icon(Icons.visibility_off_rounded, color: Colors.purple, size: 12), SizedBox(width: 4), Text('Hidden', style: TextStyle(color: Colors.purple, fontSize: 11))]),
               ])),
-              if (widget.isAdmin || widget.canEdit) ...[
-                PopupMenuButton<String>(
+              PopupMenuButton<String>(
                   icon: Icon(Icons.more_vert, size: 20, color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87),
                   color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2D2D2D) : Colors.white,
                   onSelected: (value) {
@@ -2617,14 +2594,12 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                         value: 'Assistant',
                         child: ListTile(leading: Icon(Icons.people_alt_rounded, color: Colors.orange), title: Text('Assistant Access')),
                       ),
+                      const PopupMenuItem(value: 'edit', child: ListTile(leading: Icon(Icons.edit, color: Colors.green), title: Text('Edit'))),
+                      const PopupMenuItem(value: 'rename', child: ListTile(leading: Icon(Icons.drive_file_rename_outline, color: Colors.blue), title: Text('Rename'))),
+                      const PopupMenuItem(value: 'delete', child: ListTile(leading: Icon(Icons.delete, color: Colors.red), title: Text('Delete', style: TextStyle(color: Colors.red)))),
                     ],
-                    const PopupMenuItem(value: 'edit', child: ListTile(leading: Icon(Icons.edit, color: Colors.green), title: Text('Edit'))),
-                    const PopupMenuItem(value: 'rename', child: ListTile(leading: Icon(Icons.drive_file_rename_outline, color: Colors.blue), title: Text('Rename'))),
-                    const PopupMenuItem(value: 'delete', child: ListTile(leading: Icon(Icons.delete, color: Colors.red), title: Text('Delete', style: TextStyle(color: Colors.red)))),
                   ],
                 ),
-              ] else if (!disabled)
-                const Icon(Icons.chevron_right, color: Colors.orange, size: 20),
             ]),
           ),
         ),
@@ -2672,8 +2647,7 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                 if (invisible)
                   const Row(children: [Icon(Icons.visibility_off_rounded, color: Colors.purple, size: 12), SizedBox(width: 4), Text('Hidden', style: TextStyle(color: Colors.purple, fontSize: 11))]),
               ])),
-              if (widget.isAdmin || widget.canEdit) ...[
-                PopupMenuButton<String>(
+              PopupMenuButton<String>(
                   icon: Icon(Icons.more_vert, size: 20, color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87),
                   color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2D2D2D) : Colors.white,
                   onSelected: (value) {
@@ -2706,14 +2680,12 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                         value: 'Assistant',
                         child: ListTile(leading: Icon(Icons.people_alt_rounded, color: Colors.orange), title: Text('Assistant Access')),
                       ),
+                      const PopupMenuItem(value: 'edit', child: ListTile(leading: Icon(Icons.edit, color: Colors.green), title: Text('Edit'))),
+                      const PopupMenuItem(value: 'rename', child: ListTile(leading: Icon(Icons.drive_file_rename_outline, color: Colors.blue), title: Text('Rename'))),
+                      const PopupMenuItem(value: 'delete', child: ListTile(leading: Icon(Icons.delete, color: Colors.red), title: Text('Delete', style: TextStyle(color: Colors.red)))),
                     ],
-                    const PopupMenuItem(value: 'edit', child: ListTile(leading: Icon(Icons.edit, color: Colors.green), title: Text('Edit'))),
-                    const PopupMenuItem(value: 'rename', child: ListTile(leading: Icon(Icons.drive_file_rename_outline, color: Colors.blue), title: Text('Rename'))),
-                    const PopupMenuItem(value: 'delete', child: ListTile(leading: Icon(Icons.delete, color: Colors.red), title: Text('Delete', style: TextStyle(color: Colors.red)))),
                   ],
                 ),
-              ] else if (!disabled)
-                const Icon(Icons.chevron_right, color: Colors.orange, size: 20),
             ]),
           ),
         ),
@@ -2760,8 +2732,7 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                 if (invisible)
                   const Row(children: [Icon(Icons.visibility_off_rounded, color: Colors.purple, size: 12), SizedBox(width: 4), Text('Hidden', style: TextStyle(color: Colors.purple, fontSize: 11))]),
               ])),
-              if (widget.isAdmin || widget.canEdit) ...[
-                PopupMenuButton<String>(
+              PopupMenuButton<String>(
                   icon: Icon(Icons.more_vert, size: 20, color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87),
                   color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2D2D2D) : Colors.white,
                   onSelected: (value) {
@@ -2798,14 +2769,12 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                         value: 'Assistant',
                         child: ListTile(leading: Icon(Icons.people_alt_rounded, color: Colors.orange), title: Text('Assistant Access')),
                       ),
+                      const PopupMenuItem(value: 'edit', child: ListTile(leading: Icon(Icons.edit, color: Colors.green), title: Text('Edit'))),
+                      const PopupMenuItem(value: 'rename', child: ListTile(leading: Icon(Icons.drive_file_rename_outline, color: Colors.blue), title: Text('Rename'))),
+                      const PopupMenuItem(value: 'delete', child: ListTile(leading: Icon(Icons.delete, color: Colors.red), title: Text('Delete', style: TextStyle(color: Colors.red)))),
                     ],
-                    const PopupMenuItem(value: 'edit', child: ListTile(leading: Icon(Icons.edit, color: Colors.green), title: Text('Edit'))),
-                    const PopupMenuItem(value: 'rename', child: ListTile(leading: Icon(Icons.drive_file_rename_outline, color: Colors.blue), title: Text('Rename'))),
-                    const PopupMenuItem(value: 'delete', child: ListTile(leading: Icon(Icons.delete, color: Colors.red), title: Text('Delete', style: TextStyle(color: Colors.red)))),
                   ],
                 ),
-              ] else if (!disabled)
-                const Icon(Icons.chevron_right, color: Colors.teal, size: 20),
             ]),
           ),
         ),
