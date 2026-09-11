@@ -855,7 +855,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     final type = r.isFolder ? 'folder' : 'content';
     final slug = r.title.replaceAll(RegExp(r'[^a-zA-Z0-9\s-]'), '').replaceAll(RegExp(r'\s+'), '-').toLowerCase();
     final parentParam = r.isFolder ? '' : '&parent=${r.folderId}';
-    final link = 'https://prepora.vercel.app/folder/${r.folderId}/$slug/share?id=$id&type=$type$parentParam';
+    final link = 'https://prepora.pages.dev/open/folder/${r.folderId}/$slug/share?id=$id&type=$type$parentParam';
     Share.share('${r.title}\n$link');
   }
 
@@ -1941,7 +1941,7 @@ class _DashboardGridState extends State<_DashboardGrid> {
                       onSelected: (value) {
                         if (value == 'share') {
                           final slug = folderName.replaceAll(RegExp(r'[^a-zA-Z0-9\s-]'), '').replaceAll(RegExp(r'\s+'), '-').toLowerCase();
-                          final link = 'https://prepora.vercel.app/folder/$folderId/$slug/share?id=$folderId&type=folder';
+                          final link = 'https://prepora.pages.dev/open/folder/$folderId/$slug/share?id=$folderId&type=folder';
                           Share.share('$folderName\n$link');
                         }
                       },

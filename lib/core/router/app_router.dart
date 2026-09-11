@@ -206,7 +206,7 @@ class AppRouter {
         },
       ),
       GoRoute(
-        path: '/folder/:folderId/:slug/share',
+        path: '/open/folder/:folderId/:slug/share',
         builder: (c, s) {
           final id = s.uri.queryParameters['id'];
           final type = s.uri.queryParameters['type'];
