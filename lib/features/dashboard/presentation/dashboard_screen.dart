@@ -237,6 +237,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 28),
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     AnimatedBuilder(
                       animation: _colorFlowController,
@@ -782,15 +783,22 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
         final folderData = entry.key;
         final folderName = folderData['name'] as String? ?? '';
         final folderId = folderData['id'] as String? ?? '';
-        final blockedParentIds = <String>{};
+        final blockedIds = <String>{};
+        final parentMap = <String, String?>{};
         for (final c in entry.value!) {
-          final isInvisible = c['invisible'] == true;
-          final isLocked = c['locked'] == true;
-          final isUpdating = c['updating'] == true;
-          final isEnabled = c['enabled'] != false;
-          if ((isInvisible || isLocked || isUpdating) && isEnabled) {
-            blockedParentIds.add(c['id'] as String? ?? '');
+          final cid = c['id'] as String? ?? '';
+          parentMap[cid] = c['parentContentId'] as String?;
+          if (c['invisible'] == true || c['locked'] == true || c['updating'] == true) {
+            blockedIds.add(cid);
           }
+        }
+        bool isAncestorBlocked(String? pid) {
+          var current = pid;
+          while (current != null && current.isNotEmpty) {
+            if (blockedIds.contains(current)) return true;
+            current = parentMap[current];
+          }
+          return false;
         }
         for (final contentData in entry.value!) {
           if (contentData['invisible'] == true) continue;
@@ -798,7 +806,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
           if (contentData['updating'] == true) continue;
           if (contentData['enabled'] == false) continue;
           final parentId = contentData['parentContentId'] as String?;
-          if (parentId != null && blockedParentIds.contains(parentId)) continue;
+          if (parentId != null && isAncestorBlocked(parentId)) continue;
           final contentName = contentData['name'] as String? ?? contentData['title'] as String? ?? '';
           if (contentName.trim().isEmpty) continue;
           if (contentName.toLowerCase().contains(q)) {

@@ -24,6 +24,8 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
   StreamSubscription? _activeSub;
   StreamSubscription? _historySub;
   Timer? _staleCheckTimer;
+  Timer? _activeSessionsTimer;
+  Timer? _historyTimer;
   final Set<String> _notifiedSessionIds = {};
 
   static const int _maxWebSessions = 3;
@@ -43,6 +45,8 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
     _activeSub?.cancel();
     _historySub?.cancel();
     _staleCheckTimer?.cancel();
+    _activeSessionsTimer?.cancel();
+    _historyTimer?.cancel();
     super.dispose();
   }
 
@@ -58,7 +62,15 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
     if (user == null) return;
     final now = DateTime.now();
     for (final session in _activeSessions) {
-      final lastActive = (session['lastActive'] as Timestamp?)?.toDate();
+      final lastActiveRaw = session['lastActive'];
+      DateTime? lastActive;
+      if (lastActiveRaw is DateTime) {
+        lastActive = lastActiveRaw;
+      } else if (lastActiveRaw is String) {
+        lastActive = DateTime.tryParse(lastActiveRaw);
+      } else if (lastActiveRaw != null) {
+        lastActive = DateTime.tryParse(lastActiveRaw.toString());
+      }
       if (lastActive == null) continue;
       final elapsed = now.difference(lastActive);
       if (elapsed.inMinutes >= 60) {
@@ -87,21 +99,21 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
   void _loadActiveSessions() {
     final user = FirebaseService.currentUser;
     if (user == null) return;
-    _activeSub?.cancel();
-    _activeSub = FirebaseService.firestore
-        .collection('web_sessions')
-        .where('uid', isEqualTo: user.uid)
-        .where('status', isEqualTo: 'connected')
-        .snapshots()
-        .listen((snap) {
-      final sessions = snap.docs.map((d) => {
-        ...d.data(),
-        'sessionId': d.id,
-      }).toList();
+    _activeSessionsTimer?.cancel();
+    _fetchActiveSessions();
+    _activeSessionsTimer = Timer.periodic(const Duration(seconds: 5), (_) => _fetchActiveSessions());
+  }
+
+  Future<void> _fetchActiveSessions() async {
+    final user = FirebaseService.currentUser;
+    if (user == null) return;
+    try {
+      final sessions = await SupabaseReadService.getConnectedSessions(user.uid);
       if (mounted) {
+        final list = sessions ?? [];
         setState(() {
-          _activeSessions = sessions;
-          if (sessions.length >= _maxWebSessions && _showScanner) {
+          _activeSessions = list;
+          if (list.length >= _maxWebSessions && _showScanner) {
             _showScanner = false;
             _scannerController?.stop();
             _scannerController?.dispose();
@@ -109,26 +121,32 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
           }
         });
       }
-    });
+    } catch (_) {}
   }
 
   void _loadConnectionHistory() {
     final user = FirebaseService.currentUser;
     if (user == null) return;
     _historySub?.cancel();
-    _historySub = FirebaseService.firestore
-        .collection('web_sessions')
-        .where('uid', isEqualTo: user.uid)
-        .snapshots()
-        .listen((snap) {
-      if (mounted) {
-        final sessions = snap.docs.map((d) => {
-          ...d.data(),
-          'sessionId': d.id,
-        }).toList();
+    _historyTimer?.cancel();
+    _fetchConnectionHistory();
+    _historyTimer = Timer.periodic(const Duration(seconds: 10), (_) => _fetchConnectionHistory());
+  }
+
+  Future<void> _fetchConnectionHistory() async {
+    final user = FirebaseService.currentUser;
+    if (user == null) return;
+    try {
+      final sessions = await SupabaseReadService.getWebSessionsForUser(user.uid);
+      if (mounted && sessions != null) {
         sessions.sort((a, b) {
-          final aT = (a['connectedAt'] as Timestamp?)?.toDate();
-          final bT = (b['connectedAt'] as Timestamp?)?.toDate();
+          final aRaw = a['connectedAt'];
+          final bRaw = b['connectedAt'];
+          DateTime? aT, bT;
+          if (aRaw is DateTime) aT = aRaw;
+          else if (aRaw is String) aT = DateTime.tryParse(aRaw);
+          if (bRaw is DateTime) bT = bRaw;
+          else if (bRaw is String) bT = DateTime.tryParse(bRaw);
           if (aT == null && bT == null) return 0;
           if (aT == null) return 1;
           if (bT == null) return -1;
@@ -138,7 +156,7 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
           _connectionHistory = sessions.take(20).toList();
         });
       }
-    });
+    } catch (_) {}
   }
 
   void _toggleScanner() {
@@ -652,10 +670,16 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
   }
 
   Widget _buildActiveConnectionCard(Map<String, dynamic> session, Color cardColor, Color textColor, bool isDark) {
-    final connectedAt = (session['connectedAt'] as Timestamp?)?.toDate();
-    final lastActive = (session['lastActive'] as Timestamp?)?.toDate();
+    final connectedAtRaw = session['connectedAt'];
+    final lastActiveRaw = session['lastActive'];
+    DateTime? connectedAt;
+    DateTime? lastActive;
+    if (connectedAtRaw is DateTime) connectedAt = connectedAtRaw;
+    else if (connectedAtRaw is String) connectedAt = DateTime.tryParse(connectedAtRaw);
+    if (lastActiveRaw is DateTime) lastActive = lastActiveRaw;
+    else if (lastActiveRaw is String) lastActive = DateTime.tryParse(lastActiveRaw);
     final sessionId = session['sessionId'] as String? ?? '';
-    final webBrowser = session['webBrowser'] as String? ?? 'Chrome';
+    final webBrowser = session['webBrowser'] as String? ?? 'Web Browser';
 
     return Card(
       color: cardColor,
@@ -863,7 +887,10 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
               )
             else
               ..._connectionHistory.map((session) {
-                final connectedAt = (session['connectedAt'] as Timestamp?)?.toDate();
+                final connectedAtRaw = session['connectedAt'];
+                DateTime? connectedAt;
+                if (connectedAtRaw is DateTime) connectedAt = connectedAtRaw;
+                else if (connectedAtRaw is String) connectedAt = DateTime.tryParse(connectedAtRaw);
                 final status = session['status'] ?? 'disconnected';
                 final webBrowser = session['webBrowser'] as String? ?? 'Web Browser';
                 final isActive = status == 'connected';

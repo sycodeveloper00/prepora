@@ -1043,7 +1043,9 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
             ? 'Mock Test'
             : 'File';
 
-    return Container(
+    return GestureDetector(
+      onTap: () => _showActivityDetail(item, name, type, folderPath, timeRange, duration, typeLabel, icon, iconColor, textColor, isDark),
+      child: Container(
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
@@ -1097,6 +1099,75 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
           ),
         ],
       ),
+    ),
+    );
+  }
+
+  void _showActivityDetail(Map<String, dynamic> item, String name, String type, String folderPath, String timeRange, String duration, String typeLabel, IconData icon, Color iconColor, Color textColor, bool isDark) {
+    final startedAt = _parseActivityDate(item['startedAt']);
+    final endedAt = _parseActivityDate(item['endedAt']);
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDarkMode ? const Color(0xFF1E1E2F) : Colors.white;
+    final subtitleColor = isDarkMode ? Colors.white54 : Colors.black54;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => Container(
+        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.6),
+        margin: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)))),
+            const SizedBox(height: 16),
+            Row(children: [
+              Container(
+                width: 44, height: 44,
+                decoration: BoxDecoration(color: iconColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
+                child: Icon(icon, color: iconColor, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(name, style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 16), maxLines: 2, overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 2),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(color: iconColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
+                  child: Text(typeLabel, style: TextStyle(color: iconColor, fontSize: 11, fontWeight: FontWeight.bold)),
+                ),
+              ])),
+            ]),
+            const SizedBox(height: 16),
+            _detailRow(Icons.folder_rounded, 'Folder Path', folderPath.isNotEmpty ? folderPath : 'N/A', textColor, subtitleColor),
+            if (timeRange.isNotEmpty) _detailRow(Icons.access_time_rounded, 'Time', timeRange, textColor, subtitleColor),
+            if (duration.isNotEmpty) _detailRow(Icons.timer_rounded, 'Duration', duration, textColor, subtitleColor),
+            if (startedAt != null) _detailRow(Icons.calendar_today_rounded, 'Date', '${startedAt.day}/${startedAt.month}/${startedAt.year}', textColor, subtitleColor),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _detailRow(IconData icon, String label, String value, Color textColor, Color subtitleColor) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(children: [
+        Icon(icon, size: 16, color: const Color(0xFF00B8D4)),
+        const SizedBox(width: 10),
+        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(label, style: TextStyle(color: subtitleColor, fontSize: 11)),
+          Text(value, style: TextStyle(color: textColor, fontSize: 13, fontWeight: FontWeight.w500), maxLines: 2, overflow: TextOverflow.ellipsis),
+        ]),
+      ]),
     );
   }
 

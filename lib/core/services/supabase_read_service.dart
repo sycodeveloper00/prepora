@@ -1175,7 +1175,7 @@ class SupabaseReadService {
 
   static Stream<List<Map<String, dynamic>>> streamWebSessionsForUser(
     String uid, {
-    Duration interval = const Duration(seconds: 30),
+    Duration interval = const Duration(seconds: 5),
   }) {
     return _poll('web_sessions', 'uid=eq.$uid&status=eq.connected&$_sel&order=created_at.desc', interval: interval);
   }
