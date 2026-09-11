@@ -39,7 +39,12 @@ class _LoginScreenState extends State<LoginScreen> {
       );
       if (mounted && credential?.user != null) {
         final uid = credential!.user!.uid;
-        final role = await FirebaseService.getUserRole(uid);
+        // Try cached role first, then fetch with timeout
+        String? role = await FirebaseService.getCachedUserRole(uid);
+        if (role == null) {
+          role = await FirebaseService.getUserRole(uid)
+              .timeout(const Duration(seconds: 5), onTimeout: () => null);
+        }
         if (role != null) FirebaseService.cacheUserRole(uid, role);
         await NotificationService.scheduleDailyStreakReminder();
         NotificationService.checkAndNotify();
@@ -51,9 +56,14 @@ class _LoginScreenState extends State<LoginScreen> {
             return;
           }
           if (role == 'admin') {
-            context.go('/admin');
-          } else if (role == 'Assistant') {
-            final accessDocs = await FirebaseService.getAssistantFolderIds(credential.user!.uid);
+            // Admin not supported in Android app
+            setState(() => _isLoading = false);
+            await FirebaseService.signOut();
+            _showUnderDevelopmentDialog();
+            return;
+          } else if (role == 'Assistant' || role == 'assistant') {
+            final accessDocs = await FirebaseService.getAssistantFolderIds(credential.user!.uid)
+                .timeout(const Duration(seconds: 5), onTimeout: () => <Map<String, dynamic>>[]);
             final folderIds = accessDocs.map((e) => e['folderId'] as String?).whereType<String>().toList();
             if (mounted) {
               context.go('/assistant', extra: {'folderIds': folderIds, 'assistantName': credential.user!.displayName});

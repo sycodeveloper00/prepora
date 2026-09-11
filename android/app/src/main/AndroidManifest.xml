@@ -6,7 +6,8 @@
     <application
         android:label="PrePora"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round">
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -40,6 +41,19 @@
                 <category android:name="android.intent.category.DEFAULT"/>
                 <data android:scheme="file"/>
                 <data android:mimeType="application/pdf"/>
+            </intent-filter>
+            <!-- Deep links: https://prepora.pages.dev/open?id=...&type=... -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https" android:host="prepora.pages.dev" android:pathPrefix="/open"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="prepora"/>
             </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.

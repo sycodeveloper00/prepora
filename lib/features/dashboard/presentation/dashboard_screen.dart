@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import '../../../core/widgets/glassmorphic_container.dart';
 import '../../../core/widgets/animated_pressable.dart';
 import '../../../core/services/firebase_service.dart';
@@ -675,7 +677,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     final results = <_SearchResult>[];
 
     try {
-      // Search folders by name (single query with limit)
       final foldersSnap = await FirebaseService.firestore
           .collection('folders')
           .limit(50)
@@ -683,8 +684,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
 
       for (final folderDoc in foldersSnap.docs) {
         final data = folderDoc.data();
-        if (data['invisible'] == true || data['locked'] == true) continue;
+        if (data['invisible'] == true) continue;
+        if (data['locked'] == true) continue;
+        if (data['updating'] == true) continue;
+        if (data['enabled'] == false) continue;
+        final sortOrder = data['sortOrder'] as int?;
+        if (sortOrder == -1) continue;
         final folderName = data['name'] as String? ?? '';
+        if (folderName.trim().isEmpty) continue;
         if (folderName.toLowerCase().contains(q)) {
           results.add(_SearchResult(
             title: folderName, folderId: folderDoc.id, isFolder: true,
@@ -692,10 +699,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
         }
       }
 
-      // Search contents across visible folders (parallel, max 10 folders)
       final visibleFolders = foldersSnap.docs.where((d) {
         final data = d.data();
-        return data['invisible'] != true && data['locked'] != true && data['updating'] != true;
+        return data['invisible'] != true && data['locked'] != true && data['updating'] != true && data['enabled'] != false;
       }).take(10).toList();
 
       final contentsFutures = visibleFolders.map((folderDoc) async {
@@ -719,9 +725,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
         final folderId = entry.key.id;
         for (final contentDoc in entry.value!.docs) {
           final contentData = contentDoc.data();
+          if (contentData['invisible'] == true) continue;
+          if (contentData['locked'] == true) continue;
+          if (contentData['updating'] == true) continue;
+          if (contentData['enabled'] == false) continue;
           final contentName = contentData['name'] as String? ?? contentData['title'] as String? ?? '';
+          if (contentName.trim().isEmpty) continue;
           if (contentName.toLowerCase().contains(q)) {
-            if (contentData['invisible'] == true || contentData['locked'] == true) continue;
             final docType = contentData['type'] as String?;
             final isSubfolder = docType == 'subfolder' || (docType == null && contentData['url'] == null);
             results.add(_SearchResult(
@@ -732,6 +742,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
               isFolder: false,
               isSubfolder: isSubfolder,
               parentContentId: contentData['parentContentId'] as String?,
+              contentType: docType ?? 'file',
             ));
           }
         }
@@ -767,16 +778,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
       itemCount: _searchResults.length,
       itemBuilder: (context, index) {
         final r = _searchResults[index];
-        final label = r.isFolder ? 'Folder' : 'Content';
-        final path = r.isFolder
-            ? '/folders/${r.folderId}'
-            : r.contentId != null
-                ? '/folders/${r.folderId}/sub/${r.contentId}'
-                : '/folders/${r.folderId}';
+        final label = r.isFolder ? 'Folder' : (r.isSubfolder ? 'Subfolder' : 'File');
         return GestureDetector(
           onTap: () {
             if (!navContext.mounted) return;
-            navContext.push(path);
+            if (r.isFolder) {
+              navContext.push('/folders/${r.folderId}');
+            } else if (r.contentId != null) {
+              navContext.push('/folders/${r.folderId}/sub/${r.contentId}');
+            }
           },
           child: Container(
             margin: const EdgeInsets.only(bottom: 6),
@@ -812,18 +822,86 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                         ],
                       ),
                       if (!r.isFolder && r.folderName != null)
-                        Text('in ${r.folderName!}', style: TextStyle(color: mutedColor, fontSize: 11)),
-                      Text(path, style: TextStyle(color: dimColor, fontSize: 11, fontFamily: 'monospace'), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        Text(r.folderName!, style: TextStyle(color: mutedColor, fontSize: 11)),
                     ],
                   ),
                 ),
-                const SizedBox(width: 8),
-                Icon(Icons.chevron_right_rounded, color: dimColor, size: 18),
+                PopupMenuButton<String>(
+                  icon: Icon(Icons.more_vert, size: 18, color: dimColor),
+                  color: isDark ? const Color(0xFF1E1E2F) : Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  onSelected: (value) {
+                    if (value == 'share') _shareSearchResult(r);
+                  },
+                  itemBuilder: (_) => [
+                    PopupMenuItem(value: 'share', child: Row(children: [
+                      Icon(Icons.share_rounded, size: 18, color: isDark ? Colors.white70 : Colors.black54),
+                      const SizedBox(width: 10),
+                      Text('Share', style: TextStyle(color: baseColor)),
+                    ])),
+                  ],
+                ),
               ],
             ),
           ),
         );
       },
+    );
+  }
+
+  void _shareSearchResult(_SearchResult r) {
+    final id = r.isFolder ? r.folderId : r.contentId;
+    final type = r.isFolder ? 'folder' : 'content';
+    final parent = r.isFolder ? '' : '&parent=${r.folderId}';
+    final link = 'https://prepora.pages.dev/open?id=$id&type=$type$parent';
+    _showShareLinkDialog(link, r.title);
+  }
+
+  void _showShareLinkDialog(String link, String title) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1E1E2F) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(children: [
+          Icon(Icons.share_rounded, color: const Color(0xFF4A148C), size: 22),
+          const SizedBox(width: 8),
+          Text('Share', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
+        ]),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontSize: 13)),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.04),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(link, style: TextStyle(color: const Color(0xFF00B8D4), fontSize: 12), maxLines: 3, overflow: TextOverflow.ellipsis),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Link copied to clipboard!'), backgroundColor: Color(0xFF4A148C)),
+              );
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4A148C)),
+            child: const Text('Copy Link', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1730,11 +1808,36 @@ class _DashboardGrid extends StatefulWidget {
 
 class _DashboardGridState extends State<_DashboardGrid> {
   late Stream<QuerySnapshot> _folderStream;
+  List<Map<String, dynamic>> _cachedFolders = [];
+  bool _showingCache = false;
 
   @override
   void initState() {
     super.initState();
     _folderStream = FirebaseService.getAllFolders();
+    _loadCachedFolders();
+  }
+
+  Future<void> _loadCachedFolders() async {
+    try {
+      final box = Hive.box('settings');
+      final cachedJson = box.get('cached_folders') as String?;
+      if (cachedJson != null && mounted) {
+        final List<dynamic> decoded = json.decode(cachedJson);
+        setState(() {
+          _cachedFolders = decoded.cast<Map<String, dynamic>>();
+          _showingCache = true;
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _cacheFolders(List<QueryDocumentSnapshot> docs) async {
+    try {
+      final box = Hive.box('settings');
+      final data = docs.map((d) => d.data() as Map<String, dynamic>).toList();
+      await box.put('cached_folders', json.encode(data));
+    } catch (_) {}
   }
 
   void _refreshFolderStream() {
@@ -1749,14 +1852,22 @@ class _DashboardGridState extends State<_DashboardGrid> {
       stream: _folderStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
+          if (_showingCache && _cachedFolders.isNotEmpty) {
+            return _buildFolderGridFromMaps(_cachedFolders);
+          }
           return const Center(child: ProfessionalLoader());
         }
         if (snapshot.hasError) {
+          if (_showingCache && _cachedFolders.isNotEmpty) {
+            return _buildFolderGridFromMaps(_cachedFolders);
+          }
           final isDark = Theme.of(context).brightness == Brightness.dark;
           return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(Icons.error_outline_rounded, size: 60, color: Colors.redAccent.withValues(alpha: 0.6)),
+            Icon(Icons.wifi_off_rounded, size: 60, color: Colors.orange.withValues(alpha: 0.6)),
             const SizedBox(height: 16),
-            Text('Something went wrong', style: TextStyle(color: isDark ? Colors.white38 : Colors.black45, fontSize: 16)),
+            Text('No internet connection', style: TextStyle(color: isDark ? Colors.white38 : Colors.black45, fontSize: 16)),
+            const SizedBox(height: 8),
+            Text('Cached folders shown below', style: TextStyle(color: isDark ? Colors.white24 : Colors.black38, fontSize: 13)),
             const SizedBox(height: 16),
             ElevatedButton.icon(
               onPressed: () => _refreshFolderStream(),
@@ -1766,7 +1877,34 @@ class _DashboardGridState extends State<_DashboardGrid> {
             ),
           ]));
         }
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+        final docs = snapshot.data!.docs;
+        if (docs.isNotEmpty) {
+          _cacheFolders(docs);
+          _cachedFolders = docs.map((d) => d.data() as Map<String, dynamic>).toList();
+          _showingCache = false;
+        }
+        final visibleDocs = docs.where((doc) {
+          final d = doc.data() as Map<String, dynamic>;
+          if (d['invisible'] == true) return false;
+          if (d['enabled'] == false) return false;
+          final name = d['name'] as String?;
+          if (name == null || name.trim().isEmpty) return false;
+          final sortOrder = d['sortOrder'] as int?;
+          if (sortOrder == -1) return false;
+          return true;
+        }).toList();
+        if (visibleDocs.isEmpty) {
+          if (_showingCache && _cachedFolders.isNotEmpty) {
+            return _buildFolderGridFromMaps(_cachedFolders.where((d) {
+              if (d['invisible'] == true) return false;
+              if (d['enabled'] == false) return false;
+              final name = d['name'] as String?;
+              if (name == null || name.trim().isEmpty) return false;
+              final sortOrder = d['sortOrder'] as int?;
+              if (sortOrder == -1) return false;
+              return true;
+            }).toList());
+          }
           final isDark = Theme.of(context).brightness == Brightness.dark;
           return Center(
             child: Column(
@@ -1781,16 +1919,12 @@ class _DashboardGridState extends State<_DashboardGrid> {
             ),
           );
         }
-        final docs = snapshot.data!.docs.where((doc) {
-          final d = doc.data() as Map<String, dynamic>;
-          if (d['invisible'] == true) return false;
-          if (d['enabled'] == false) return false;
-          final name = d['name'] as String?;
-          if (name == null || name.trim().isEmpty) return false;
-          final sortOrder = d['sortOrder'] as int?;
-          if (sortOrder == -1) return false;
-          return true;
-        }).toList();
+        return _buildFolderGrid(visibleDocs.map((d) => d.data() as Map<String, dynamic>).toList());
+      },
+    );
+  }
+
+  Widget _buildFolderGrid(List<Map<String, dynamic>> folderList) {
         final colors = [Colors.purple, Colors.teal, Colors.blue, Colors.orange, Colors.pink, Colors.indigo, Colors.green, Colors.amber];
         final screenWidth = MediaQuery.of(context).size.width;
         final crossAxisCount = screenWidth > 900 ? 4 : (screenWidth > 600 ? 3 : 2);
@@ -1799,12 +1933,13 @@ class _DashboardGridState extends State<_DashboardGrid> {
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: crossAxisCount, crossAxisSpacing: 14, mainAxisSpacing: 14, childAspectRatio: screenWidth > 600 ? 1.1 : 0.95,
           ),
-          itemCount: docs.length,
+          itemCount: folderList.length,
           itemBuilder: (context, index) {
-            final data = docs[index].data() as Map<String, dynamic>;
+            final data = folderList[index];
             final color = colors[index % colors.length];
             final isLocked = data['locked'] == true || data['updating'] == true;
-            final folderId = docs[index].id;
+            final folderId = data['id'] as String? ?? data['folderId'] as String? ?? '';
+            final folderName = data['name'] as String? ?? 'Folder';
             final isDark = Theme.of(context).brightness == Brightness.dark;
             final baseColor = isDark ? Colors.white : Colors.black87;
             final dimColor = isDark ? Colors.white38 : Colors.black54;
@@ -1824,7 +1959,7 @@ class _DashboardGridState extends State<_DashboardGrid> {
                         )),
                         const SizedBox(height: 6),
                         Text(
-                          data['name'] ?? 'Folder',
+                          folderName,
                           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: isLocked ? dimColor : baseColor),
                           textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis,
                         ),
@@ -1842,15 +1977,46 @@ class _DashboardGridState extends State<_DashboardGrid> {
                       ],
                     ),
                   ),
+                  Positioned(
+                    top: 4,
+                    right: 4,
+                    child: PopupMenuButton<String>(
+                      icon: Icon(Icons.more_vert, size: 18, color: dimColor),
+                      color: isDark ? const Color(0xFF1E1E2F) : Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      onSelected: (value) {
+                        if (value == 'share') {
+                          final link = 'https://prepora.pages.dev/open?id=$folderId&type=folder';
+                          _showShareLinkDialog(link, folderName);
+                        }
+                      },
+                      itemBuilder: (_) => [
+                        PopupMenuItem(value: 'share', child: Row(children: [
+                          Icon(Icons.share_rounded, size: 18, color: isDark ? Colors.white70 : Colors.black54),
+                          const SizedBox(width: 10),
+                          Text('Share', style: TextStyle(color: baseColor)),
+                        ])),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             );
           },
         );
-      },
-    );
   }
-}
+
+  Widget _buildFolderGridFromMaps(List<Map<String, dynamic>> folderList) {
+    return _buildFolderGrid(folderList.where((d) {
+      if (d['invisible'] == true) return false;
+      if (d['enabled'] == false) return false;
+      final name = d['name'] as String?;
+      if (name == null || name.trim().isEmpty) return false;
+      final sortOrder = d['sortOrder'] as int?;
+      if (sortOrder == -1) return false;
+      return true;
+    }).toList());
+  }
 
 class _SearchResult {
   final String title;
@@ -1860,6 +2026,7 @@ class _SearchResult {
   final bool isFolder;
   final bool isSubfolder;
   final String? parentContentId;
+  final String contentType;
 
   _SearchResult({
     required this.title,
@@ -1869,6 +2036,7 @@ class _SearchResult {
     required this.isFolder,
     this.isSubfolder = false,
     this.parentContentId,
+    this.contentType = 'folder',
   });
 }
 

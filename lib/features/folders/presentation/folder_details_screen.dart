@@ -1213,6 +1213,59 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
     );
   }
 
+  void _shareContent(String contentId, String contentName, String type) {
+    final link = 'https://prepora.pages.dev/open?id=$contentId&type=$type&parent=${widget.folderId}';
+    _showShareLinkDialog(link, contentName);
+  }
+
+  void _showShareLinkDialog(String link, String title) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1E1E2F) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(children: [
+          const Icon(Icons.share_rounded, color: Color(0xFF4A148C), size: 22),
+          const SizedBox(width: 8),
+          Text('Share', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
+        ]),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontSize: 13)),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.04),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(link, style: const TextStyle(color: Color(0xFF00B8D4), fontSize: 12), maxLines: 3, overflow: TextOverflow.ellipsis),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Link copied to clipboard!'), backgroundColor: Color(0xFF4A148C)),
+              );
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4A148C)),
+            child: const Text('Copy Link', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
   bool _isDisabled(Map<String, dynamic> data, String contentId) {
     final locked = data['locked'] as bool? ?? false;
     final updating = data['updating'] as bool? ?? false;
@@ -2225,6 +2278,8 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                   color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2D2D2D) : Colors.white,
                   onSelected: (value) {
                     switch (value) {
+                      case 'share':
+                        _shareContent(id, name, data['type'] as String? ?? 'content');
                       case 'lock':
                         _showContentLockSheet(id, name, locked, updating, invisible);
                       case 'Assistant':
@@ -2242,6 +2297,7 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                     }
                   },
                   itemBuilder: (context) => [
+                    const PopupMenuItem(value: 'share', child: ListTile(leading: Icon(Icons.share_rounded, color: Colors.cyanAccent), title: Text('Share'))),
                     if (widget.isAdmin) ...[
                       PopupMenuItem(
                         value: 'lock',
@@ -2347,6 +2403,8 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                   color: isDark ? const Color(0xFF2D2D2D) : Colors.white,
                   onSelected: (value) {
                     switch (value) {
+                      case 'share':
+                        _shareContent(id, name, 'subfolder');
                       case 'lock':
                         _showContentLockSheet(id, name, locked, updating, invisible);
                       case 'Assistant':
@@ -2362,6 +2420,7 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                     }
                   },
                   itemBuilder: (context) => [
+                    const PopupMenuItem(value: 'share', child: ListTile(leading: Icon(Icons.share_rounded, color: Colors.cyanAccent), title: Text('Share'))),
                     if (widget.isAdmin) ...[
                       PopupMenuItem(
                         value: 'lock',
@@ -2436,6 +2495,8 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                   color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2D2D2D) : Colors.white,
                   onSelected: (value) {
                     switch (value) {
+                      case 'share':
+                        _shareContent(id, name, 'mocktest_url');
                       case 'lock':
                         _showContentLockSheet(id, name, locked, updating, invisible);
                       case 'Assistant':
@@ -2453,6 +2514,7 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                     }
                   },
                   itemBuilder: (context) => [
+                    const PopupMenuItem(value: 'share', child: ListTile(leading: Icon(Icons.share_rounded, color: Colors.cyanAccent), title: Text('Share'))),
                     if (widget.isAdmin) ...[
                       PopupMenuItem(
                         value: 'lock',
@@ -2523,6 +2585,8 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                   color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2D2D2D) : Colors.white,
                   onSelected: (value) {
                     switch (value) {
+                      case 'share':
+                        _shareContent(id, name, 'mocktest_code');
                       case 'lock':
                         _showContentLockSheet(id, name, locked, updating, invisible);
                       case 'Assistant':
@@ -2540,6 +2604,7 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                     }
                   },
                   itemBuilder: (context) => [
+                    const PopupMenuItem(value: 'share', child: ListTile(leading: Icon(Icons.share_rounded, color: Colors.cyanAccent), title: Text('Share'))),
                     if (widget.isAdmin) ...[
                       PopupMenuItem(
                         value: 'lock',
@@ -2613,6 +2678,8 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                   color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2D2D2D) : Colors.white,
                   onSelected: (value) {
                     switch (value) {
+                      case 'share':
+                        _shareContent(id, name, 'mocktest_file');
                       case 'lock':
                         _showContentLockSheet(id, name, locked, updating, invisible);
                       case 'Assistant':
@@ -2626,6 +2693,7 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                     }
                   },
                   itemBuilder: (context) => [
+                    const PopupMenuItem(value: 'share', child: ListTile(leading: Icon(Icons.share_rounded, color: Colors.cyanAccent), title: Text('Share'))),
                     if (widget.isAdmin) ...[
                       PopupMenuItem(
                         value: 'lock',
@@ -2698,6 +2766,8 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                   color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2D2D2D) : Colors.white,
                   onSelected: (value) {
                     switch (value) {
+                      case 'share':
+                        _shareContent(id, name, 'content');
                       case 'lock':
                         _showContentLockSheet(id, name, locked, updating, invisible);
                       case 'Assistant':
@@ -2715,6 +2785,7 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                     }
                   },
                   itemBuilder: (context) => [
+                    const PopupMenuItem(value: 'share', child: ListTile(leading: Icon(Icons.share_rounded, color: Colors.cyanAccent), title: Text('Share'))),
                     if (widget.isAdmin) ...[
                       PopupMenuItem(
                         value: 'lock',

@@ -11,27 +11,20 @@ import '../../features/ai_tutor/presentation/ai_chat_screen.dart';
 import '../../features/test_practice/presentation/test_practice_screen.dart';
 import '../../features/lectures/presentation/video_player_screen.dart';
 import '../../features/pdf_reader/presentation/pdf_reader_screen.dart';
-import '../../features/admin/presentation/admin_dashboard_screen.dart';
-import '../../features/admin/presentation/admin_control_panel_screen.dart';
 import '../../features/assistant/presentation/assistant_dashboard_screen.dart';
-import '../../features/universities/presentation/university_directory_screen.dart';
 import '../../features/notepad/presentation/notepad_screen.dart';
 import '../../features/notepad/presentation/notes_list_screen.dart';
-import '../../features/notices/presentation/admin_notice_screen.dart';
 import '../../features/notices/presentation/student_notice_screen.dart';
 import '../../features/feedback/presentation/student_feedback_screen.dart';
-import '../../features/feedback/presentation/admin_feedback_screen.dart';
 import '../../features/media_player/presentation/media_player_screen.dart';
 import '../../features/image_viewer/presentation/image_viewer_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
-import '../../features/settings/presentation/admin_settings_screen.dart';
 import '../../features/settings/presentation/auto_downloads_screen.dart';
-import '../../features/settings/presentation/storage_settings_screen.dart';
-import '../../features/settings/presentation/ai_api_keys_screen.dart';
 import '../../features/webview/presentation/webview_screen.dart';
 import '../../features/splash_onboarding/presentation/splash_screen.dart';
 import '../../features/student/presentation/student_progress_screen.dart';
 import '../../features/link_web/presentation/link_web_screen.dart';
+import '../../features/deep_link/presentation/deep_link_screen.dart';
 
 final rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -41,6 +34,13 @@ class AppRouter {
     initialLocation: '/splash',
     errorBuilder: (context, state) {
       final uri = state.uri.toString();
+      // Admin routes not supported in Android app — redirect to login
+      if (uri.startsWith('/admin')) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          context.go('/auth/login');
+        });
+        return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      }
       if (uri.contains('.pdf') || uri.startsWith('content://') || uri.startsWith('file://')) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           context.go('/pdf_reader/view', extra: {'url': uri});
@@ -133,11 +133,6 @@ class AppRouter {
       ),
       GoRoute(path: '/terms', builder: (c, s) => const TermsAcceptScreen()),
       GoRoute(path: '/notes', builder: (c, s) => const NotesListScreen()),
-      GoRoute(path: '/admin/notices', builder: (c, s) => const AdminNoticeScreen()),
-      GoRoute(path: '/admin/feedbacks', builder: (c, s) => const AdminFeedbackScreen()),
-      GoRoute(path: '/admin/control-panel', builder: (c, s) => const AdminControlPanelScreen()),
-      GoRoute(path: '/admin/storage-settings', builder: (c, s) => const StorageSettingsScreen()),
-      GoRoute(path: '/admin/ai-api-keys', builder: (c, s) => const AiApiKeysScreen()),
       GoRoute(path: '/student/notices', builder: (c, s) => const StudentNoticeScreen()),
       GoRoute(path: '/student/feedbacks', builder: (c, s) => const StudentFeedbackScreen()),
       GoRoute(path: '/student/progress', builder: (c, s) => const StudentProgressScreen()),
@@ -164,7 +159,6 @@ class AppRouter {
       ),
       GoRoute(path: '/settings', builder: (c, s) => const SettingsScreen()),
       GoRoute(path: '/auto-downloads', builder: (c, s) => const AutoDownloadsScreen()),
-      GoRoute(path: '/admin/settings', builder: (c, s) => const AdminSettingsScreen()),
       GoRoute(path: '/practice/:id', builder: (c, s) => TestPracticeScreen(testId: s.pathParameters['id']!)),
       GoRoute(
         path: '/lectures/:id',
@@ -191,13 +185,6 @@ class AppRouter {
           );
         },
       ),
-      GoRoute(path: '/admin', builder: (c, s) {
-        final extra = s.extra as Map<String, dynamic>?;
-        return AdminDashboardScreen(
-          studentUid: extra?['studentUid'] as String?,
-          studentName: extra?['studentName'] as String?,
-        );
-      }),
       GoRoute(
         path: '/assistant',
         builder: (c, s) {
@@ -208,8 +195,16 @@ class AppRouter {
           );
         },
       ),
-      GoRoute(path: '/universities', builder: (c, s) => const UniversityDirectoryScreen()),
       GoRoute(path: '/link-web', builder: (c, s) => const LinkWebScreen()),
+      GoRoute(
+        path: '/open',
+        builder: (c, s) {
+          final id = s.uri.queryParameters['id'];
+          final type = s.uri.queryParameters['type'];
+          final parent = s.uri.queryParameters['parent'];
+          return DeepLinkScreen(id: id, type: type, parent: parent);
+        },
+      ),
       GoRoute(
         path: '/webview',
         builder: (c, s) {

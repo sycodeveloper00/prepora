@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_provider.dart';
 import 'core/router/app_router.dart';
@@ -22,6 +23,10 @@ void main() async {
   if (!kIsWeb) {
     try {
       HomeWidget.registerBackgroundCallback(backgroundCallback);
+    } catch (_) {}
+    // Register FCM background handler at top level
+    try {
+      FirebaseMessaging.instance.setAutoInitEnabled(true);
     } catch (_) {}
     _listenPdfIntent();
   }

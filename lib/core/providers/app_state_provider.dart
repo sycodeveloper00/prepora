@@ -121,30 +121,30 @@ class UserStatusNotifier extends AutoDisposeAsyncNotifier<UserStatus> {
       }
     } catch (_) {}
 
-    // Fetch fresh data in parallel with 10s timeout for offline resilience.
+    // Fetch fresh data in parallel with 5s timeout for offline resilience.
     // Each call is wrapped in try-catch so DNS errors don't kill the whole provider.
     Future<bool> safeBlocked() async {
-      try { return await FirebaseService.isStudentBlocked(uid).timeout(const Duration(seconds: 10)); }
+      try { return await FirebaseService.isStudentBlocked(uid).timeout(const Duration(seconds: 5)); }
       catch (_) { return cached?.isBlocked ?? false; }
     }
     Future<bool> safeVerified() async {
-      try { return await FirebaseService.isStudentVerified(uid).timeout(const Duration(seconds: 10)); }
+      try { return await FirebaseService.isStudentVerified(uid).timeout(const Duration(seconds: 5)); }
       catch (_) { return cached?.isVerified ?? false; }
     }
     Future<Map<String, dynamic>> safeSettings() async {
-      try { return await FirebaseService.getSettings().timeout(const Duration(seconds: 10)); }
+      try { return await FirebaseService.getSettings().timeout(const Duration(seconds: 5)); }
       catch (_) { return <String, dynamic>{}; }
     }
     Future<Map<String, dynamic>> safeTrial() async {
-      try { return await FirebaseService.getFreeTrial(uid).timeout(const Duration(seconds: 10)); }
+      try { return await FirebaseService.getFreeTrial(uid).timeout(const Duration(seconds: 5)); }
       catch (_) { return <String, dynamic>{}; }
     }
     Future<Map<String, dynamic>> safeStreak() async {
-      try { return await FirebaseService.getStreak(uid).timeout(const Duration(seconds: 10)); }
+      try { return await FirebaseService.getStreak(uid).timeout(const Duration(seconds: 5)); }
       catch (_) { return <String, dynamic>{}; }
     }
     Future<dynamic> safeUser() async {
-      try { return await FirebaseService.getUser(uid).timeout(const Duration(seconds: 10)); }
+      try { return await FirebaseService.getUser(uid).timeout(const Duration(seconds: 5)); }
       catch (_) { return null; }
     }
 

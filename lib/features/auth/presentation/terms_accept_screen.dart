@@ -126,7 +126,13 @@ class _TermsAcceptScreenState extends State<TermsAcceptScreen> {
                           setState(() => _saving = true);
                           try {
                             await FirebaseService.firestore.collection('users').doc(FirebaseService.currentUser?.uid)
-                                .set({'termsAccepted': true, 'termsAcceptedAt': FieldValue.serverTimestamp()}, SetOptions(merge: true));
+                                .set({'termsAccepted': true, 'termsAcceptedAt': FieldValue.serverTimestamp()}, SetOptions(merge: true))
+                                .timeout(const Duration(seconds: 10), onTimeout: () {
+                              // If Firestore write times out, still navigate — data will sync later
+                            });
+                            if (context.mounted) context.go('/dashboard');
+                          } catch (_) {
+                            // Even on error, navigate to dashboard (user can retry sync later)
                             if (context.mounted) context.go('/dashboard');
                           } finally {
                             if (mounted) setState(() => _saving = false);

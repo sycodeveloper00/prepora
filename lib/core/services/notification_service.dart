@@ -6,10 +6,17 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest_all.dart' as tz_data;
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'firebase_service.dart';
+
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  debugPrint('FCM: background message received: ${message.messageId}');
+}
 
 class NotificationService {
   static final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
+  static final FirebaseMessaging _fcm = FirebaseMessaging.instance;
   static const String _badgeChannelId = 'app_badge_channel';
   static const String _studentChannelId = 'student_notifications';
   static const String _adminChannelId = 'admin_notifications';
@@ -18,6 +25,7 @@ class NotificationService {
   static const int _streakEveningNotificationId = 8889;
   static StreamSubscription? _studentSub;
   static StreamSubscription? _adminSub;
+  static StreamSubscription? _fcmMessageSub;
 
   static Future<void> initialize() async {
     if (kIsWeb) return;
@@ -89,9 +97,179 @@ class NotificationService {
         showBadge: true,
       );
       try { await androidPlugin?.createNotificationChannel(feedbackChannel); debugPrint('NFS: feedback channel created'); } catch (e) { debugPrint('NFS: feedback channel FAILED: $e'); }
+
+      // Firebase Cloud Messaging (FCM) setup for live push notifications
+      try {
+        await _fcm.requestPermission(
+          alert: true,
+          badge: true,
+          sound: true,
+          provisional: false,
+        );
+        debugPrint('FCM: permission requested');
+      } catch (e) {
+        debugPrint('FCM: permission request FAILED: $e');
+      }
+
+      try {
+        final token = await _fcm.getToken();
+        if (token != null) {
+          debugPrint('FCM: token obtained (${token.length} chars)');
+          await _saveFcmToken(token);
+        }
+        _fcm.onTokenRefresh.listen((newToken) {
+          debugPrint('FCM: token refreshed');
+          _saveFcmToken(newToken);
+        });
+      } catch (e) {
+        debugPrint('FCM: token retrieval FAILED: $e');
+      }
+
+      // Handle foreground messages
+      _fcmMessageSub?.cancel();
+      _fcmMessageSub = FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+        debugPrint('FCM: foreground message: ${message.notification?.title}');
+        _handleFcmMessage(message);
+      });
+
+      // Handle notification tap when app is in background
+      FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+        debugPrint('FCM: onMessageOpenedApp: ${message.notification?.title}');
+        _handleFcmTap(message);
+      });
+
+      // Check if app opened from notification (terminated state)
+      final initialMessage = await _fcm.getInitialMessage();
+      if (initialMessage != null) {
+        debugPrint('FCM: initial message (terminated): ${initialMessage.notification?.title}');
+        _handleFcmTap(initialMessage);
+      }
+
+      // Register background handler
+      FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
     } catch (e) {
       debugPrint('NFS: initialize outer FAILED: $e');
     }
+  }
+
+  static Future<void> _saveFcmToken(String token) async {
+    try {
+      final user = FirebaseService.currentUser;
+      if (user == null) return;
+      await FirebaseService.firestore.collection('users').doc(user.uid).update({
+        'fcmToken': token,
+        'fcmTokenUpdatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      debugPrint('FCM: save token FAILED: $e');
+    }
+  }
+
+  static void _handleFcmMessage(RemoteMessage message) {
+    final notification = message.notification;
+    if (notification == null) return;
+    final data = message.data;
+    final type = data['type'] as String? ?? '';
+
+    // Show as local notification so it appears in notification tray
+    String channelId;
+    String channelName;
+    switch (type) {
+      case 'streak':
+      case 'streak_warning':
+      case 'streak_reset':
+        channelId = 'streak_channel';
+        channelName = 'Daily Streak';
+        break;
+      case 'study_reminder':
+      case 'new_content':
+        channelId = _studentChannelId;
+        channelName = 'Student Notifications';
+        break;
+      case 'feedback':
+        channelId = 'feedback_channel';
+        channelName = 'Feedbacks';
+        break;
+      default:
+        channelId = _studentChannelId;
+        channelName = 'Student Notifications';
+    }
+
+    _showFcmLocalNotification(
+      title: notification.title ?? 'PrePora',
+      body: notification.body ?? '',
+      channelId: channelId,
+      channelName: channelName,
+      data: data,
+    );
+  }
+
+  static Future<void> _showFcmLocalNotification({
+    required String title,
+    required String body,
+    required String channelId,
+    required String channelName,
+    Map<String, dynamic>? data,
+  }) async {
+    final androidDetails = AndroidNotificationDetails(
+      channelId, channelName,
+      channelDescription: 'PrePora notifications',
+      importance: Importance.high,
+      priority: Priority.high,
+      icon: '@drawable/ic_notification',
+    );
+    final details = NotificationDetails(
+      android: androidDetails,
+      iOS: const DarwinNotificationDetails(),
+    );
+    await _plugin.show(
+      id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      title: title,
+      body: body,
+      notificationDetails: details,
+    );
+  }
+
+  static void _handleFcmTap(RemoteMessage message) {
+    final data = message.data;
+    final type = data['type'] as String? ?? '';
+    // Navigation will be handled by the app's router based on data payload
+    debugPrint('FCM tap: type=$type, data=$data');
+  }
+
+  /// Send a push notification to a specific user via Firestore
+  /// (backend/admin triggers this by writing to fcm_notifications collection)
+  static Future<void> sendPushToUser({
+    required String targetUid,
+    required String title,
+    required String body,
+    String type = 'general',
+    Map<String, dynamic>? extraData,
+  }) async {
+    try {
+      await FirebaseService.firestore.collection('fcm_notifications').add({
+        'targetUid': targetUid,
+        'title': title,
+        'body': body,
+        'type': type,
+        'data': extraData ?? {},
+        'createdAt': FieldValue.serverTimestamp(),
+        'sent': false,
+      });
+    } catch (e) {
+      debugPrint('FCM: sendPushToUser FAILED: $e');
+    }
+  }
+
+  /// Send streak notification to user (called when streak events happen)
+  static Future<void> sendStreakNotification({
+    required String uid,
+    required String title,
+    required String body,
+    String type = 'streak',
+  }) async {
+    await sendPushToUser(targetUid: uid, title: title, body: body, type: type);
   }
 
   // ΓöÇΓöÇΓöÇ Notification Permission (Android 13+) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
@@ -400,12 +578,26 @@ class NotificationService {
       if (daysSinceLogin >= 2) {
         await _showStreakNotification(
           'Your streak was reset!',
-          'You missed a day. Start a new streak today ΓÇö open PrePora now!',
+          'You missed a day. Start a new streak today — open PrePora now!',
+        );
+        // Also send live push notification
+        await sendStreakNotification(
+          uid: user.uid,
+          title: 'Your streak was reset!',
+          body: 'You missed a day. Start a new streak today — open PrePora now!',
+          type: 'streak_reset',
         );
       } else {
         await _showStreakNotification(
           'Keep your streak alive!',
           'Don\'t let your progress slip away. Open PrePora today!',
+        );
+        // Also send live push notification
+        await sendStreakNotification(
+          uid: user.uid,
+          title: 'Keep your streak alive!',
+          body: 'Don\'t let your progress slip away. Open PrePora today!',
+          type: 'streak_warning',
         );
       }
 
@@ -481,5 +673,6 @@ class NotificationService {
   static void dispose() {
     _studentSub?.cancel();
     _adminSub?.cancel();
+    _fcmMessageSub?.cancel();
   }
 }
