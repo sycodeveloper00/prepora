@@ -1245,7 +1245,7 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
 
   void _shareContent(String contentId, String contentName, String type) {
     final slug = contentName.replaceAll(RegExp(r'[^a-zA-Z0-9\s-]'), '').replaceAll(RegExp(r'\s+'), '-').toLowerCase();
-    final link = 'https://prepora.vercel.app/open/folder/${widget.folderId}/$slug/share?id=$contentId&type=$type&parent=${widget.folderId}';
+    final link = 'https://prepora-coral.vercel.app/open/folder/${widget.folderId}/$slug/share?id=$contentId&type=$type&parent=${widget.folderId}';
     Share.share('$contentName\n$link');
   }
 

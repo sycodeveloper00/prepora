@@ -49,12 +49,12 @@
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="https" android:host="prepora.pages.dev" android:pathPrefix="/open"/>
             </intent-filter>
-            <!-- Deep links: https://prepora.vercel.app/open/folder/.../share?id=...&type=... -->
+            <!-- Deep links: https://prepora-coral.vercel.app/open/folder/.../share?id=...&type=... -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
-                <data android:scheme="https" android:host="prepora.vercel.app" android:pathPrefix="/open"/>
+                <data android:scheme="https" android:host="prepora-coral.vercel.app" android:pathPrefix="/open"/>
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>
