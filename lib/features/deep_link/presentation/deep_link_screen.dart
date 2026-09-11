@@ -124,12 +124,20 @@ class _DeepLinkScreenState extends State<DeepLinkScreen> {
 
       if (type == 'folder') {
         if (!mounted) return;
-        context.go('/folders/$id');
+        context.go('/folders/$id', extra: {
+          'canEdit': false,
+          'canManage': false,
+          'isAdmin': false,
+        });
       } else {
         final parentFolderId = widget.parent ?? '';
         if (!mounted) return;
         if (parentFolderId.isNotEmpty) {
-          context.go('/folders/$parentFolderId/sub/$id');
+          context.go('/folders/$parentFolderId/sub/$id', extra: {
+            'canEdit': false,
+            'canManage': false,
+            'isAdmin': false,
+          });
         } else {
           context.go('/dashboard');
         }

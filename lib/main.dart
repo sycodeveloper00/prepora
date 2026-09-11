@@ -17,6 +17,7 @@ import 'core/services/notification_service.dart';
 import 'core/services/storage_account_keep_alive.dart';
 
 const _pdfChannel = MethodChannel('com.prepora.academy.prepora/pdf_intent');
+const _deepLinkChannel = MethodChannel('com.prepora.academy.prepora/deep_link');
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,6 +30,7 @@ void main() async {
       FirebaseMessaging.instance.setAutoInitEnabled(true);
     } catch (_) {}
     _listenPdfIntent();
+    _listenDeepLink();
   }
   await FirebaseService.initialize();
   await _initStorage();
@@ -60,6 +62,39 @@ void _navigateToPdf(String uri) async {
     final ctx = rootNavigatorKey.currentContext;
     if (ctx != null) {
       ctx.go('/pdf_reader/view', extra: {'url': uri});
+      return;
+    }
+  }
+}
+
+void _listenDeepLink() {
+  _deepLinkChannel.setMethodCallHandler((call) async {
+    if (call.method == 'onDeepLink') {
+      final uri = call.arguments as String?;
+      if (uri != null && uri.isNotEmpty) {
+        _navigateToDeepLink(uri);
+      }
+    }
+  });
+  _deepLinkChannel.invokeMethod<String>('getInitialDeepLink').then((uri) {
+    if (uri != null && uri.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _navigateToDeepLink(uri);
+      });
+    }
+  }).catchError((_) {});
+}
+
+void _navigateToDeepLink(String uri) async {
+  for (int attempt = 0; attempt < 10; attempt++) {
+    await Future.delayed(Duration(milliseconds: attempt == 0 ? 500 : 1000));
+    final ctx = rootNavigatorKey.currentContext;
+    if (ctx != null) {
+      final parsed = Uri.parse(uri);
+      final path = parsed.path;
+      final query = parsed.query;
+      final fullQuery = query.isNotEmpty ? '?$query' : '';
+      ctx.go('$path$fullQuery');
       return;
     }
   }

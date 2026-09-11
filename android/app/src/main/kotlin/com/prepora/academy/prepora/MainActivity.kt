@@ -9,8 +9,11 @@ import java.io.File
 
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "com.prepora.academy.prepora/pdf_intent"
+    private val DEEP_LINK_CHANNEL = "com.prepora.academy.prepora/deep_link"
     private var methodChannel: MethodChannel? = null
+    private var deepLinkChannel: MethodChannel? = null
     private var initialPdfUri: String? = null
+    private var initialDeepLink: String? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -72,11 +75,23 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+        deepLinkChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, DEEP_LINK_CHANNEL)
+        deepLinkChannel?.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "getInitialDeepLink" -> {
+                    val link = initialDeepLink
+                    initialDeepLink = null
+                    result.success(link)
+                }
+                else -> result.notImplemented()
+            }
+        }
         handleIntent(intent)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        setIntent(intent)
         handleIntent(intent)
     }
 
@@ -90,6 +105,12 @@ class MainActivity : FlutterActivity() {
                         methodChannel!!.invokeMethod("openPdf", uriString)
                     } else {
                         initialPdfUri = uriString
+                    }
+                } else if (uriString.contains("/open")) {
+                    if (deepLinkChannel != null) {
+                        deepLinkChannel!!.invokeMethod("onDeepLink", uriString)
+                    } else {
+                        initialDeepLink = uriString
                     }
                 }
             }
