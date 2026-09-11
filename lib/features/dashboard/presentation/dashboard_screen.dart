@@ -103,6 +103,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     _userCreatedAt = createdAt;
     _notificationStream = SupabaseReadService.streamNotifications(uid, createdAt, interval: const Duration(seconds: 15));
     NotificationService.startStudentNotificationListener(uid, createdAt);
+    NotificationService.startWebSessionListener(uid);
   }
 
   void _toggleNotifOverlay() {
@@ -491,7 +492,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
               ? SupabaseReadService.streamWebSessionsForUser(FirebaseService.currentUser!.uid)
               : const Stream.empty(),
           builder: (context, sessionSnap) {
-            final isConnected = sessionSnap.hasData && (sessionSnap.data?.isNotEmpty ?? false);
+            final sessions = sessionSnap.data ?? [];
+            final now = DateTime.now();
+            final activeSessions = sessions.where((s) {
+              final lastActiveRaw = s['lastActive'];
+              DateTime? lastActive;
+              if (lastActiveRaw is DateTime) lastActive = lastActiveRaw;
+              else if (lastActiveRaw is String) lastActive = DateTime.tryParse(lastActiveRaw);
+              else if (lastActiveRaw != null) lastActive = DateTime.tryParse(lastActiveRaw.toString());
+              if (lastActive == null) return true;
+              return now.difference(lastActive).inMinutes < 15;
+            }).toList();
+            final isConnected = activeSessions.isNotEmpty;
             if (!isConnected) return const SizedBox.shrink();
             return IconButton(
               icon: Stack(
@@ -784,29 +796,43 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
         final folderName = folderData['name'] as String? ?? '';
         final folderId = folderData['id'] as String? ?? '';
         final blockedIds = <String>{};
-        final parentMap = <String, String?>{};
+        final childrenMap = <String, List<String>>{};
         for (final c in entry.value!) {
           final cid = c['id'] as String? ?? '';
-          parentMap[cid] = c['parentContentId'] as String?;
           if (c['invisible'] == true || c['locked'] == true || c['updating'] == true) {
             blockedIds.add(cid);
           }
-        }
-        bool isAncestorBlocked(String? pid) {
-          var current = pid;
-          while (current != null && current.isNotEmpty) {
-            if (blockedIds.contains(current)) return true;
-            current = parentMap[current];
+          final pid = c['parentContentId'] as String?;
+          if (pid != null && pid.isNotEmpty) {
+            childrenMap.putIfAbsent(pid, () => []).add(cid);
           }
-          return false;
+        }
+        void addDescendants(String id) {
+          final children = childrenMap[id];
+          if (children == null) return;
+          for (final child in children) {
+            blockedIds.add(child);
+            addDescendants(child);
+          }
+        }
+        for (final id in blockedIds.toList()) {
+          addDescendants(id);
+        }
+        bool isBlocked(String? cid) {
+          if (cid == null || cid.isEmpty) return false;
+          if (blockedIds.contains(cid)) return true;
+          final pid = entry.value!.any((c) => c['id'] == cid)
+              ? (entry.value!.firstWhere((c) => c['id'] == cid)['parentContentId'] as String?)
+              : null;
+          return isBlocked(pid);
         }
         for (final contentData in entry.value!) {
           if (contentData['invisible'] == true) continue;
           if (contentData['locked'] == true) continue;
           if (contentData['updating'] == true) continue;
           if (contentData['enabled'] == false) continue;
-          final parentId = contentData['parentContentId'] as String?;
-          if (parentId != null && isAncestorBlocked(parentId)) continue;
+          final contentId = contentData['id'] as String? ?? '';
+          if (isBlocked(contentId)) continue;
           final contentName = contentData['name'] as String? ?? contentData['title'] as String? ?? '';
           if (contentName.trim().isEmpty) continue;
           if (contentName.toLowerCase().contains(q)) {

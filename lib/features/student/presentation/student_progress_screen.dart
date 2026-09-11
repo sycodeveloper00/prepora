@@ -1160,13 +1160,13 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
   Widget _detailRow(IconData icon, String label, String value, Color textColor, Color subtitleColor) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: Row(children: [
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Icon(icon, size: 16, color: const Color(0xFF00B8D4)),
         const SizedBox(width: 10),
-        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label, style: TextStyle(color: subtitleColor, fontSize: 11)),
-          Text(value, style: TextStyle(color: textColor, fontSize: 13, fontWeight: FontWeight.w500), maxLines: 2, overflow: TextOverflow.ellipsis),
-        ]),
+          Text(value, style: TextStyle(color: textColor, fontSize: 13, fontWeight: FontWeight.w500)),
+        ])),
       ]),
     );
   }

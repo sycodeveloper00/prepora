@@ -28,6 +28,9 @@ class NotificationService {
   static StreamSubscription? _studentSub;
   static StreamSubscription? _adminSub;
   static StreamSubscription? _fcmMessageSub;
+  static StreamSubscription? _webSessionSub;
+  static Set<String> _knownWebSessionIds = {};
+  static bool _webSessionFirstSnapshot = true;
 
   static Future<void> initialize() async {
     if (kIsWeb) return;
@@ -545,6 +548,77 @@ class NotificationService {
     );
   }
 
+  // ─── Web Session Live Listener (connect/disconnect) ──────────────────────
+
+  static void startWebSessionListener(String uid) {
+    if (kIsWeb) return;
+    _webSessionSub?.cancel();
+    _webSessionFirstSnapshot = true;
+    _knownWebSessionIds = {};
+    _webSessionSub = SupabaseReadService.streamWebSessionsForUser(uid, interval: const Duration(seconds: 5))
+        .listen((sessions) async {
+      final currentIds = sessions.map((s) => s['sessionId'] as String? ?? '').where((id) => id.isNotEmpty).toSet();
+      if (_webSessionFirstSnapshot) {
+        _webSessionFirstSnapshot = false;
+        _knownWebSessionIds = currentIds;
+        return;
+      }
+      final androidPlugin = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+      final enabled = await androidPlugin?.areNotificationsEnabled() ?? true;
+      if (!enabled) return;
+      for (final id in currentIds.difference(_knownWebSessionIds)) {
+        final session = sessions.firstWhere((s) => s['sessionId'] == id, orElse: () => {});
+        final browser = session['webBrowser'] as String? ?? 'Web Browser';
+        final title = 'Web App Connected';
+        final body = '$browser connected to your account';
+        const androidDetails = AndroidNotificationDetails(
+          _studentChannelId, 'Student Notifications',
+          channelDescription: 'Notifications from admin',
+          importance: Importance.high,
+          priority: Priority.high,
+          icon: '@drawable/ic_notification',
+        );
+        const details = NotificationDetails(android: androidDetails, iOS: DarwinNotificationDetails());
+        await _plugin.show(
+          id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+          title: title,
+          body: body,
+          notificationDetails: details,
+        );
+        try {
+          await sendPushToUser(targetUid: uid, title: title, body: body, type: 'web_connect');
+        } catch (_) {}
+      }
+      for (final id in _knownWebSessionIds.difference(currentIds)) {
+        final title = 'Web App Disconnected';
+        final body = 'A web session has been disconnected';
+        const androidDetails = AndroidNotificationDetails(
+          _studentChannelId, 'Student Notifications',
+          channelDescription: 'Notifications from admin',
+          importance: Importance.high,
+          priority: Priority.high,
+          icon: '@drawable/ic_notification',
+        );
+        const details = NotificationDetails(android: androidDetails, iOS: DarwinNotificationDetails());
+        await _plugin.show(
+          id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+          title: title,
+          body: body,
+          notificationDetails: details,
+        );
+        try {
+          await sendPushToUser(targetUid: uid, title: title, body: body, type: 'web_disconnect');
+        } catch (_) {}
+      }
+      _knownWebSessionIds = currentIds;
+    });
+  }
+
+  static void stopWebSessionListener() {
+    _webSessionSub?.cancel();
+    _webSessionSub = null;
+  }
+
   // ΓöÇΓöÇΓöÇ Streak Reminders ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
   static Future<void> checkAndNotify() async {
@@ -670,5 +744,6 @@ class NotificationService {
     _studentSub?.cancel();
     _adminSub?.cancel();
     _fcmMessageSub?.cancel();
+    _webSessionSub?.cancel();
   }
 }
