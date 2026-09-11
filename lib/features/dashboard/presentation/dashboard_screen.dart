@@ -782,11 +782,23 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
         final folderData = entry.key;
         final folderName = folderData['name'] as String? ?? '';
         final folderId = folderData['id'] as String? ?? '';
+        final blockedParentIds = <String>{};
+        for (final c in entry.value!) {
+          final isInvisible = c['invisible'] == true;
+          final isLocked = c['locked'] == true;
+          final isUpdating = c['updating'] == true;
+          final isEnabled = c['enabled'] != false;
+          if ((isInvisible || isLocked || isUpdating) && isEnabled) {
+            blockedParentIds.add(c['id'] as String? ?? '');
+          }
+        }
         for (final contentData in entry.value!) {
           if (contentData['invisible'] == true) continue;
           if (contentData['locked'] == true) continue;
           if (contentData['updating'] == true) continue;
           if (contentData['enabled'] == false) continue;
+          final parentId = contentData['parentContentId'] as String?;
+          if (parentId != null && blockedParentIds.contains(parentId)) continue;
           final contentName = contentData['name'] as String? ?? contentData['title'] as String? ?? '';
           if (contentName.trim().isEmpty) continue;
           if (contentName.toLowerCase().contains(q)) {
@@ -836,7 +848,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
       itemCount: _searchResults.length,
       itemBuilder: (context, index) {
         final r = _searchResults[index];
-        final label = r.isFolder ? 'Folder' : (r.isSubfolder ? 'Subfolder' : 'File');
+        final label = r.isFolder ? 'Dashboard Folder' : (r.isSubfolder ? 'Folder' : 'File');
         return GestureDetector(
           onTap: () {
             if (!navContext.mounted) return;
