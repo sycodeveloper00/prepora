@@ -55,11 +55,45 @@
   </style>
 </head>
 <body>
-  <div class="container">
+  <div class="container" id="notFound" style="display:none;">
     <div class="icon">&#128218;</div>
     <h1>PrePora App Not Found</h1>
     <p>Please install the PrePora app to view this content.</p>
     <a href="https://prepora.pages.dev">Click here to install</a>
   </div>
+
+  <div class="container" id="opening" style="display:none;">
+    <div class="icon">&#128218;</div>
+    <h1>Opening PrePora...</h1>
+    <p>If the app doesn't open, install it from below.</p>
+    <a href="https://prepora.pages.dev">Click here to install</a>
+  </div>
+
+  <script>
+    const url = new URL(window.location.href);
+    const path = url.pathname;
+    const search = url.search;
+
+    const deepLink = 'prepora://' + path.replace(/^\//, '') + search;
+    const installLink = 'https://prepora.pages.dev';
+
+    document.getElementById('opening').style.display = 'block';
+
+    let appOpened = false;
+
+    window.addEventListener('blur', function() {
+      appOpened = true;
+    });
+
+    window.location.href = deepLink;
+
+    setTimeout(function() {
+      if (!appOpened) {
+        document.getElementById('opening').style.display = 'none';
+        document.getElementById('notFound').style.display = 'block';
+        document.title = 'PrePora - App Not Found';
+      }
+    }, 2500);
+  </script>
 </body>
 </html>
