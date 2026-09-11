@@ -35,6 +35,22 @@ class AppRouter {
     initialLocation: '/splash',
     errorBuilder: (context, state) {
       final uri = state.uri.toString();
+      final path = state.matchedLocation;
+      final fullPath = state.uri.path;
+      final effectivePath = fullPath.isNotEmpty ? fullPath : uri;
+      if (effectivePath.startsWith('/s/') || path.startsWith('/s/')) {
+        final segments = effectivePath.split('/').where((s) => s.isNotEmpty).toList();
+        final shortId = segments.length > 1 ? segments[1] : '';
+        if (shortId.isNotEmpty) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            context.go('/s/$shortId');
+          });
+          return const Scaffold(
+            backgroundColor: Color(0xFF0A0E1A),
+            body: Center(child: CircularProgressIndicator(color: Color(0xFF00B8D4), strokeWidth: 2)),
+          );
+        }
+      }
       // Admin routes not supported in Android app — redirect to login
       if (uri.startsWith('/admin')) {
         WidgetsBinding.instance.addPostFrameCallback((_) {

@@ -91,7 +91,19 @@ void _navigateToDeepLink(String uri) async {
     final ctx = rootNavigatorKey.currentContext;
     if (ctx != null) {
       final parsed = Uri.parse(uri);
-      final path = parsed.path;
+      String path = parsed.path;
+      final host = parsed.host;
+      if (host.isNotEmpty && !path.startsWith('/$host')) {
+        path = '/$host$path';
+      }
+      if (path.startsWith('/s/')) {
+        final segments = path.split('/').where((s) => s.isNotEmpty).toList();
+        final shortId = segments.length > 1 ? segments[1] : '';
+        final slug = segments.length > 2 ? segments[2] : '';
+        final target = slug.isNotEmpty ? '/s/$shortId/$slug' : '/s/$shortId';
+        ctx.go(target);
+        return;
+      }
       final query = parsed.query;
       final fullQuery = query.isNotEmpty ? '?$query' : '';
       ctx.go('$path$fullQuery');
