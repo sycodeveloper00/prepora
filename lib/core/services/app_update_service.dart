@@ -1,22 +1,23 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'supabase_read_service.dart';
 
 class AppUpdateService {
   static Future<Map<String, dynamic>?> checkForUpdate() async {
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('app_config')
-          .doc('android')
-          .get()
-          .timeout(const Duration(seconds: 5), onTimeout: () => throw Exception('timeout'));
-      if (!doc.exists) return null;
-      final data = doc.data()!;
-      final minVersion = data['min_version'] as String? ?? '';
-      final latestVersion = data['latest_version'] as String? ?? '';
-      final updateUrl = data['update_url'] as String? ?? 'https://prepora.pages.dev';
+      final data = await SupabaseReadService.getSettings('app_config')
+          .timeout(const Duration(seconds: 5), onTimeout: () => null);
+      if (data == null) return null;
+
+      final androidData = data['android'] as Map<String, dynamic>?;
+      if (androidData == null) return null;
+
+      final minVersion = androidData['min_version'] as String? ?? '';
+      final latestVersion = androidData['latest_version'] as String? ?? '';
+      final updateUrl = androidData['update_url'] as String? ?? '';
       final packageInfo = await PackageInfo.fromPlatform();
       final currentVersion = packageInfo.version;
+
       if (minVersion.isNotEmpty && _isNewer(minVersion, currentVersion)) {
         return {
           'minVersion': minVersion,
@@ -51,8 +52,19 @@ class AppUpdateService {
     return false;
   }
 
+  static Future<void> openUpdateLink(String url) async {
+    if (url.isEmpty) {
+      await openPlayStore();
+      return;
+    }
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
   static Future<void> openPlayStore() async {
-    final url = Uri.parse('https://play.google.com/store/apps/details?id=com.prepora.app');
+    final url = Uri.parse('https://play.google.com/store/apps/details?id=com.prepora.academy.prepora');
     if (await canLaunchUrl(url)) {
       await launchUrl(url, mode: LaunchMode.externalApplication);
     }

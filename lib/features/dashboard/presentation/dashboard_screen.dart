@@ -12,6 +12,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import '../../../core/widgets/glassmorphic_container.dart';
 import '../../../core/widgets/animated_pressable.dart';
 import '../../../core/services/firebase_service.dart';
+import '../../../core/services/supabase_read_service.dart';
 import '../../../core/services/widget_service.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/providers/app_state_provider.dart';
@@ -850,12 +851,20 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     );
   }
 
-  void _shareSearchResult(_SearchResult r) {
+  void _shareSearchResult(_SearchResult r) async {
     final id = r.isFolder ? r.folderId : r.contentId;
     final type = r.isFolder ? 'folder' : 'content';
     final slug = r.title.replaceAll(RegExp(r'[^a-zA-Z0-9\s-]'), '').replaceAll(RegExp(r'\s+'), '-').toLowerCase();
-    final parentParam = r.isFolder ? '' : '&parent=${r.folderId}';
-    final link = 'https://prepora-coral.vercel.app/open/folder/${r.folderId}/$slug/share?id=$id&type=$type$parentParam';
+    final parentParam = r.isFolder ? '' : r.folderId;
+    final shortId = await SupabaseReadService.createShareLink(
+      contentId: id,
+      contentType: type,
+      folderId: parentParam,
+      slug: slug,
+    );
+    final link = shortId != null
+        ? 'https://prepora-coral.vercel.app/s/$shortId/$slug'
+        : 'https://prepora-coral.vercel.app/s/$id/$slug';
     Share.share('${r.title}\n$link');
   }
 
@@ -1938,10 +1947,18 @@ class _DashboardGridState extends State<_DashboardGrid> {
                       icon: Icon(Icons.more_vert, size: 18, color: dimColor),
                       color: isDark ? const Color(0xFF1E1E2F) : Colors.white,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      onSelected: (value) {
+                      onSelected: (value) async {
                         if (value == 'share') {
                           final slug = folderName.replaceAll(RegExp(r'[^a-zA-Z0-9\s-]'), '').replaceAll(RegExp(r'\s+'), '-').toLowerCase();
-                          final link = 'https://prepora-coral.vercel.app/open/folder/$folderId/$slug/share?id=$folderId&type=folder';
+                          final shortId = await SupabaseReadService.createShareLink(
+                            contentId: folderId,
+                            contentType: 'folder',
+                            folderId: folderId,
+                            slug: slug,
+                          );
+                          final link = shortId != null
+                              ? 'https://prepora-coral.vercel.app/s/$shortId/$slug'
+                              : 'https://prepora-coral.vercel.app/s/$folderId/$slug';
                           Share.share('$folderName\n$link');
                         }
                       },

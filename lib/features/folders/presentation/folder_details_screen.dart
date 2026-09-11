@@ -1243,9 +1243,17 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
     );
   }
 
-  void _shareContent(String contentId, String contentName, String type) {
+  void _shareContent(String contentId, String contentName, String type) async {
     final slug = contentName.replaceAll(RegExp(r'[^a-zA-Z0-9\s-]'), '').replaceAll(RegExp(r'\s+'), '-').toLowerCase();
-    final link = 'https://prepora-coral.vercel.app/open/folder/${widget.folderId}/$slug/share?id=$contentId&type=$type&parent=${widget.folderId}';
+    final shortId = await SupabaseReadService.createShareLink(
+      contentId: contentId,
+      contentType: type,
+      folderId: widget.folderId,
+      slug: slug,
+    );
+    final link = shortId != null
+        ? 'https://prepora-coral.vercel.app/s/$shortId/$slug'
+        : 'https://prepora-coral.vercel.app/s/$contentId/$slug';
     Share.share('$contentName\n$link');
   }
 

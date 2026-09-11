@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../../core/services/app_update_service.dart';
 import '../../../core/services/supabase_read_service.dart';
 
@@ -18,7 +17,7 @@ class DeepLinkScreen extends StatefulWidget {
 class _DeepLinkScreenState extends State<DeepLinkScreen> {
   bool _processing = true;
   String? _error;
-  bool _showUpdatePopup = false;
+  String? _updateUrl;
 
   @override
   void initState() {
@@ -30,7 +29,7 @@ class _DeepLinkScreenState extends State<DeepLinkScreen> {
     final id = widget.id;
     final type = widget.type;
     if (id == null || id.isEmpty) {
-      setState(() { _error = 'Invalid link — no ID found'; _processing = false; });
+      setState(() { _error = 'Invalid link'; _processing = false; });
       return;
     }
 
@@ -68,11 +67,8 @@ class _DeepLinkScreenState extends State<DeepLinkScreen> {
           final freeTrialEndsAt = userData['free_trial_ends_at'];
           if (freeTrialEndsAt != null) {
             final endDate = DateTime.tryParse(freeTrialEndsAt.toString());
-            if (endDate != null && DateTime.now().isBefore(endDate)) {
-              // trial still active
-            } else if (!mounted) {
-              return;
-            } else {
+            if (endDate != null && DateTime.now().isAfter(endDate)) {
+              if (!mounted) return;
               await showDialog(
                 context: context,
                 barrierDismissible: false,
@@ -85,7 +81,7 @@ class _DeepLinkScreenState extends State<DeepLinkScreen> {
                     Text('Paid Access Required', style: TextStyle(color: Colors.white)),
                   ]),
                   content: const Text(
-                    'Your free trial has expired. Please get verified or subscribe to access content.',
+                    'Your free trial has expired. Please get verified or subscribe.',
                     style: TextStyle(color: Colors.white70),
                   ),
                   actions: [
@@ -107,7 +103,8 @@ class _DeepLinkScreenState extends State<DeepLinkScreen> {
         onTimeout: () => null,
       );
       if (updateInfo != null && mounted) {
-        setState(() { _showUpdatePopup = true; });
+        _updateUrl = updateInfo['updateUrl'] as String? ?? '';
+        setState(() {});
       }
 
       _navigateToContent(id, type, widget.parent);
@@ -120,18 +117,28 @@ class _DeepLinkScreenState extends State<DeepLinkScreen> {
   void _navigateToContent(String id, String? type, String? parent) {
     if (!mounted) return;
     if (type == 'folder') {
-      context.go('/folders/$id', extra: {
-        'canEdit': false,
-        'canManage': false,
-        'isAdmin': false,
+      context.go('/dashboard');
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          context.push('/folders/$id', extra: {
+            'canEdit': false,
+            'canManage': false,
+            'isAdmin': false,
+          });
+        }
       });
     } else {
       final parentFolderId = parent ?? '';
       if (parentFolderId.isNotEmpty) {
-        context.go('/folders/$parentFolderId/sub/$id', extra: {
-          'canEdit': false,
-          'canManage': false,
-          'isAdmin': false,
+        context.go('/dashboard');
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            context.push('/folders/$parentFolderId/sub/$id', extra: {
+              'canEdit': false,
+              'canManage': false,
+              'isAdmin': false,
+            });
+          }
         });
       } else {
         context.go('/dashboard');
@@ -151,30 +158,31 @@ class _DeepLinkScreenState extends State<DeepLinkScreen> {
             ? Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.error_outline, size: 64, color: Colors.redAccent),
-                  const SizedBox(height: 16),
-                  Text(_error!, style: const TextStyle(color: Colors.white70, fontSize: 16)),
-                  const SizedBox(height: 24),
-                  ElevatedButton(
+                  const Icon(Icons.error_outline, size: 48, color: Colors.redAccent),
+                  const SizedBox(height: 12),
+                  Text(_error!, style: const TextStyle(color: Colors.white70, fontSize: 14)),
+                  const SizedBox(height: 20),
+                  TextButton(
                     onPressed: () => context.go('/dashboard'),
-                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4A148C)),
-                    child: const Text('Go to Dashboard', style: TextStyle(color: Colors.white)),
+                    child: const Text('Go to Dashboard', style: TextStyle(color: Color(0xFF00B8D4))),
                   ),
                 ],
               )
             : Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Image.asset('assets/images/app_icon.png', width: 80, height: 80),
-                  const SizedBox(height: 20),
-                  const CircularProgressIndicator(color: Color(0xFF00B8D4)),
+                  Image.asset('assets/images/app_icon.png', width: 64, height: 64),
                   const SizedBox(height: 16),
-                  const Text('Opening content...', style: TextStyle(color: Colors.white54, fontSize: 14)),
+                  const CircularProgressIndicator(color: Color(0xFF00B8D4), strokeWidth: 2),
+                  const SizedBox(height: 12),
+                  const Text('Opening...', style: TextStyle(color: Colors.white38, fontSize: 13)),
                 ],
               ),
       ),
     );
   }
+
+  bool get _showUpdatePopup => _updateUrl != null && _updateUrl!.isNotEmpty;
 
   void _showUpdateDialog() {
     showDialog(
@@ -189,21 +197,21 @@ class _DeepLinkScreenState extends State<DeepLinkScreen> {
           Text('Update Available', style: TextStyle(color: Colors.white)),
         ]),
         content: const Text(
-          'A new version of PrePora is available. Please update to continue.',
+          'A new version is available. Please update to continue.',
           style: TextStyle(color: Colors.white70),
         ),
         actions: [
           TextButton(
-            onPressed: () { Navigator.pop(ctx); setState(() { _showUpdatePopup = false; }); },
+            onPressed: () { Navigator.pop(ctx); setState(() { _updateUrl = null; }); _navigateToContent(widget.id ?? '', widget.type, widget.parent); },
             child: const Text('Later', style: TextStyle(color: Colors.white54)),
           ),
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(ctx);
-              AppUpdateService.openPlayStore();
+              AppUpdateService.openUpdateLink(_updateUrl ?? '');
             },
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4A148C)),
-            child: const Text('Update Now', style: TextStyle(color: Colors.white)),
+            child: const Text('Update', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),

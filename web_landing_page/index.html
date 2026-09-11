@@ -5,95 +5,36 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PrePora</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #0A0E1A;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #fff;
-    }
-    .container {
-      text-align: center;
-      padding: 32px;
-    }
-    .icon {
-      width: 64px;
-      height: 64px;
-      border-radius: 16px;
-      margin: 0 auto 20px;
-      background: linear-gradient(135deg, #00B8D4, #7C4DFF);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 30px;
-    }
-    h1 {
-      font-size: 18px;
-      font-weight: 600;
-      margin-bottom: 8px;
-      color: #fff;
-    }
-    p {
-      font-size: 14px;
-      color: rgba(255,255,255,0.45);
-      margin-bottom: 24px;
-    }
-    a {
-      display: inline-block;
-      padding: 12px 28px;
-      background: linear-gradient(135deg, #4A148C, #7C4DFF);
-      color: #fff;
-      text-decoration: none;
-      border-radius: 10px;
-      font-size: 15px;
-      font-weight: 600;
-    }
-    a:hover { box-shadow: 0 6px 20px rgba(74,20,140,0.4); }
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0A0E1A;min-height:100vh;display:flex;align-items:center;justify-content:center;color:#fff}
+    .c{text-align:center;padding:32px}
+    .e{font-size:48px;color:#EF5350;margin-bottom:12px}
+    .t{font-size:14px;color:rgba(255,255,255,0.5);margin-bottom:16px}
+    a{color:#00B8D4;text-decoration:none;font-size:14px}
+    .loading{font-size:13px;color:rgba(255,255,255,0.3)}
   </style>
 </head>
 <body>
-  <div class="container" id="notFound" style="display:none;">
-    <div class="icon">&#128218;</div>
-    <h1>PrePora App Not Found</h1>
-    <p>Please install the PrePora app to view this content.</p>
-    <a href="https://play.google.com/store/apps/details?id=com.prepora.academy.prepora">Click here to install</a>
+  <div class="c" id="loading"><p class="loading">Opening PrePora...</p></div>
+  <div class="c" id="error" style="display:none">
+    <div class="e">&#9888;</div>
+    <p class="t">App not found. Install PrePora to open this link.</p>
+    <a href="https://play.google.com/store/apps/details?id=com.prepora.academy.prepora">Install from Play Store</a>
   </div>
-
-  <div class="container" id="opening" style="display:none;">
-    <div class="icon">&#128218;</div>
-    <h1>Opening PrePora...</h1>
-    <p>If the app doesn't open, install it from below.</p>
-    <a href="https://play.google.com/store/apps/details?id=com.prepora.academy.prepora">Click here to install</a>
-  </div>
-
   <script>
-    const url = new URL(window.location.href);
-    const path = url.pathname;
-    const search = url.search;
-
-    const deepLink = 'prepora://' + path.replace(/^\//, '') + search;
-    const installLink = 'https://prepora.pages.dev';
-
-    document.getElementById('opening').style.display = 'block';
-
-    let appOpened = false;
-
-    window.addEventListener('blur', function() {
-      appOpened = true;
-    });
-
-    window.location.href = deepLink;
-
-    setTimeout(function() {
-      if (!appOpened) {
-        document.getElementById('opening').style.display = 'none';
-        document.getElementById('notFound').style.display = 'block';
-        document.title = 'PrePora - App Not Found';
-      }
-    }, 2500);
+    (function(){
+      var path = window.location.pathname + window.location.search;
+      var deepLink = 'prepora://' + path.replace(/^\//,'');
+      var opened = false;
+      window.addEventListener('blur', function(){ opened = true; });
+      window.location.href = deepLink;
+      setTimeout(function(){
+        if(!opened){
+          document.getElementById('loading').style.display='none';
+          document.getElementById('error').style.display='block';
+        }
+      }, 2000);
+    })();
   </script>
 </body>
 </html>

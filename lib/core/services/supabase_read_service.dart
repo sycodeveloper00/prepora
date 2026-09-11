@@ -1297,4 +1297,76 @@ class SupabaseReadService {
     }
     return result;
   }
+
+  // ─── share_links (short URLs) ────────────────────────────────────────────
+
+  static String _generateShortId() {
+    const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    final rng = DateTime.now().microsecondsSinceEpoch;
+    var id = '';
+    var val = rng;
+    for (var i = 0; i < 8; i++) {
+      id += chars[val % chars.length];
+      val = (val ~/ chars.length) ^ (i * 31);
+    }
+    return id;
+  }
+
+  static Future<String?> createShareLink({
+    required String contentId,
+    required String contentType,
+    required String folderId,
+    String slug = '',
+  }) async {
+    final shortId = _generateShortId();
+    final data = {
+      'short_id': shortId,
+      'content_id': contentId,
+      'content_type': contentType,
+      'folder_id': folderId,
+      'slug': slug,
+    };
+    try {
+      final primary = _projects.first;
+      final headers = {
+        'apikey': primary['service']!,
+        'Authorization': 'Bearer ${primary['service']!}',
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal',
+      };
+      final res = await http.post(
+        Uri.parse('${primary['url']!}/rest/v1/share_links'),
+        headers: headers,
+        body: json.encode(data),
+      ).timeout(const Duration(seconds: 8));
+      if (res.statusCode < 300) {
+        // Write to backups fire-and-forget
+        for (int i = 1; i < _projects.length; i++) {
+          final p = _projects[i];
+          Future(() async {
+            try {
+              await http.post(
+                Uri.parse('${p['url']!}/rest/v1/share_links'),
+                headers: {
+                  'apikey': p['service']!,
+                  'Authorization': 'Bearer ${p['service']!}',
+                  'Content-Type': 'application/json',
+                  'Prefer': 'return=minimal',
+                },
+                body: json.encode(data),
+              ).timeout(const Duration(seconds: 10));
+            } catch (_) {}
+          });
+        }
+        return shortId;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  static Future<Map<String, dynamic>?> getShareLinkByShortId(String shortId) async {
+    final rows = await _query('share_links', 'short_id=eq.$shortId&limit=1&select=*');
+    if (rows == null || rows.isEmpty) return null;
+    return rows.first;
+  }
 }

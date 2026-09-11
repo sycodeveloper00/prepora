@@ -25,6 +25,7 @@ import '../../features/splash_onboarding/presentation/splash_screen.dart';
 import '../../features/student/presentation/student_progress_screen.dart';
 import '../../features/link_web/presentation/link_web_screen.dart';
 import '../../features/deep_link/presentation/deep_link_screen.dart';
+import '../../features/deep_link/presentation/short_link_resolver.dart';
 
 final rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -221,6 +222,13 @@ class AppRouter {
           final type = s.uri.queryParameters['type'];
           final parent = s.uri.queryParameters['parent'];
           return DeepLinkScreen(id: id, type: type, parent: parent);
+        },
+      ),
+      GoRoute(
+        path: '/s/:shortId',
+        builder: (c, s) {
+          final shortId = s.pathParameters['shortId'] ?? '';
+          return ShortLinkResolver(shortId: shortId);
         },
       ),
       GoRoute(
