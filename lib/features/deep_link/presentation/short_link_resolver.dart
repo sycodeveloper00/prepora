@@ -48,23 +48,51 @@ class _ShortLinkResolverState extends State<ShortLinkResolver> {
           'canManage': false,
         });
       } else {
+        final parentChain = await _resolveParentChain(folderId, contentId);
+        if (!mounted) return;
+
         context.pushReplacement('/folders/$folderId', extra: {
           'canEdit': false,
           'canManage': false,
         });
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            context.push('/folders/$folderId/sub/$contentId', extra: {
-              'canEdit': false,
-              'canManage': false,
-            });
-          }
+        for (final parentId in parentChain) {
+          if (!mounted) return;
+          await Future.delayed(const Duration(milliseconds: 50));
+          context.push('/folders/$folderId/sub/$parentId', extra: {
+            'canEdit': false,
+            'canManage': false,
+          });
+        }
+        if (!mounted) return;
+        context.push('/folders/$folderId/sub/$contentId', extra: {
+          'canEdit': false,
+          'canManage': false,
         });
       }
     } catch (e) {
       if (!mounted) return;
       context.go('/auth/login');
     }
+  }
+
+  Future<List<String>> _resolveParentChain(String folderId, String contentId) async {
+    final chain = <String>[];
+    try {
+      final content = await SupabaseReadService.getContent(folderId, contentId);
+      if (content == null) return chain;
+      var currentId = content['parentContentId'] as String?;
+      final visited = <String>{};
+      final path = <String>[];
+      while (currentId != null && currentId.isNotEmpty && !visited.contains(currentId)) {
+        visited.add(currentId);
+        path.add(currentId);
+        final parent = await SupabaseReadService.getContent(folderId, currentId);
+        if (parent == null) break;
+        currentId = parent['parentContentId'] as String?;
+      }
+      chain.addAll(path.reversed);
+    } catch (_) {}
+    return chain;
   }
 
   @override
