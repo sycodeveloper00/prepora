@@ -2294,12 +2294,11 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                 final folderPath = parentPath.isNotEmpty ? '$parentPath > $name' : name;
                 FirebaseService.logActivity(uid: currentUser.uid, name: name, type: 'subfolder', folderPath: folderPath, contentId: id);
               }
-              _isNavigating = true;
               context.pushReplacement('/folders/${widget.folderId}/sub/$id', extra: {
                 'canEdit': widget.canEdit, 'canManage': widget.canManage,
                 if (widget.targetStudentUid != null) 'targetStudentUid': widget.targetStudentUid,
                 if (widget.assistantContentAccess != null) 'assistantContentAccess': widget.assistantContentAccess!.toList(),
-              }).then((_) { _isNavigating = false; });
+              });
             },
             child: Row(crossAxisAlignment: hasDesc ? CrossAxisAlignment.start : CrossAxisAlignment.center, children: [
               Icon(Icons.folder_rounded, color: disabled ? Colors.grey : (updating ? Colors.orange : Colors.blue), size: 36),
