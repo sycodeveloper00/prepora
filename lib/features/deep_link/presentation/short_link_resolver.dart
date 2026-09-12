@@ -47,8 +47,13 @@ class _ShortLinkResolverState extends State<ShortLinkResolver> {
 
       if (!mounted) return;
 
-      if (contentType == 'folder' || contentType == 'subfolder') {
+      if (contentType == 'folder') {
         context.pushReplacement('/folders/$contentId', extra: {
+          'canEdit': false,
+          'canManage': false,
+        });
+      } else if (contentType == 'subfolder') {
+        context.pushReplacement('/folders/$folderId/sub/$contentId', extra: {
           'canEdit': false,
           'canManage': false,
         });
@@ -62,19 +67,10 @@ class _ShortLinkResolverState extends State<ShortLinkResolver> {
           });
           return;
         }
-
-        final immediateParentId = content['parentContentId'] as String?;
-        if (immediateParentId != null && immediateParentId.isNotEmpty) {
-          context.pushReplacement('/folders/$folderId/sub/$contentId', extra: {
-            'canEdit': false,
-            'canManage': false,
-          });
-        } else {
-          context.pushReplacement('/folders/$folderId/sub/$contentId', extra: {
-            'canEdit': false,
-            'canManage': false,
-          });
-        }
+        context.pushReplacement('/folders/$folderId/sub/$contentId', extra: {
+          'canEdit': false,
+          'canManage': false,
+        });
       }
     } catch (e) {
       if (!mounted) return;

@@ -102,11 +102,21 @@ class _DeepLinkScreenState extends State<DeepLinkScreen> {
 
   void _navigateToContent(String id, String? type, String? parent) {
     if (!mounted) return;
-    if (type == 'folder' || type == 'subfolder') {
+    if (type == 'folder') {
       context.pushReplacement('/folders/$id', extra: {
         'canEdit': false,
         'canManage': false,
       });
+    } else if (type == 'subfolder') {
+      final parentFolderId = parent ?? '';
+      if (parentFolderId.isNotEmpty) {
+        context.pushReplacement('/folders/$parentFolderId/sub/$id', extra: {
+          'canEdit': false,
+          'canManage': false,
+        });
+      } else {
+        context.go('/dashboard');
+      }
     } else {
       final parentFolderId = parent ?? '';
       if (parentFolderId.isNotEmpty) {
