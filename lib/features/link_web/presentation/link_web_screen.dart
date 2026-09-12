@@ -75,7 +75,7 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
       if (lastActive == null) continue;
       final elapsed = now.difference(lastActive);
       if (elapsed.inMinutes >= 15) {
-        final sid = session['sessionId'] as String?;
+        final sid = session['id'] as String?;
         if (sid != null && !_notifiedSessionIds.contains(sid)) {
           _notifiedSessionIds.add(sid);
           await _disconnectSession(sid);
@@ -112,7 +112,7 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
       final sessions = await SupabaseReadService.getConnectedSessions(user.uid);
       if (mounted) {
         final list = (sessions ?? []).where((s) {
-          final sid = s['sessionId'] as String? ?? '';
+          final sid = s['id'] as String? ?? '';
           return !_disconnectedSessionIds.contains(sid);
         }).toList();
         setState(() {
@@ -356,7 +356,7 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
     _disconnectedSessionIds.add(sessionId);
     if (mounted) {
       setState(() {
-        _activeSessions.removeWhere((s) => s['sessionId'] == sessionId);
+        _activeSessions.removeWhere((s) => s['id'] == sessionId);
       });
     }
 
@@ -506,13 +506,13 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
     final sessionsToDisconnect = List<Map<String, dynamic>>.from(_activeSessions);
     // 0) Optimistically clear local list immediately
     for (final s in sessionsToDisconnect) {
-      final sid = s['sessionId'] as String?;
+      final sid = s['id'] as String?;
       if (sid != null) _disconnectedSessionIds.add(sid);
     }
     if (mounted) setState(() => _activeSessions.clear());
 
     for (final session in sessionsToDisconnect) {
-      final sid = session['sessionId'] as String?;
+      final sid = session['id'] as String?;
       if (sid != null) {
         try {
           await FirebaseService.mirrorWebSession(sid, {
@@ -749,7 +749,7 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
     else if (connectedAtRaw is String) connectedAt = DateTime.tryParse(connectedAtRaw);
     if (lastActiveRaw is DateTime) lastActive = lastActiveRaw;
     else if (lastActiveRaw is String) lastActive = DateTime.tryParse(lastActiveRaw);
-    final sessionId = session['sessionId'] as String? ?? '';
+    final sessionId = session['id'] as String? ?? '';
     final webBrowser = session['webBrowser'] as String? ?? 'Web Browser';
 
     return Card(

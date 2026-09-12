@@ -484,7 +484,7 @@ class NotificationService {
     _knownWebSessionIds = {};
     _webSessionSub = SupabaseReadService.streamWebSessionsForUser(uid, interval: const Duration(seconds: 5))
         .listen((sessions) async {
-      final currentIds = sessions.map((s) => s['sessionId'] as String? ?? '').where((id) => id.isNotEmpty).toSet();
+      final currentIds = sessions.map((s) => s['id'] as String? ?? '').where((id) => id.isNotEmpty).toSet();
       if (_webSessionFirstSnapshot) {
         _webSessionFirstSnapshot = false;
         _knownWebSessionIds = currentIds;
@@ -494,7 +494,7 @@ class NotificationService {
       final enabled = await androidPlugin?.areNotificationsEnabled() ?? true;
       if (!enabled) return;
       for (final id in currentIds.difference(_knownWebSessionIds)) {
-        final session = sessions.firstWhere((s) => s['sessionId'] == id, orElse: () => {});
+        final session = sessions.firstWhere((s) => s['id'] == id, orElse: () => {});
         final browser = session['webBrowser'] as String? ?? 'Web Browser';
         final title = 'Web App Connected';
         final body = '$browser connected to your account';
