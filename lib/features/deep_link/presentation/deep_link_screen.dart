@@ -15,9 +15,9 @@ class DeepLinkScreen extends StatefulWidget {
 }
 
 class _DeepLinkScreenState extends State<DeepLinkScreen> {
-  bool _processing = true;
   String? _error;
   String? _updateUrl;
+  bool _updateShown = false;
 
   @override
   void initState() {
@@ -29,7 +29,7 @@ class _DeepLinkScreenState extends State<DeepLinkScreen> {
     final id = widget.id;
     final type = widget.type;
     if (id == null || id.isEmpty) {
-      setState(() { _error = 'Invalid link'; _processing = false; });
+      setState(() { _error = 'Invalid link'; });
       return;
     }
 
@@ -90,7 +90,11 @@ class _DeepLinkScreenState extends State<DeepLinkScreen> {
       );
       if (updateInfo != null && mounted) {
         _updateUrl = updateInfo['updateUrl'] as String? ?? '';
-        setState(() {});
+        if (_updateUrl != null && _updateUrl!.isNotEmpty && !_updateShown && mounted) {
+          _updateShown = true;
+          _showUpdateDialog();
+          return;
+        }
       }
 
       _navigateToContent(id, type, widget.parent);
@@ -102,17 +106,25 @@ class _DeepLinkScreenState extends State<DeepLinkScreen> {
 
   void _navigateToContent(String id, String? type, String? parent) {
     if (!mounted) return;
+    final navDelay = const Duration(milliseconds: 150);
+
     if (type == 'folder') {
-      context.pushReplacement('/folders/$id', extra: {
-        'canEdit': false,
-        'canManage': false,
+      context.go('/dashboard');
+      Future.delayed(navDelay, () {
+        if (!mounted) return;
+        context.push('/folders/$id', extra: {'canEdit': false, 'canManage': false});
       });
     } else if (type == 'subfolder') {
       final parentFolderId = parent ?? '';
       if (parentFolderId.isNotEmpty) {
-        context.pushReplacement('/folders/$parentFolderId/sub/$id', extra: {
-          'canEdit': false,
-          'canManage': false,
+        context.go('/dashboard');
+        Future.delayed(navDelay, () {
+          if (!mounted) return;
+          context.push('/folders/$parentFolderId', extra: {'canEdit': false, 'canManage': false});
+          Future.delayed(navDelay, () {
+            if (!mounted) return;
+            context.push('/folders/$parentFolderId/sub/$id', extra: {'canEdit': false, 'canManage': false});
+          });
         });
       } else {
         context.go('/dashboard');
@@ -120,21 +132,19 @@ class _DeepLinkScreenState extends State<DeepLinkScreen> {
     } else {
       final parentFolderId = parent ?? '';
       if (parentFolderId.isNotEmpty) {
-        context.pushReplacement('/folders/$parentFolderId/sub/$id', extra: {
-          'canEdit': false,
-          'canManage': false,
+        context.go('/dashboard');
+        Future.delayed(navDelay, () {
+          if (!mounted) return;
+          context.push('/folders/$parentFolderId/sub/$id', extra: {'canEdit': false, 'canManage': false});
         });
       } else {
-        context.go('/auth/login');
+        context.go('/dashboard');
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_showUpdatePopup) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _showUpdateDialog());
-    }
     return Scaffold(
       backgroundColor: const Color(0xFF0A0E1A),
       body: Center(
@@ -166,8 +176,6 @@ class _DeepLinkScreenState extends State<DeepLinkScreen> {
     );
   }
 
-  bool get _showUpdatePopup => _updateUrl != null && _updateUrl!.isNotEmpty;
-
   void _showUpdateDialog() {
     showDialog(
       context: context,
@@ -186,7 +194,10 @@ class _DeepLinkScreenState extends State<DeepLinkScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () { Navigator.pop(ctx); setState(() { _updateUrl = null; }); _navigateToContent(widget.id ?? '', widget.type, widget.parent); },
+            onPressed: () {
+              Navigator.pop(ctx);
+              _navigateToContent(widget.id ?? '', widget.type, widget.parent);
+            },
             child: const Text('Later', style: TextStyle(color: Colors.white54)),
           ),
           ElevatedButton(

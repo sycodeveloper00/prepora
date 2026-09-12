@@ -134,25 +134,25 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
 
   void _batchInit() async {
     final uid = FirebaseService.currentUser?.uid;
-    final futures = <Future>[
-      if (uid != null) FirebaseService.getContentAccess(uid),
-      if (widget.parentContentId != null) SupabaseReadService.getContent(widget.folderId, widget.parentContentId!),
-      _loadSortModeInternal(),
-    ];
+    final futures = <Future>[];
+    final hasUid = uid != null;
+    final hasParent = widget.parentContentId != null;
+    if (hasUid) futures.add(FirebaseService.getContentAccess(uid!));
+    if (hasParent) futures.add(SupabaseReadService.getContent(widget.folderId, widget.parentContentId!));
+    futures.add(_loadSortModeInternal());
     final results = await Future.wait(futures, eagerError: true);
     if (!mounted) return;
     int idx = 0;
-    if (uid != null) {
+    if (hasUid) {
       final access = results[idx++] as Map<String, List<String>>;
       final ids = access[widget.folderId] ?? [];
       _assistantAccess = ids.toSet();
       _assistantAccess.addAll(_pendingOptimistic);
     }
-    if (widget.parentContentId != null) {
+    if (hasParent) {
       final content = results[idx++] as Map<String, dynamic>?;
       if (content != null) _subfolderName = content['name'] as String? ?? '';
     }
-    idx++; // skip sort mode (handled internally)
     setState(() {});
   }
 
@@ -183,18 +183,6 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
         box.put(key, jsonEncode(contents));
       } catch (_) {}
     });
-  }
-
-  void _loadSubfolderName() async {
-    if (widget.parentContentId == null) return;
-    try {
-      final content = await SupabaseReadService.getContent(widget.folderId, widget.parentContentId!);
-      if (content != null && mounted) {
-        setState(() {
-          _subfolderName = content['name'] as String? ?? '';
-        });
-      }
-    } catch (_) {}
   }
 
   Future<String> _buildFullPath(String? parentContentId) async {
@@ -270,26 +258,6 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
   }
 
   String get _sortKey => widget.parentContentId ?? 'root';
-
-  void _loadSortMode() async {
-    try {
-      final doc = await FirebaseService.firestore.collection('folders').doc(widget.folderId).get();
-      if (doc.exists && mounted) {
-        final data = doc.data();
-        final sortModes = data?['sortModes'] as Map<String, dynamic>?;
-        if (sortModes != null && sortModes.containsKey(_sortKey)) {
-          setState(() { _sortMode = sortModes[_sortKey] as String? ?? 'custom'; });
-        } else {
-          setState(() { _sortMode = 'custom'; });
-        }
-      }
-    } catch (_) {}
-  }
-
-  void _saveSortMode(String mode) {
-    setState(() { _sortMode = mode; });
-    FirebaseService.firestore.collection('folders').doc(widget.folderId).update({'sortModes.$_sortKey': mode});
-  }
 
   List<Map<String, dynamic>> _filterDocs(List<Map<String, dynamic>> docs, String query) {
     if (query.isEmpty) return docs;
