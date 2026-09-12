@@ -177,7 +177,7 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
         if (content == null) break;
         final name = content['name'] as String? ?? '';
         if (name.isNotEmpty) parts.insert(1, name);
-        currentId = content['parentContentId'] as String?;
+        currentId = content['parentContentId'] as String? ?? '';
       } catch (_) {
         break;
       }
