@@ -349,10 +349,18 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
 
   Future<void> _disconnectSession(String sessionId) async {
     debugPrint('WEB: attempting disconnect sessionId=$sessionId');
+
+    // 0) Optimistically remove from local list so card disappears immediately
+    if (mounted) {
+      setState(() {
+        _activeSessions.removeWhere((s) => s['sessionId'] == sessionId);
+      });
+    }
+
     bool supabaseSuccess = false;
     bool firestoreSuccess = false;
 
-    // 1) Disconnect via Supabase FIRST — web app reads status from here
+    // 1) Set status=disconnected via Supabase FIRST — web app reads status from here
     try {
       await FirebaseService.mirrorWebSession(sessionId, {
         'status': 'disconnected',
@@ -364,7 +372,15 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
       debugPrint('WEB: Supabase disconnect FAILED: $e');
     }
 
-    // 2) Also update Firestore as backup (use set+merge so it works even if doc is missing)
+    // 2) Also DELETE the Supabase row entirely so it never appears again
+    try {
+      await FirebaseService.mirrorWebSession(sessionId, {}, delete: true);
+      debugPrint('WEB: Supabase delete OK');
+    } catch (e) {
+      debugPrint('WEB: Supabase delete FAILED: $e');
+    }
+
+    // 3) Also update Firestore (set+merge works even if doc is missing)
     try {
       await FirebaseService.firestore.collection('web_sessions').doc(sessionId).set({
         'status': 'disconnected',
@@ -376,25 +392,18 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
       debugPrint('WEB: Firestore disconnect FAILED: $e');
     }
 
-    // 3) If both failed, try to DELETE the Supabase row as last resort
-    if (!supabaseSuccess && !firestoreSuccess) {
-      debugPrint('WEB: both writes failed, attempting delete as last resort');
-      try {
-        await FirebaseService.mirrorWebSession(sessionId, {}, delete: true);
-        debugPrint('WEB: Supabase delete OK');
-      } catch (e) {
-        debugPrint('WEB: Supabase delete also FAILED: $e');
-      }
-      try {
-        await FirebaseService.firestore.collection('web_sessions').doc(sessionId).delete();
-        debugPrint('WEB: Firestore delete OK');
-      } catch (e) {
-        debugPrint('WEB: Firestore delete also FAILED: $e');
-      }
+    // 4) Also DELETE the Firestore doc entirely
+    try {
+      await FirebaseService.firestore.collection('web_sessions').doc(sessionId).delete();
+      debugPrint('WEB: Firestore delete OK');
+    } catch (e) {
+      debugPrint('WEB: Firestore delete FAILED: $e');
     }
 
-    // 4) Refresh active sessions immediately
-    _fetchActiveSessions();
+    // 5) Refresh active sessions after a short delay to let writes propagate
+    Future.delayed(const Duration(seconds: 1), () {
+      if (mounted) _fetchActiveSessions();
+    });
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -491,7 +500,11 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
   }
 
   Future<void> _disconnectAll() async {
-    for (final session in _activeSessions) {
+    final sessionsToDisconnect = List<Map<String, dynamic>>.from(_activeSessions);
+    // 0) Optimistically clear local list immediately
+    if (mounted) setState(() => _activeSessions.clear());
+
+    for (final session in sessionsToDisconnect) {
       final sid = session['sessionId'] as String?;
       if (sid != null) {
         try {
@@ -501,14 +514,23 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
           });
         } catch (_) {}
         try {
+          await FirebaseService.mirrorWebSession(sid, {}, delete: true);
+        } catch (_) {}
+        try {
           await FirebaseService.firestore.collection('web_sessions').doc(sid).set({
             'status': 'disconnected',
             'disconnectedAt': Timestamp.fromDate(DateTime.now()),
           }, SetOptions(merge: true));
         } catch (_) {}
+        try {
+          await FirebaseService.firestore.collection('web_sessions').doc(sid).delete();
+        } catch (_) {}
       }
     }
-    _fetchActiveSessions();
+    // Refresh after delay
+    Future.delayed(const Duration(seconds: 1), () {
+      if (mounted) _fetchActiveSessions();
+    });
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('All sessions disconnected'), backgroundColor: Colors.orange),

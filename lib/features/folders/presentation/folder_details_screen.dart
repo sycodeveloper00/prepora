@@ -157,6 +157,25 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
     } catch (_) {}
   }
 
+  Future<String> _buildFullPath(String? parentContentId) async {
+    final parts = <String>[_folderName];
+    var currentId = parentContentId;
+    final visited = <String>{};
+    while (currentId != null && currentId.isNotEmpty && !visited.contains(currentId)) {
+      visited.add(currentId);
+      try {
+        final content = await SupabaseReadService.getContent(widget.folderId, currentId);
+        if (content == null) break;
+        final name = content['name'] as String? ?? '';
+        if (name.isNotEmpty) parts.insert(1, name);
+        currentId = content['parentContentId'] as String?;
+      } catch (_) {
+        break;
+      }
+    }
+    return parts.join(' > ');
+  }
+
   void _refreshContentsStream() {
     setState(() {
       _contentsStream = SupabaseReadService.streamContents(widget.folderId, parentContentId: widget.parentContentId);
@@ -1358,6 +1377,29 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
     return '';
   }
 
+  Future<bool> _isAncestorBlocked(String contentId) async {
+    if (widget.isAdmin) return false;
+    var currentId = contentId;
+    final visited = <String>{};
+    while (currentId.isNotEmpty && !visited.contains(currentId)) {
+      visited.add(currentId);
+      try {
+        final content = await SupabaseReadService.getContent(widget.folderId, currentId);
+        if (content == null) break;
+        if (content['locked'] == true) return true;
+        if (content['updating'] == true) return true;
+        if (content['invisible'] == true) return true;
+        if (content['enabled'] == false) return true;
+        final pid = content['parentContentId'] as String?;
+        if (pid == null || pid.isEmpty) break;
+        currentId = pid;
+      } catch (_) {
+        break;
+      }
+    }
+    return false;
+  }
+
   Future<void> _openContent(Map<String, dynamic> data, {String? folderName}) async {
     folderName ??= _subfolderName.isNotEmpty ? _subfolderName : _folderName;
     final type = data['type'] as String? ?? 'file';
@@ -1368,11 +1410,21 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
 
     if (!widget.isAdmin) {
       if (locked) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('This content is locked'), backgroundColor: Colors.redAccent));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('You are not authorized to view this content'), backgroundColor: Colors.redAccent));
         return;
       }
       if (updating) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('This content is being updated'), backgroundColor: Colors.orange));
+        return;
+      }
+      if (data['invisible'] == true || data['enabled'] == false) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('You are not authorized to view this content'), backgroundColor: Colors.redAccent));
+        return;
+      }
+      if (contentId != null && await _isAncestorBlocked(contentId)) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('You are not authorized to view this content'), backgroundColor: Colors.redAccent));
+        }
         return;
       }
     }
@@ -1381,7 +1433,7 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
     if (!widget.isAdmin) {
       final currentUser = FirebaseService.currentUser;
       if (currentUser != null) {
-        final folderPath = _subfolderName.isNotEmpty ? '$_folderName > $_subfolderName' : _folderName;
+        final folderPath = await _buildFullPath(widget.parentContentId);
         activityId = await FirebaseService.logActivity(uid: currentUser.uid, name: name, type: type, folderPath: folderPath, contentId: contentId);
       }
     }
@@ -1711,7 +1763,11 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                     final visibleDocs = widget.isAdmin
                         ? filteredDocs
                         : filteredDocs.where((doc) {
-                            return doc['invisible'] != true;
+                            if (doc['invisible'] == true) return false;
+                            if (doc['locked'] == true) return false;
+                            if (doc['updating'] == true) return false;
+                            if (doc['enabled'] == false) return false;
+                            return true;
                           }).toList();
 
                     // If local order has missing or extra IDs vs stream, reset local order
@@ -2333,12 +2389,34 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
           padding: const EdgeInsets.all(16),
           child: InkWell(
             borderRadius: BorderRadius.circular(16),
-            onTap: disabled ? null : () {
+            onTap: disabled ? null : () async {
               if (_isSelectMode) { _onContentSelect(id); return; }
               if (!widget.isAdmin) {
+                final isLocked = data['locked'] as bool? ?? false;
+                final isUpdating = data['updating'] as bool? ?? false;
+                final isInvisible = data['invisible'] as bool? ?? false;
+                final isEnabled = data['enabled'] as bool? ?? true;
+                if (isLocked) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('You are not authorized to view this content'), backgroundColor: Colors.redAccent));
+                  return;
+                }
+                if (isUpdating) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('This content is being updated'), backgroundColor: Colors.orange));
+                  return;
+                }
+                if (isInvisible || !isEnabled) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('You are not authorized to view this content'), backgroundColor: Colors.redAccent));
+                  return;
+                }
+                if (await _isAncestorBlocked(id)) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('You are not authorized to view this content'), backgroundColor: Colors.redAccent));
+                  }
+                  return;
+                }
                 final currentUser = FirebaseService.currentUser;
                 if (currentUser != null) {
-                  final folderPath = _subfolderName.isNotEmpty ? '$_folderName > $_subfolderName' : _folderName;
+                  final folderPath = await _buildFullPath(widget.parentContentId);
                   FirebaseService.logActivity(uid: currentUser.uid, name: name, type: 'subfolder', folderPath: folderPath, contentId: id);
                 }
               }

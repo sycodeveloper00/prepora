@@ -116,13 +116,13 @@ class AiService {
 
   static String _errorForStatus(int status) {
     if (status == 401 || status == 403) {
-      return '⚠️ API key issue detected. Please contact the admin to get a valid API key.';
+      return '⚠️ Server Error. Try again OR Contact Support for help.';
     }
     if (status == 429) {
-      return '🤖 AI daily free quota is finished for today. Please try again tomorrow, or contact the admin.';
+      return '🤖 AI daily free quota is finished for today. Please try again tomorrow.';
     }
     if (status == 400 || status == 404) {
-      return '⚠️ This AI model is not available right now. Trying another model...';
+      return '⚠️ This AI model is not available right now. Try aagain Later...';
     }
     return '⚠️ AI service error ($status). Please try again in a few moments.';
   }
