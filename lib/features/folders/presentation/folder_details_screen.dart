@@ -1722,8 +1722,6 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                     final filteredDocs = _searchQuery.isNotEmpty ? _filterDocs(parentFiltered, _searchQuery) : parentFiltered;
                     final visibleDocs = filteredDocs.where((doc) {
                       if (doc['invisible'] == true) return false;
-                      if (doc['locked'] == true) return false;
-                      if (doc['updating'] == true) return false;
                       if (doc['enabled'] == false) return false;
                       return true;
                     }).toList();
