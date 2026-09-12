@@ -1733,7 +1733,7 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
             leading: IconButton(
               icon: const Icon(Icons.arrow_back_ios_new_rounded),
               onPressed: () {
-                if (widget.parentContentId != null) {
+                if (GoRouter.of(context).canPop()) {
                   context.pop();
                 } else {
                   context.go('/dashboard');

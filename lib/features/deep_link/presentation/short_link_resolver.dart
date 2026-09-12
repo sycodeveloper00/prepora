@@ -32,7 +32,12 @@ class _ShortLinkResolverState extends State<ShortLinkResolver> {
 
       if (link == null || !mounted) {
         if (!mounted) return;
-        setState(() {});
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Share link not found or expired'), backgroundColor: Colors.redAccent),
+          );
+          context.go('/dashboard');
+        }
         return;
       }
 
