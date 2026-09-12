@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Book body with gradient fill -->
+    <group>
+        <path
+            android:pathData="M54,24 L30,32 L30,78 L54,70 Z">
+            <aapt:attr name="android:fillColor">
+                <gradient
+                    android:type="linear"
+                    android:startX="30"
+                    android:startY="32"
+                    android:endX="54"
+                    android:endY="78"
+                    android:startColor="#FF09A2B4"
+                    android:endColor="#FF6E48B9" />
+            </aapt:attr>
+        </path>
+        <path
+            android:pathData="M54,24 L78,32 L78,78 L54,70 Z">
+            <aapt:attr name="android:fillColor">
+                <gradient
+                    android:type="linear"
+                    android:startX="54"
+                    android:startY="24"
+                    android:endX="78"
+                    android:endY="78"
+                    android:startColor="#FF1BA4A8"
+                    android:endColor="#FF6950C5" />
+            </aapt:attr>
+        </path>
+        <!-- Book spine highlight -->
+        <path
+            android:pathData="M54,24 L55,24 L55,70 L54,70 Z"
+            android:fillColor="#CCFFFFFF" />
+        <!-- Left page lines -->
+        <path
+            android:pathData="M35,40 L50,36 M35,46 L50,43 M35,52 L50,49 M35,58 L50,55 M35,64 L50,61"
+            android:strokeColor="#33FFFFFF"
+            android:strokeWidth="0.8" />
+        <!-- Right page lines -->
+        <path
+            android:pathData="M58,36 L73,40 M58,43 L73,46 M58,49 L73,52 M58,55 L73,58 M58,61 L73,64"
+            android:strokeColor="#33FFFFFF"
+            android:strokeWidth="0.8" />
+    </group>
+</vector>

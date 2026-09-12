@@ -158,20 +158,26 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
 
   Future<String> _buildFullPath(String? parentContentId) async {
     final parts = <String>[_folderName];
-    var currentId = parentContentId;
-    final visited = <String>{};
-    while (currentId != null && currentId.isNotEmpty && !visited.contains(currentId)) {
-      visited.add(currentId);
-      try {
-        final content = await SupabaseReadService.getContent(widget.folderId, currentId);
+    if (parentContentId == null || parentContentId.isEmpty) return parts.join(' > ');
+    try {
+      final allContents = await SupabaseReadService.getAllContents(widget.folderId);
+      if (allContents == null || allContents.isEmpty) return parts.join(' > ');
+      final contentMap = <String, Map<String, dynamic>>{};
+      for (final c in allContents) {
+        final id = c['id'] as String?;
+        if (id != null) contentMap[id] = c;
+      }
+      var currentId = parentContentId;
+      final visited = <String>{};
+      while (currentId != null && currentId.isNotEmpty && !visited.contains(currentId)) {
+        visited.add(currentId);
+        final content = contentMap[currentId];
         if (content == null) break;
         final name = content['name'] as String? ?? '';
         if (name.isNotEmpty) parts.insert(1, name);
         currentId = content['parentContentId'] as String?;
-      } catch (_) {
-        break;
       }
-    }
+    } catch (_) {}
     return parts.join(' > ');
   }
 
