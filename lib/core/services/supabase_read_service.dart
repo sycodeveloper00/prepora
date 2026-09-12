@@ -825,7 +825,7 @@ class SupabaseReadService {
   static Stream<List<Map<String, dynamic>>> streamContents(
     String folderId, {
     String? parentContentId,
-    Duration interval = const Duration(seconds: 5),
+    Duration interval = const Duration(seconds: 15),
   }) {
     var q = 'folder_id=eq.$folderId&$_sel&order=id.asc';
     if (parentContentId != null) {

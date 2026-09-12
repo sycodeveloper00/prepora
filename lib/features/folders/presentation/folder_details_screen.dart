@@ -112,25 +112,8 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
     _loadCachedContents();
     _folderFuture = SupabaseReadService.getFolder(widget.folderId);
     _contentsStream = SupabaseReadService.streamContents(widget.folderId, parentContentId: widget.parentContentId);
-    _preloadAllContents();
-    _refreshAssistantAccess();
-    _loadSubfolderName();
-    _loadGroupLink();
-    _loadSortMode();
+    _batchInit();
     UploadManager.instance.resumePending();
-  }
-
-  void _preloadAllContents() {
-    SupabaseReadService.getAllContents(widget.folderId).then((list) {
-      if (list != null && mounted) {
-        final map = <String, Map<String, dynamic>>{};
-        for (final c in list) {
-          final id = c['id'] as String?;
-          if (id != null) map[id] = c;
-        }
-        setState(() => _allContentsMap = map);
-      }
-    });
   }
 
   void _loadCachedContents() {
@@ -144,6 +127,43 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
         if (list.isNotEmpty && mounted) {
           _cachedContents = list;
           setState(() {});
+        }
+      }
+    } catch (_) {}
+  }
+
+  void _batchInit() async {
+    final uid = FirebaseService.currentUser?.uid;
+    final futures = <Future>[
+      if (uid != null) FirebaseService.getContentAccess(uid),
+      if (widget.parentContentId != null) SupabaseReadService.getContent(widget.folderId, widget.parentContentId!),
+      _loadSortModeInternal(),
+    ];
+    final results = await Future.wait(futures, eagerError: true);
+    if (!mounted) return;
+    int idx = 0;
+    if (uid != null) {
+      final access = results[idx++] as Map<String, List<String>>;
+      final ids = access[widget.folderId] ?? [];
+      _assistantAccess = ids.toSet();
+      _assistantAccess.addAll(_pendingOptimistic);
+    }
+    if (widget.parentContentId != null) {
+      final content = results[idx++] as Map<String, dynamic>?;
+      if (content != null) _subfolderName = content['name'] as String? ?? '';
+    }
+    idx++; // skip sort mode (handled internally)
+    setState(() {});
+  }
+
+  Future<void> _loadSortModeInternal() async {
+    try {
+      final doc = await FirebaseService.firestore.collection('folders').doc(widget.folderId).get();
+      if (doc.exists) {
+        final data = doc.data();
+        final sortModes = data?['sortModes'] as Map<String, dynamic>?;
+        if (sortModes != null && sortModes.containsKey(_sortKey)) {
+          _sortMode = sortModes[_sortKey] as String? ?? 'custom';
         }
       }
     } catch (_) {}
@@ -1791,18 +1811,16 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                     if (hasStreamData) {
                       SupabaseReadService.cacheContentsBatch(widget.folderId, docs);
                       _saveCachedContents(docs);
-                    }
-                    final parentFiltered = displayDocs.where((doc) {
-                      final docParentId = doc['parentContentId'] as String?;
-                      if (widget.parentContentId != null) {
-                        if (docParentId != widget.parentContentId) return false;
-                      } else {
-                        if (docParentId != null) return false;
+                      if (_allContentsMap.isEmpty) {
+                        final map = <String, Map<String, dynamic>>{};
+                        for (final d in docs) {
+                          final id = d['id'] as String?;
+                          if (id != null) map[id] = d;
+                        }
+                        _allContentsMap = map;
                       }
-                      return true;
-                    }).toList();
-
-                    final filteredDocs = _searchQuery.isNotEmpty ? _filterDocs(parentFiltered, _searchQuery) : parentFiltered;
+                    }
+                    final filteredDocs = _searchQuery.isNotEmpty ? _filterDocs(displayDocs, _searchQuery) : displayDocs;
                     final visibleDocs = filteredDocs.where((doc) {
                       if (doc['invisible'] == true) return false;
                       if (doc['enabled'] == false) return false;
