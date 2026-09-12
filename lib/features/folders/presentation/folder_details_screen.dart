@@ -98,6 +98,7 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
   late Future<Map<String, dynamic>?> _folderFuture;
   late Stream<List<Map<String, dynamic>>> _contentsStream;
   List<Map<String, dynamic>> _cachedContents = [];
+  Map<String, Map<String, dynamic>> _allContentsMap = {};
 
   @override
   void initState() {
@@ -108,17 +109,28 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
     if (widget.assistantContentAccess != null) {
       _assistantAccess = widget.assistantContentAccess!;
     }
-    // Load cached contents from Hive for instant display
     _loadCachedContents();
-    // Use Supabase mirror for fast single-query folder fetch
     _folderFuture = SupabaseReadService.getFolder(widget.folderId);
-    // Use Supabase mirror stream for contents
     _contentsStream = SupabaseReadService.streamContents(widget.folderId, parentContentId: widget.parentContentId);
+    _preloadAllContents();
     _refreshAssistantAccess();
     _loadSubfolderName();
     _loadGroupLink();
     _loadSortMode();
     UploadManager.instance.resumePending();
+  }
+
+  void _preloadAllContents() {
+    SupabaseReadService.getAllContents(widget.folderId).then((list) {
+      if (list != null && mounted) {
+        final map = <String, Map<String, dynamic>>{};
+        for (final c in list) {
+          final id = c['id'] as String?;
+          if (id != null) map[id] = c;
+        }
+        setState(() => _allContentsMap = map);
+      }
+    });
   }
 
   void _loadCachedContents() {
@@ -167,21 +179,44 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
   Future<String> _buildFullPath(String? parentContentId) async {
     final parts = <String>[_folderName];
     if (parentContentId == null || parentContentId.isEmpty) return parts.join(' > ');
-    var currentId = parentContentId;
-    final visited = <String>{};
-    while (currentId != null && currentId.isNotEmpty && !visited.contains(currentId)) {
-      visited.add(currentId);
-      try {
-        final content = SupabaseReadService.getCachedContent(widget.folderId, currentId)
-            ?? await SupabaseReadService.getContent(widget.folderId, currentId);
+
+    // Try in-memory map first (instant, no network)
+    if (_allContentsMap.isNotEmpty) {
+      var currentId = parentContentId;
+      final visited = <String>{};
+      while (currentId != null && currentId.isNotEmpty && !visited.contains(currentId)) {
+        visited.add(currentId);
+        final content = _allContentsMap[currentId];
         if (content == null) break;
         final name = content['name'] as String? ?? '';
         if (name.isNotEmpty) parts.insert(1, name);
         currentId = content['parentContentId'] as String? ?? '';
-      } catch (_) {
-        break;
       }
+      return parts.join(' > ');
     }
+
+    // Fallback: build map now (one network call)
+    try {
+      final allContents = await SupabaseReadService.getAllContents(widget.folderId);
+      if (allContents != null) {
+        final contentMap = <String, Map<String, dynamic>>{};
+        for (final c in allContents) {
+          final id = c['id'] as String?;
+          if (id != null) contentMap[id] = c;
+        }
+        _allContentsMap = contentMap;
+        var currentId = parentContentId;
+        final visited = <String>{};
+        while (currentId != null && currentId.isNotEmpty && !visited.contains(currentId)) {
+          visited.add(currentId);
+          final content = contentMap[currentId];
+          if (content == null) break;
+          final name = content['name'] as String? ?? '';
+          if (name.isNotEmpty) parts.insert(1, name);
+          currentId = content['parentContentId'] as String? ?? '';
+        }
+      }
+    } catch (_) {}
     return parts.join(' > ');
   }
 
@@ -1389,13 +1424,32 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
   }
 
   Future<bool> _isAncestorBlocked(String contentId) async {
+    // Use pre-loaded map first (instant)
+    if (_allContentsMap.isNotEmpty) {
+      var currentId = contentId;
+      final visited = <String>{};
+      while (currentId.isNotEmpty && !visited.contains(currentId)) {
+        visited.add(currentId);
+        final content = _allContentsMap[currentId];
+        if (content == null) break;
+        if (content['locked'] == true) return true;
+        if (content['updating'] == true) return true;
+        if (content['invisible'] == true) return true;
+        if (content['enabled'] == false) return true;
+        final pid = content['parentContentId'] as String?;
+        if (pid == null || pid.isEmpty) break;
+        currentId = pid;
+      }
+      return false;
+    }
+
+    // Fallback: individual network calls
     var currentId = contentId;
     final visited = <String>{};
     while (currentId.isNotEmpty && !visited.contains(currentId)) {
       visited.add(currentId);
       try {
-        final content = SupabaseReadService.getCachedContent(widget.folderId, currentId)
-            ?? await SupabaseReadService.getContent(widget.folderId, currentId);
+        final content = await SupabaseReadService.getContent(widget.folderId, currentId);
         if (content == null) break;
         if (content['locked'] == true) return true;
         if (content['updating'] == true) return true;
@@ -2309,7 +2363,7 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                 final folderPath = parentPath.isNotEmpty ? '$parentPath > $name' : name;
                 FirebaseService.logActivity(uid: currentUser.uid, name: name, type: 'subfolder', folderPath: folderPath, contentId: id);
               }
-              context.pushReplacement('/folders/${widget.folderId}/sub/$id', extra: {
+              context.push('/folders/${widget.folderId}/sub/$id', extra: {
                 'canEdit': widget.canEdit, 'canManage': widget.canManage,
                 if (widget.targetStudentUid != null) 'targetStudentUid': widget.targetStudentUid,
                 if (widget.assistantContentAccess != null) 'assistantContentAccess': widget.assistantContentAccess!.toList(),
