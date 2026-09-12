@@ -342,9 +342,7 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
         );
       }
     } catch (e) {
-      final msg = e.toString().contains('permission-denied')
-          ? 'Permission denied. Check Firestore rules for web_sessions.'
-          : 'Connection failed: ${e.toString().length > 80 ? e.toString().substring(0, 80) : e}';
+      final msg = 'Connection Failed, due to network error.';
       _showError(msg);
       setState(() { _isConnecting = false; _showScanner = true; });
       _scannerController?.start();
