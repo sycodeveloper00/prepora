@@ -1896,7 +1896,7 @@ class FirebaseService {
   static Future<List<Map<String, dynamic>>> getStudentFeedbacksOnce(String uid) async {
     try {
       final mirror = await SupabaseReadService.getFeedbacksForUser(uid);
-      if (mirror != null && mirror.isNotEmpty) {
+      if (mirror != null) {
         mirror.sort((a, b) {
           final aTime = a['createdAt'] ?? a['created_at'] ?? '';
           final bTime = b['createdAt'] ?? b['created_at'] ?? '';
@@ -2002,17 +2002,12 @@ class FirebaseService {
   static Future<List<Map<String, dynamic>>> getAllNotes() async {
     final uid = currentUser?.uid;
     if (uid == null) return [];
-    
-    for (int i = 0; i < 3; i++) {
-      try {
-        final mirror = await SupabaseReadService.getNotes(uid);
-        if (mirror != null && mirror.isNotEmpty) return mirror;
-      } catch (e) {
-        debugPrint('[getAllNotes] Supabase read attempt ${i + 1} failed: $e');
-      }
-      if (i < 2) await Future.delayed(const Duration(milliseconds: 300));
+    try {
+      final mirror = await SupabaseReadService.getNotes(uid);
+      return mirror ?? [];
+    } catch (_) {
+      return [];
     }
-    return [];
   }
 
   static Future<void> deleteNote(String id) async {

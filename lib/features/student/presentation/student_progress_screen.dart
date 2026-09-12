@@ -115,9 +115,6 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
         });
         if (isTrialActive) {
           _trialCountdownTimer?.cancel();
-          _trialCountdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-            if (mounted) setState(() {});
-          });
         }
       }
     } catch (e) {
@@ -1304,10 +1301,42 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> with Sing
 
   // ─── Free Trial Banner ──────────────────────────────────────────────────
   Widget _buildTrialBanner(bool isDark, Color textColor) {
-    final now = DateTime.now();
-    final diff = _freeTrialEndsAt!.difference(now);
+    return _TrialCountdownBanner(endsAt: _freeTrialEndsAt!, onExpired: () {
+      if (mounted) setState(() => _freeTrialActive = false);
+    });
+  }
+}
+
+class _TrialCountdownBanner extends StatefulWidget {
+  final DateTime endsAt;
+  final VoidCallback onExpired;
+  const _TrialCountdownBanner({required this.endsAt, required this.onExpired});
+  @override
+  State<_TrialCountdownBanner> createState() => _TrialCountdownBannerState();
+}
+
+class _TrialCountdownBannerState extends State<_TrialCountdownBanner> {
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final diff = widget.endsAt.difference(DateTime.now());
     if (diff.isNegative) {
-      _freeTrialActive = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) => widget.onExpired());
       return const SizedBox.shrink();
     }
     final dd = diff.inDays.toString().padLeft(2, '0');

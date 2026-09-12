@@ -25,15 +25,35 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _load();
-    _loadVersion();
+    _loadAll();
   }
 
-  Future<void> _loadVersion() async {
+  Future<void> _loadAll() async {
     try {
-      final info = await PackageInfo.fromPlatform();
-      if (mounted) setState(() => _appVersion = info.version);
-    } catch (_) {}
+      final futures = <Future<dynamic>>[
+        FirebaseService.getUserAutoDownload(),
+        PackageInfo.fromPlatform(),
+      ];
+      if (!kIsWeb) {
+        futures.add(
+          FlutterLocalNotificationsPlugin()
+              .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+              ?.areNotificationsEnabled() ?? Future.value(true),
+        );
+      }
+      final results = await Future.wait(futures);
+      _autoDownload = results[0] as bool;
+      _appVersion = (results[1] as PackageInfo).version;
+      if (!kIsWeb) _notificationsEnabled = (results[2] as bool?) ?? true;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load settings: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
+    } finally {
+      if (mounted) setState(() {});
+    }
   }
 
   @override
@@ -52,25 +72,6 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
     }
   }
 
-  Future<void> _load() async {
-    try {
-      _autoDownload = await FirebaseService.getUserAutoDownload();
-      if (!kIsWeb) {
-        final enabled = await FlutterLocalNotificationsPlugin()
-            .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-            ?.areNotificationsEnabled();
-        _notificationsEnabled = enabled ?? true;
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load settings: $e'), backgroundColor: Colors.redAccent),
-        );
-      }
-    } finally {
-      if (mounted) setState(() {});
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
