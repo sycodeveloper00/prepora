@@ -40,19 +40,20 @@ class _ShortLinkResolverState extends State<ShortLinkResolver> {
       final contentType = link['content_type'] as String? ?? 'folder';
       final folderId = link['folder_id'] as String? ?? '';
 
+      if (!mounted) return;
+
       if (contentType == 'folder') {
-        context.go('/dashboard');
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            context.push('/folders/$contentId', extra: {
-              'canEdit': false,
-              'canManage': false,
-              'isAdmin': false,
-            });
-          }
+        context.pushReplacement('/folders/$contentId', extra: {
+          'canEdit': false,
+          'canManage': false,
+          'isAdmin': false,
         });
       } else {
-        context.go('/dashboard');
+        context.pushReplacement('/folders/$folderId', extra: {
+          'canEdit': false,
+          'canManage': false,
+          'isAdmin': false,
+        });
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
             context.push('/folders/$folderId/sub/$contentId', extra: {
@@ -65,7 +66,7 @@ class _ShortLinkResolverState extends State<ShortLinkResolver> {
       }
     } catch (e) {
       if (!mounted) return;
-      context.go('/dashboard');
+      context.go('/auth/login');
     }
   }
 

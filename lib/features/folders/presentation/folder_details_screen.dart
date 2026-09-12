@@ -1433,7 +1433,8 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
     if (!widget.isAdmin) {
       final currentUser = FirebaseService.currentUser;
       if (currentUser != null) {
-        final folderPath = await _buildFullPath(widget.parentContentId);
+        final parentPath = await _buildFullPath(widget.parentContentId);
+        final folderPath = parentPath.isNotEmpty ? '$parentPath > $name' : name;
         activityId = await FirebaseService.logActivity(uid: currentUser.uid, name: name, type: type, folderPath: folderPath, contentId: contentId);
       }
     }
@@ -2416,7 +2417,8 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                 }
                 final currentUser = FirebaseService.currentUser;
                 if (currentUser != null) {
-                  final folderPath = await _buildFullPath(widget.parentContentId);
+                  final parentPath = await _buildFullPath(widget.parentContentId);
+                  final folderPath = parentPath.isNotEmpty ? '$parentPath > $name' : name;
                   FirebaseService.logActivity(uid: currentUser.uid, name: name, type: 'subfolder', folderPath: folderPath, contentId: id);
                 }
               }

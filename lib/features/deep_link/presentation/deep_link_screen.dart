@@ -117,40 +117,30 @@ class _DeepLinkScreenState extends State<DeepLinkScreen> {
   void _navigateToContent(String id, String? type, String? parent) {
     if (!mounted) return;
     if (type == 'folder') {
-      context.go('/dashboard');
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          context.push('/folders/$id', extra: {
-            'canEdit': false,
-            'canManage': false,
-            'isAdmin': false,
-          });
-        }
+      context.pushReplacement('/folders/$id', extra: {
+        'canEdit': false,
+        'canManage': false,
+        'isAdmin': false,
       });
     } else {
       final parentFolderId = parent ?? '';
       if (parentFolderId.isNotEmpty) {
-        context.go('/dashboard');
+        context.pushReplacement('/folders/$parentFolderId', extra: {
+          'canEdit': false,
+          'canManage': false,
+          'isAdmin': false,
+        });
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
-            context.push('/folders/$parentFolderId', extra: {
+            context.push('/folders/$parentFolderId/sub/$id', extra: {
               'canEdit': false,
               'canManage': false,
               'isAdmin': false,
             });
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) {
-                context.push('/folders/$parentFolderId/sub/$id', extra: {
-                  'canEdit': false,
-                  'canManage': false,
-                  'isAdmin': false,
-                });
-              }
-            });
           }
         });
       } else {
-        context.go('/dashboard');
+        context.go('/auth/login');
       }
     }
   }

@@ -27,6 +27,7 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
   Timer? _activeSessionsTimer;
   Timer? _historyTimer;
   final Set<String> _notifiedSessionIds = {};
+  final Set<String> _disconnectedSessionIds = {};
 
   static const int _maxWebSessions = 3;
   DateTime? _lastScanTime;
@@ -110,7 +111,10 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
     try {
       final sessions = await SupabaseReadService.getConnectedSessions(user.uid);
       if (mounted) {
-        final list = sessions ?? [];
+        final list = (sessions ?? []).where((s) {
+          final sid = s['sessionId'] as String? ?? '';
+          return !_disconnectedSessionIds.contains(sid);
+        }).toList();
         setState(() {
           _activeSessions = list;
           if (list.length >= _maxWebSessions && _showScanner) {
@@ -351,6 +355,7 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
     debugPrint('WEB: attempting disconnect sessionId=$sessionId');
 
     // 0) Optimistically remove from local list so card disappears immediately
+    _disconnectedSessionIds.add(sessionId);
     if (mounted) {
       setState(() {
         _activeSessions.removeWhere((s) => s['sessionId'] == sessionId);
@@ -502,6 +507,10 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
   Future<void> _disconnectAll() async {
     final sessionsToDisconnect = List<Map<String, dynamic>>.from(_activeSessions);
     // 0) Optimistically clear local list immediately
+    for (final s in sessionsToDisconnect) {
+      final sid = s['sessionId'] as String?;
+      if (sid != null) _disconnectedSessionIds.add(sid);
+    }
     if (mounted) setState(() => _activeSessions.clear());
 
     for (final session in sessionsToDisconnect) {
