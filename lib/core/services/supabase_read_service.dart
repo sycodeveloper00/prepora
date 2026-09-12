@@ -54,6 +54,31 @@ class SupabaseReadService {
   /// TTL cache for settings, folders, and other rarely-changing data
   static final _cache = _TtlCache(ttl: const Duration(seconds: 30));
 
+  /// In-memory content cache: folderId -> { contentId -> content }
+  /// Populated by getContent calls, used by _buildFullPath / _isAncestorBlocked
+  /// to avoid redundant network calls.
+  static final Map<String, Map<String, dynamic>> _contentMemoryCache = {};
+
+  static void cacheContent(String folderId, Map<String, dynamic> content) {
+    final id = content['id'] as String?;
+    if (id == null) return;
+    _contentMemoryCache.putIfAbsent(folderId, () => {})[id] = content;
+  }
+
+  static Map<String, dynamic>? getCachedContent(String folderId, String contentId) {
+    return _contentMemoryCache[folderId]?[contentId];
+  }
+
+  static void cacheContentsBatch(String folderId, List<Map<String, dynamic>> contents) {
+    final folderCache = _contentMemoryCache.putIfAbsent(folderId, () => {});
+    for (final c in contents) {
+      final id = c['id'] as String?;
+      if (id != null) folderCache[id] = c;
+    }
+  }
+
+  static void clearContentCache() => _contentMemoryCache.clear();
+
   // ─── Project Config ────────────────────────────────────────────────────
   // Primary 1 (old) — resets 18 Sep 2026
   // Primary 2 — fresh
@@ -166,7 +191,7 @@ class SupabaseReadService {
   ) async {
     try {
       if (query != null && query.contains('limit=')) {
-        final res = await http
+        final res = await _sharedClient
             .get(_uri(url, anonKey, table, query), headers: {
               'apikey': anonKey,
               'Authorization': 'Bearer $anonKey',
@@ -180,7 +205,7 @@ class SupabaseReadService {
       final all = <dynamic>[];
       var offset = 0;
       while (true) {
-        final res = await http
+        final res = await _sharedClient
             .get(_uri(url, anonKey, table, query), headers: {
               'apikey': anonKey,
               'Authorization': 'Bearer $anonKey',
@@ -339,9 +364,10 @@ class SupabaseReadService {
 
       if (rows != null) {
         final list = rows.map((r) => _flatten(r)).toList();
-        final key = json.encode(list);
-        if (key != lastKey) {
-          lastKey = key;
+        // Fast change detection: compare count + first/last IDs instead of full JSON encode
+        final fastKey = list.isEmpty ? '' : '${list.length}_${list.first['id']}_${list.last['id']}';
+        if (fastKey != lastKey) {
+          lastKey = fastKey;
           lastList = list;
           yield list;
         }
@@ -748,7 +774,9 @@ class SupabaseReadService {
     final q = 'folder_id=eq.$folderId&$_sel&order=id.asc&limit=5000';
     final rows = await _query('contents', q);
     if (rows == null) return null;
-    return rows.map(_flatten).toList();
+    final list = rows.map(_flatten).toList();
+    cacheContentsBatch(folderId, list);
+    return list;
   }
 
   static Future<List<Map<String, dynamic>>?> getFolderContents(
@@ -821,9 +849,13 @@ class SupabaseReadService {
   }
 
   static Future<Map<String, dynamic>?> getContent(String folderId, String contentId) async {
+    final cached = getCachedContent(folderId, contentId);
+    if (cached != null) return cached;
     final rows = await _query('contents', 'folder_id=eq.$folderId&id=eq.$contentId&limit=1&$_sel');
     if (rows == null || rows.isEmpty) return null;
-    return _flatten(rows.first);
+    final flat = _flatten(rows.first);
+    cacheContent(folderId, flat);
+    return flat;
   }
 
   // ─── notices ──────────────────────────────────────────────────────────────

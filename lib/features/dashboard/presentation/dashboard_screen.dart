@@ -779,7 +779,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
         visibleFolders.add(folder);
       }
 
-      final contentsFutures = visibleFolders.take(10).map((folder) async {
+      final contentsFutures = visibleFolders.take(3).map((folder) async {
         try {
           final folderId = folder['id'] as String? ?? '';
           final contents = await SupabaseReadService.getAllContents(folderId);

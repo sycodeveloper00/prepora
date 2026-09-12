@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -135,13 +136,20 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
     } catch (_) {}
   }
 
+  String? _lastCacheHash;
   void _saveCachedContents(List<Map<String, dynamic>> contents) {
     if (kIsWeb || contents.isEmpty) return;
-    try {
-      final box = Hive.box('settings');
-      final key = 'cached_contents_${widget.folderId}_${widget.parentContentId ?? 'root'}';
-      box.put(key, jsonEncode(contents));
-    } catch (_) {}
+    final hash = contents.length.toString();
+    if (hash == _lastCacheHash) return;
+    _lastCacheHash = hash;
+    Future.microtask(() {
+      if (!mounted) return;
+      try {
+        final box = Hive.box('settings');
+        final key = 'cached_contents_${widget.folderId}_${widget.parentContentId ?? 'root'}';
+        box.put(key, jsonEncode(contents));
+      } catch (_) {}
+    });
   }
 
   void _loadSubfolderName() async {
@@ -159,25 +167,21 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
   Future<String> _buildFullPath(String? parentContentId) async {
     final parts = <String>[_folderName];
     if (parentContentId == null || parentContentId.isEmpty) return parts.join(' > ');
-    try {
-      final allContents = await SupabaseReadService.getAllContents(widget.folderId);
-      if (allContents == null || allContents.isEmpty) return parts.join(' > ');
-      final contentMap = <String, Map<String, dynamic>>{};
-      for (final c in allContents) {
-        final id = c['id'] as String?;
-        if (id != null) contentMap[id] = c;
-      }
-      var currentId = parentContentId;
-      final visited = <String>{};
-      while (currentId != null && currentId.isNotEmpty && !visited.contains(currentId)) {
-        visited.add(currentId);
-        final content = contentMap[currentId];
+    var currentId = parentContentId;
+    final visited = <String>{};
+    while (currentId != null && currentId.isNotEmpty && !visited.contains(currentId)) {
+      visited.add(currentId);
+      try {
+        final content = SupabaseReadService.getCachedContent(widget.folderId, currentId)
+            ?? await SupabaseReadService.getContent(widget.folderId, currentId);
         if (content == null) break;
         final name = content['name'] as String? ?? '';
         if (name.isNotEmpty) parts.insert(1, name);
         currentId = content['parentContentId'] as String?;
+      } catch (_) {
+        break;
       }
-    } catch (_) {}
+    }
     return parts.join(' > ');
   }
 
@@ -636,8 +640,12 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
     );
   }
 
+  Timer? _uploadThrottle;
   void _onUploadChanged() {
-    if (mounted) setState(() {});
+    if (_uploadThrottle?.isActive ?? false) return;
+    _uploadThrottle = Timer(const Duration(milliseconds: 200), () {
+      if (mounted) setState(() {});
+    });
   }
 
   bool _descExceedsLines(String text, BuildContext context) {
@@ -1386,7 +1394,8 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
     while (currentId.isNotEmpty && !visited.contains(currentId)) {
       visited.add(currentId);
       try {
-        final content = await SupabaseReadService.getContent(widget.folderId, currentId);
+        final content = SupabaseReadService.getCachedContent(widget.folderId, currentId)
+            ?? await SupabaseReadService.getContent(widget.folderId, currentId);
         if (content == null) break;
         if (content['locked'] == true) return true;
         if (content['updating'] == true) return true;
@@ -1713,7 +1722,7 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                     }
 
                     final docs = snapshot.data!;
-                    // Cache contents for instant load next time
+                    SupabaseReadService.cacheContentsBatch(widget.folderId, docs);
                     _saveCachedContents(docs);
                     final parentFiltered = docs.where((doc) {
                       final docParentId = doc['parentContentId'] as String?;
@@ -2726,6 +2735,7 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
 
   @override
   void dispose() {
+    _uploadThrottle?.cancel();
     if (UploadManager.instance.onContentSaved == _saveUploadedContent) {
       UploadManager.instance.onContentSaved = null;
     }
