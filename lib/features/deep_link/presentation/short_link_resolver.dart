@@ -28,6 +28,28 @@ class _ShortLinkResolverState extends State<ShortLinkResolver> {
     return uri.queryParameters['v'] ?? '';
   }
 
+  Future<List<String>> _resolveParentChain(String folderId, String contentId) async {
+    final chain = <String>[];
+    try {
+      var currentId = contentId;
+      final visited = <String>{};
+      while (currentId.isNotEmpty && !visited.contains(currentId)) {
+        visited.add(currentId);
+        final content = await SupabaseReadService.getContent(folderId, currentId)
+            .timeout(const Duration(seconds: 3), onTimeout: () => null);
+        if (content == null) break;
+        final parentId = content['parentContentId'] as String?;
+        if (parentId != null && parentId.isNotEmpty) {
+          chain.add(parentId);
+          currentId = parentId;
+        } else {
+          break;
+        }
+      }
+    } catch (_) {}
+    return chain.reversed.toList();
+  }
+
   Future<void> _resolve() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -55,24 +77,36 @@ class _ShortLinkResolverState extends State<ShortLinkResolver> {
 
       if (!mounted) return;
 
+      final navDelay = const Duration(milliseconds: 150);
+
       if (contentType == 'folder') {
-        context.pushReplacement('/folders/$contentId', extra: {
-          'canEdit': false,
-          'canManage': false,
-        });
+        context.go('/dashboard');
+        await Future.delayed(navDelay);
+        if (!mounted) return;
+        context.push('/folders/$contentId', extra: {'canEdit': false, 'canManage': false});
       } else if (contentType == 'subfolder') {
-        context.pushReplacement('/folders/$folderId/sub/$contentId', extra: {
-          'canEdit': false,
-          'canManage': false,
-        });
+        final parentChain = await _resolveParentChain(folderId, contentId);
+        if (!mounted) return;
+        context.go('/dashboard');
+        await Future.delayed(navDelay);
+        if (!mounted) return;
+        context.push('/folders/$folderId', extra: {'canEdit': false, 'canManage': false});
+        for (final parentId in parentChain) {
+          if (!mounted) return;
+          await Future.delayed(navDelay);
+          context.push('/folders/$folderId/sub/$parentId', extra: {'canEdit': false, 'canManage': false});
+        }
+        if (!mounted) return;
+        await Future.delayed(navDelay);
+        context.push('/folders/$folderId/sub/$contentId', extra: {'canEdit': false, 'canManage': false});
       } else {
         final content = await SupabaseReadService.getContent(folderId, contentId)
             .timeout(const Duration(seconds: 5), onTimeout: () => null);
         if (content == null || !mounted) {
-          context.pushReplacement('/folders/$folderId', extra: {
-            'canEdit': false,
-            'canManage': false,
-          });
+          context.go('/dashboard');
+          await Future.delayed(navDelay);
+          if (!mounted) return;
+          context.push('/folders/$folderId', extra: {'canEdit': false, 'canManage': false});
           return;
         }
 
@@ -80,71 +114,78 @@ class _ShortLinkResolverState extends State<ShortLinkResolver> {
         final name = content['name'] as String? ?? '';
         final url = content['url'] as String? ?? '';
         final youtubeUrl = content['youtubeUrl'] as String? ?? '';
+        final immediateParentId = content['parentContentId'] as String?;
+
+        context.go('/dashboard');
+        await Future.delayed(navDelay);
+        if (!mounted) return;
+
+        if (immediateParentId != null && immediateParentId.isNotEmpty) {
+          final parentChain = await _resolveParentChain(folderId, immediateParentId);
+          if (!mounted) return;
+          context.push('/folders/$folderId', extra: {'canEdit': false, 'canManage': false});
+          for (final parentId in parentChain) {
+            if (!mounted) return;
+            await Future.delayed(navDelay);
+            context.push('/folders/$folderId/sub/$parentId', extra: {'canEdit': false, 'canManage': false});
+          }
+        } else {
+          context.push('/folders/$folderId', extra: {'canEdit': false, 'canManage': false});
+        }
+
+        if (!mounted) return;
+        await Future.delayed(navDelay);
 
         switch (type) {
           case 'lecture':
             final videoId = _extractYoutubeId(youtubeUrl);
             if (videoId.isNotEmpty) {
-              context.pushReplacement('/lectures/$videoId', extra: {
-                'name': name,
-                'folderId': folderId,
-                'parentContentId': content['parentContentId'],
+              context.push('/lectures/$videoId', extra: {
+                'name': name, 'folderId': folderId, 'parentContentId': immediateParentId,
               });
+            } else if (immediateParentId != null) {
+              context.push('/folders/$folderId/sub/$immediateParentId', extra: {'canEdit': false, 'canManage': false});
             } else {
-              context.pushReplacement('/folders/$folderId/sub/${content['parentContentId']}', extra: {
-                'canEdit': false,
-                'canManage': false,
-              });
+              context.push('/folders/$folderId', extra: {'canEdit': false, 'canManage': false});
             }
             break;
           case 'mocktest_url':
             if (url.isNotEmpty) {
-              context.pushReplacement('/webview', extra: {
-                'url': url,
-                'title': name,
-                'folderId': folderId,
-                'parentContentId': content['parentContentId'],
-                'isMockTest': true,
+              context.push('/webview', extra: {
+                'url': url, 'title': name, 'folderId': folderId,
+                'parentContentId': immediateParentId, 'isMockTest': true,
               });
             } else {
-              context.pushReplacement('/folders/$folderId', extra: {'canEdit': false, 'canManage': false});
+              context.push('/folders/$folderId', extra: {'canEdit': false, 'canManage': false});
             }
             break;
           case 'mocktest_code':
             final code = content['code'] as String? ?? '';
             if (code.isNotEmpty) {
-              context.pushReplacement('/webview', extra: {
-                'html': code,
-                'title': name,
-                'folderId': folderId,
-                'parentContentId': content['parentContentId'],
-                'isMockTest': true,
+              context.push('/webview', extra: {
+                'html': code, 'title': name, 'folderId': folderId,
+                'parentContentId': immediateParentId, 'isMockTest': true,
               });
             } else {
-              context.pushReplacement('/folders/$folderId', extra: {'canEdit': false, 'canManage': false});
+              context.push('/folders/$folderId', extra: {'canEdit': false, 'canManage': false});
             }
             break;
           case 'mocktest_file':
             final fileType = content['fileType'] as String? ?? 'pdf';
             if (url.isNotEmpty) {
               if (fileType == 'pdf') {
-                context.pushReplacement('/pdf_reader/view', extra: {
-                  'url': url,
-                  'folderId': folderId,
-                  'parentContentId': content['parentContentId'],
-                  'title': name,
+                context.push('/pdf_reader/view', extra: {
+                  'url': url, 'folderId': folderId,
+                  'parentContentId': immediateParentId, 'title': name,
                 });
               } else {
-                context.pushReplacement('/webview', extra: {
-                  'url': url,
-                  'title': name,
-                  'folderId': folderId,
-                  'parentContentId': content['parentContentId'],
-                  'isMockTest': true,
+                context.push('/webview', extra: {
+                  'url': url, 'title': name, 'folderId': folderId,
+                  'parentContentId': immediateParentId, 'isMockTest': true,
                 });
               }
             } else {
-              context.pushReplacement('/folders/$folderId', extra: {'canEdit': false, 'canManage': false});
+              context.push('/folders/$folderId', extra: {'canEdit': false, 'canManage': false});
             }
             break;
           case 'file':
@@ -155,42 +196,29 @@ class _ShortLinkResolverState extends State<ShortLinkResolver> {
                 ext = urlName.contains('.') ? urlName.split('.').last.toLowerCase() : '';
               }
               if (ext == 'pdf') {
-                context.pushReplacement('/pdf_reader/view', extra: {
-                  'url': url,
-                  'folderId': folderId,
-                  'parentContentId': content['parentContentId'],
-                  'title': name,
+                context.push('/pdf_reader/view', extra: {
+                  'url': url, 'folderId': folderId,
+                  'parentContentId': immediateParentId, 'title': name,
                 });
               } else if (['mp4', 'mkv', 'avi', 'mov', 'webm'].contains(ext)) {
-                context.pushReplacement('/media_player', extra: {
-                  'url': url,
-                  'title': name,
-                  'isAudio': false,
-                });
+                context.push('/media_player', extra: {'url': url, 'title': name, 'isAudio': false});
               } else if (['mp3', 'wav', 'm4a', 'aac', 'ogg'].contains(ext)) {
-                context.pushReplacement('/media_player', extra: {
-                  'url': url,
-                  'title': name,
-                  'isAudio': true,
-                });
+                context.push('/media_player', extra: {'url': url, 'title': name, 'isAudio': true});
               } else {
-                context.pushReplacement('/webview', extra: {
-                  'url': url,
-                  'title': name,
-                  'folderId': folderId,
-                  'parentContentId': content['parentContentId'],
+                context.push('/webview', extra: {
+                  'url': url, 'title': name, 'folderId': folderId,
+                  'parentContentId': immediateParentId,
                 });
               }
             } else {
-              context.pushReplacement('/folders/$folderId', extra: {'canEdit': false, 'canManage': false});
+              context.push('/folders/$folderId', extra: {'canEdit': false, 'canManage': false});
             }
             break;
           default:
-            final parentId = content['parentContentId'] as String?;
-            if (parentId != null) {
-              context.pushReplacement('/folders/$folderId/sub/$parentId', extra: {'canEdit': false, 'canManage': false});
+            if (immediateParentId != null) {
+              context.push('/folders/$folderId/sub/$immediateParentId', extra: {'canEdit': false, 'canManage': false});
             } else {
-              context.pushReplacement('/folders/$folderId', extra: {'canEdit': false, 'canManage': false});
+              context.push('/folders/$folderId', extra: {'canEdit': false, 'canManage': false});
             }
             break;
         }
