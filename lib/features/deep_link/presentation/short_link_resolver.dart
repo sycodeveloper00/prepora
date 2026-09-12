@@ -42,57 +42,39 @@ class _ShortLinkResolverState extends State<ShortLinkResolver> {
 
       if (!mounted) return;
 
-      if (contentType == 'folder') {
+      if (contentType == 'folder' || contentType == 'subfolder') {
         context.pushReplacement('/folders/$contentId', extra: {
           'canEdit': false,
           'canManage': false,
         });
       } else {
-        final parentChain = await _resolveParentChain(folderId, contentId);
-        if (!mounted) return;
+        final content = await SupabaseReadService.getContent(folderId, contentId)
+            .timeout(const Duration(seconds: 5), onTimeout: () => null);
+        if (content == null || !mounted) {
+          context.pushReplacement('/folders/$folderId', extra: {
+            'canEdit': false,
+            'canManage': false,
+          });
+          return;
+        }
 
-        context.pushReplacement('/folders/$folderId', extra: {
-          'canEdit': false,
-          'canManage': false,
-        });
-        for (final parentId in parentChain) {
-          if (!mounted) return;
-          await Future.delayed(const Duration(milliseconds: 50));
-          context.push('/folders/$folderId/sub/$parentId', extra: {
+        final immediateParentId = content['parentContentId'] as String?;
+        if (immediateParentId != null && immediateParentId.isNotEmpty) {
+          context.pushReplacement('/folders/$folderId/sub/$contentId', extra: {
+            'canEdit': false,
+            'canManage': false,
+          });
+        } else {
+          context.pushReplacement('/folders/$folderId/sub/$contentId', extra: {
             'canEdit': false,
             'canManage': false,
           });
         }
-        if (!mounted) return;
-        context.push('/folders/$folderId/sub/$contentId', extra: {
-          'canEdit': false,
-          'canManage': false,
-        });
       }
     } catch (e) {
       if (!mounted) return;
       context.go('/auth/login');
     }
-  }
-
-  Future<List<String>> _resolveParentChain(String folderId, String contentId) async {
-    final chain = <String>[];
-    try {
-      final content = await SupabaseReadService.getContent(folderId, contentId);
-      if (content == null) return chain;
-      var currentId = content['parentContentId'] as String?;
-      final visited = <String>{};
-      final path = <String>[];
-      while (currentId != null && currentId.isNotEmpty && !visited.contains(currentId)) {
-        visited.add(currentId);
-        path.add(currentId);
-        final parent = await SupabaseReadService.getContent(folderId, currentId);
-        if (parent == null) break;
-        currentId = parent['parentContentId'] as String?;
-      }
-      chain.addAll(path.reversed);
-    } catch (_) {}
-    return chain;
   }
 
   @override

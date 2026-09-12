@@ -1576,6 +1576,16 @@ class FirebaseService {
         'createdAt': Timestamp.fromDate(now),
       });
       try {
+        final docId = 'la_${now.millisecondsSinceEpoch}';
+        await _mirrorWrite('login_attempts', docId, {
+          'uid': uid,
+          'deviceId': deviceId,
+          'deviceModel': deviceModel,
+          'timestamp': iso,
+          'createdAt': now.toIso8601String(),
+        });
+      } catch (_) {}
+      try {
         await firestore.collection('login_history').doc(uid).collection('logins').add({
           'timestamp': Timestamp.fromDate(now),
           'device': deviceModel,

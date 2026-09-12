@@ -142,7 +142,8 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
       if (cached != null && cached.isNotEmpty) {
         final list = (jsonDecode(cached) as List).cast<Map<String, dynamic>>();
         if (list.isNotEmpty && mounted) {
-          setState(() => _cachedContents = list);
+          _cachedContents = list;
+          setState(() {});
         }
       }
     } catch (_) {}
@@ -1729,7 +1730,16 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
               if (widget.parentContentId != null && _subfolderName.isNotEmpty && folderName.isNotEmpty)
                 Text('in $folderName', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white38 : Colors.black45, fontSize: 11)),
             ]),
-            leading: IconButton(icon: const Icon(Icons.arrow_back_ios_new_rounded), onPressed: () => context.pop()),
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back_ios_new_rounded),
+              onPressed: () {
+                if (widget.parentContentId != null) {
+                  context.pop();
+                } else {
+                  context.go('/dashboard');
+                }
+              },
+            ),
           ),
           body: Column(
             children: [
@@ -1763,10 +1773,13 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                 child: StreamBuilder<List<Map<String, dynamic>>>(
                   stream: _contentsStream,
                   builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
+                    final docs = snapshot.data;
+                    final hasStreamData = docs != null;
+                    final displayDocs = hasStreamData ? docs : _cachedContents;
+                    if (!hasStreamData && snapshot.connectionState == ConnectionState.waiting && _cachedContents.isEmpty) {
                       return const Center(child: ProfessionalLoader());
                     }
-                    if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                    if (displayDocs.isEmpty) {
                       return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                         const Icon(Icons.folder_open_rounded, size: 80, color: Colors.white12),
                         const SizedBox(height: 16),
@@ -1775,10 +1788,11 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                       ]));
                     }
 
-                    final docs = snapshot.data!;
-                    SupabaseReadService.cacheContentsBatch(widget.folderId, docs);
-                    _saveCachedContents(docs);
-                    final parentFiltered = docs.where((doc) {
+                    if (hasStreamData) {
+                      SupabaseReadService.cacheContentsBatch(widget.folderId, docs);
+                      _saveCachedContents(docs);
+                    }
+                    final parentFiltered = displayDocs.where((doc) {
                       final docParentId = doc['parentContentId'] as String?;
                       if (widget.parentContentId != null) {
                         if (docParentId != widget.parentContentId) return false;

@@ -102,7 +102,7 @@ class _DeepLinkScreenState extends State<DeepLinkScreen> {
 
   void _navigateToContent(String id, String? type, String? parent) {
     if (!mounted) return;
-    if (type == 'folder') {
+    if (type == 'folder' || type == 'subfolder') {
       context.pushReplacement('/folders/$id', extra: {
         'canEdit': false,
         'canManage': false,
@@ -110,17 +110,9 @@ class _DeepLinkScreenState extends State<DeepLinkScreen> {
     } else {
       final parentFolderId = parent ?? '';
       if (parentFolderId.isNotEmpty) {
-        context.pushReplacement('/folders/$parentFolderId', extra: {
+        context.pushReplacement('/folders/$parentFolderId/sub/$id', extra: {
           'canEdit': false,
           'canManage': false,
-        });
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            context.push('/folders/$parentFolderId/sub/$id', extra: {
-              'canEdit': false,
-              'canManage': false,
-            });
-          }
         });
       } else {
         context.go('/auth/login');
