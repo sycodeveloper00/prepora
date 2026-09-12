@@ -46,20 +46,17 @@ class _ShortLinkResolverState extends State<ShortLinkResolver> {
         context.pushReplacement('/folders/$contentId', extra: {
           'canEdit': false,
           'canManage': false,
-          'isAdmin': false,
         });
       } else {
         context.pushReplacement('/folders/$folderId', extra: {
           'canEdit': false,
           'canManage': false,
-          'isAdmin': false,
         });
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
             context.push('/folders/$folderId/sub/$contentId', extra: {
               'canEdit': false,
               'canManage': false,
-              'isAdmin': false,
             });
           }
         });

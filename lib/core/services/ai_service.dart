@@ -127,14 +127,7 @@ class AiService {
     return '⚠️ AI service error ($status). Please try again in a few moments.';
   }
 
-  static Future<void> _notifyPoolFailure() async {
-    try {
-      await FirebaseService.addAdminNotification(
-        'ai_failure',
-        'AI model pool exhausted — all ${_keyPool.length} model(s) failed. Check the AI API Keys settings.',
-      );
-    } catch (_) {}
-  }
+
 
   static Future<String> sendMessage(String message) async {
     await loadActiveKey();
@@ -188,7 +181,6 @@ class AiService {
       }
     }
 
-    await _notifyPoolFailure();
     return lastError ?? '⚠️ AI service error. Please try again in a few moments.';
   }
 
@@ -855,7 +847,6 @@ class AiService {
       }
     }
 
-    await _notifyPoolFailure();
     yield lastError ?? '⚠️ AI service error. Please try again in a few moments.';
   }
 

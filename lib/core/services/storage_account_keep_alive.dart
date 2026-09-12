@@ -6,7 +6,7 @@ import 'package:uuid/uuid.dart';
 import 'firebase_service.dart';
 import 'supabase_read_service.dart';
 
-/// Keep-alive service for user-added Supabase storage accounts (Admin + Assistant).
+/// Keep-alive service for user-added Supabase storage accounts (Assistant).
 /// Runs independently of SupabaseReadService, pings ALL accounts every 24h
 /// regardless of isActive toggle state. Toggle only controls uploads.
 class StorageAccountKeepAliveService {
@@ -34,32 +34,10 @@ class StorageAccountKeepAliveService {
     _timer = null;
   }
 
-  /// Pings all admin and assistant Supabase storage accounts.
+  /// Pings all assistant Supabase storage accounts.
   /// Continues pinging regardless of isActive toggle state.
   static Future<void> _pingAllStorageAccounts() async {
     bool anySuccess = false;
-
-    // Ping Admin Supabase Accounts
-    try {
-      final adminAccounts = await FirebaseService.getSupabaseAccounts();
-      for (final acc in adminAccounts) {
-        final result = await _pingStorageAccount(
-          projectUrl: acc['projectUrl'] as String? ?? '',
-          serviceKey: acc['serviceRoleKey'] as String? ?? '',
-          accountId: acc['id'] as String? ?? '',
-          projectType: 'admin_storage',
-          storageLimitMB: acc['storageLimitMB'] as int? ?? _defaultStorageLimitMB,
-        );
-        if (result.success) anySuccess = true;
-
-        // Check storage limit and auto-switch if needed
-        if (result.success && acc['isActive'] == true) {
-          await _checkAndAutoSwitch(acc, result.currentUsageMB, 'admin');
-        }
-      }
-    } catch (e) {
-      debugPrint('[StorageKeepAlive] Error pinging admin accounts: $e');
-    }
 
     // Ping Assistant Supabase Accounts
     try {
@@ -186,8 +164,7 @@ class StorageAccountKeepAliveService {
   /// Updates the account's currentUsageMB in Firestore.
   static Future<void> _updateAccountUsage(String accountId, int usageMB, String projectType) async {
     try {
-      final collection = projectType == 'admin_storage' ? 'supabase_accounts' : 'assistant_supabase';
-      await FirebaseService.firestore.collection(collection).doc(accountId).update({
+      await FirebaseService.firestore.collection('assistant_supabase').doc(accountId).update({
         'currentUsageMB': usageMB,
       });
     } catch (_) {}
@@ -205,8 +182,7 @@ class StorageAccountKeepAliveService {
 
     // Deactivate current account
     try {
-      final collection = type == 'admin' ? 'supabase_accounts' : 'assistant_supabase';
-      await FirebaseService.firestore.collection(collection).doc(activeAcc['id']).update({
+      await FirebaseService.firestore.collection('assistant_supabase').doc(activeAcc['id']).update({
         'isActive': false,
       });
     } catch (e) {
@@ -215,9 +191,7 @@ class StorageAccountKeepAliveService {
     }
 
     // Find next available account
-    final allAccounts = type == 'admin'
-        ? await FirebaseService.getSupabaseAccounts()
-        : await FirebaseService.getAssistantSupabaseAccounts();
+    final allAccounts = await FirebaseService.getAssistantSupabaseAccounts();
 
     Map<String, dynamic>? nextAccount;
     for (final acc in allAccounts) {
@@ -235,50 +209,17 @@ class StorageAccountKeepAliveService {
 
     if (nextAccount != null) {
       try {
-        final collection = type == 'admin' ? 'supabase_accounts' : 'assistant_supabase';
-        await FirebaseService.firestore.collection(collection).doc(nextAccount!['id']).update({
+        await FirebaseService.firestore.collection('assistant_supabase').doc(nextAccount!['id']).update({
           'isActive': true,
         });
         await FirebaseService.reinitializeSupabase();
-
-        // Notify admin
-        await _notifyAutoSwitch(
-          fromUrl: activeAcc['projectUrl'] as String? ?? '',
-          toUrl: nextAccount!['projectUrl'] as String? ?? '',
-          type: type,
-        );
         debugPrint('[StorageKeepAlive] Auto-switched from ${activeAcc['id']} to ${nextAccount['id']}');
       } catch (e) {
         debugPrint('[StorageKeepAlive] Failed to activate next account: $e');
       }
     } else {
-      // No available account - notify admin
-      await _notifyNoAvailableAccount(activeAcc['projectUrl'] as String? ?? '', type);
       debugPrint('[StorageKeepAlive] No available account to switch to for $type');
     }
-  }
-
-  /// Sends admin notification about auto-switch.
-  static Future<void> _notifyAutoSwitch({
-    required String fromUrl,
-    required String toUrl,
-    required String type,
-  }) async {
-    final fromDisplay = fromUrl.replaceFirst('https://', '');
-    final toDisplay = toUrl.replaceFirst('https://', '');
-    await FirebaseService.addAdminNotification(
-      'storage_auto_switch',
-      '$type storage auto-switched: $fromDisplay → $toDisplay (storage limit reached)',
-    );
-  }
-
-  /// Notifies admin when no account available to switch to.
-  static Future<void> _notifyNoAvailableAccount(String fromUrl, String type) async {
-    final fromDisplay = fromUrl.replaceFirst('https://', '');
-    await FirebaseService.addAdminNotification(
-      'storage_no_account',
-      '$type storage limit reached for $fromDisplay — no available account to switch to. Uploads will fail.',
-    );
   }
 
   /// Logs ping result to Supabase ping_log table.

@@ -129,7 +129,7 @@ class FirebaseService {
         final userData = userDoc.data();
         final userRole = userData?['role'] as String?;
         if (userData?['blocked'] == true) {
-          if (userRole == 'admin' || userRole == 'Assistant' || userRole == 'assistant') {
+          if (userRole == 'Assistant' || userRole == 'assistant') {
             await firestore.collection('users').doc(cred.user!.uid).update({'blocked': false});
           }
           // Students stay logged in; the dashboard shows a blocked banner
@@ -141,7 +141,7 @@ class FirebaseService {
           'lastLoginAt': FieldValue.serverTimestamp(),
         });
         await _trackLogin(cred.user!.uid, deviceId);
-        if (userRole != 'admin' && userRole != 'Assistant' && userRole != 'assistant') {
+        if (userRole != 'Assistant' && userRole != 'assistant') {
           final violation = await isMultiDeviceViolation(cred.user!.uid, deviceId);
           if (violation) {
             await firestore.collection('users').doc(cred.user!.uid).update({
@@ -149,12 +149,9 @@ class FirebaseService {
               'blockedReason': 'Multi-device violation: 3+ unique devices detected within 24 hours.',
               'blockedAt': FieldValue.serverTimestamp(),
             });
-            await addAdminNotification('warning', 'AUTO-BLOCK: ${cred.user!.email} blocked for multi-device violation (3+ devices in 24h).', relatedUid: cred.user!.uid);
           }
         }
         await updateStreak(cred.user!.uid);
-        final label = userRole == 'admin' ? 'Admin' : (userRole == 'Assistant' || userRole == 'assistant' ? 'Assistant' : 'Student');
-        await addAdminNotification('login', '$label logged in: ${cred.user!.email}', relatedUid: cred.user!.uid);
       }
       return cred;
     } on fb_auth.FirebaseAuthException catch (e) {
@@ -185,7 +182,7 @@ class FirebaseService {
         'role': role,
         'gender': gender,
         'blocked': false,
-        'verified': role == 'admin',
+        'verified': false,
         'createdAt': FieldValue.serverTimestamp(),
         'termsAccepted': false,
       });
@@ -196,10 +193,9 @@ class FirebaseService {
         'role': role,
         'gender': gender,
         'blocked': false,
-        'verified': role == 'admin',
+        'verified': false,
         'createdAt': DateTime.now().toIso8601String(),
       });
-      await addAdminNotification('registration', 'New student registered: $name ($email)', relatedUid: uid);
       return cred;
     } on fb_auth.FirebaseAuthException catch (e) {
       throw Exception(e.message ?? 'Sign up failed');
@@ -207,13 +203,6 @@ class FirebaseService {
   }
 
   static Future<void> signOut() async {
-    final user = fb_auth.FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      final userDoc = await firestore.collection('users').doc(user.uid).get();
-      final role = (userDoc.data())?['role'] as String?;
-      final label = role == 'admin' ? 'Admin' : (role == 'Assistant' || role == 'assistant' ? 'Assistant' : 'Student');
-      await addAdminNotification('logout', '$label logged out: ${user.email}', relatedUid: user.uid);
-    }
     await fb_auth.FirebaseAuth.instance.signOut();
     cachedRole = null;
     SessionManager.stop();
@@ -330,11 +319,6 @@ class FirebaseService {
   static Future<void> toggleStudentBlocked(String uid, bool blocked) async {
     await firestore.collection('users').doc(uid).update({'blocked': blocked});
     await _mirrorWrite('users', uid, {'blocked': blocked});
-    if (blocked) {
-      final snap = await firestore.collection('users').doc(uid).get();
-      final email = (snap.data())?['email'] as String? ?? uid;
-      await addAdminNotification('blocked', 'Student account blocked: $email', relatedUid: uid);
-    }
   }
 
   static Future<void> toggleStudentVerified(String uid, bool verified, {double? paidAmount}) async {
@@ -1537,47 +1521,6 @@ class FirebaseService {
     }
   }
 
-  // ─── Admin Notifications ───────────────────────────────────────────────────────
-
-  static Future<void> addAdminNotification(String type, String message, {String? relatedUid}) async {
-    final id = 'an_${DateTime.now().millisecondsSinceEpoch}';
-    await SupabaseReadService.writeToAll('admin_notifications', id, {
-      'type': type,
-      'message': message,
-      'relatedUid': relatedUid,
-      'read': false,
-      'createdAt': DateTime.now().toIso8601String(),
-    });
-  }
-
-  static Stream<QuerySnapshot> getAdminNotifications() {
-    return SupabaseReadService.streamAdminNotifications().map((rows) => _MirrorQuerySnapshot(rows));
-  }
-
-  static Future<int> getAdminUnreadCount() async {
-    final mirror = await SupabaseReadService.getAdminUnreadCount();
-    return mirror >= 0 ? mirror : 0;
-  }
-
-  static Future<void> markAdminNotificationsRead() async {
-    final rows = await SupabaseReadService.getUnreadAdminNotifications();
-    if (rows != null) {
-      for (final row in rows) {
-        final id = row['id'] as String?;
-        if (id != null && id.isNotEmpty) {
-          await SupabaseReadService.writeToAll('admin_notifications', id, {
-            ...row,
-            'read': true,
-          });
-        }
-      }
-    }
-  }
-
-  static Future<void> clearAdminNotifications() async {
-    await SupabaseReadService.clearAllAdminNotifications();
-  }
-
   // ─── Login Tracking & Auto-Block ──────────────────────────────────────────────
 
   static Future<bool> isMultiDeviceViolation(String uid, String currentDeviceId) async {
@@ -1944,8 +1887,6 @@ class FirebaseService {
         'viewed': false,
         'ticketNo': ticketNo,
       });
-      final name = currentUser?.displayName ?? 'Unknown';
-      await addAdminNotification('feedback', 'New Contact Support message from $name', relatedUid: currentUser?.uid);
       return doc.id;
     } finally {
       _submittingFeedback = false;

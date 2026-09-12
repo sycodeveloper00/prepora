@@ -45,20 +45,6 @@ class _DeepLinkScreenState extends State<DeepLinkScreen> {
           .timeout(const Duration(seconds: 5), onTimeout: () => null);
 
       if (userData != null) {
-        final role = userData['role'] as String? ?? 'student';
-        if (role == 'admin') {
-          if (!mounted) return;
-          await showDialog(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              title: const Text('Access Denied'),
-              content: const Text('Admin accounts cannot access the student app.'),
-              actions: [TextButton(onPressed: () { Navigator.pop(ctx); context.go('/auth/login'); }, child: const Text('OK'))],
-            ),
-          );
-          return;
-        }
-
         final isVerified = userData['verified'] == true || userData['isVerified'] == true;
         final freeTrialActive = userData['free_trial_active'] == true;
         final paidAccess = freeTrialActive || isVerified;
@@ -120,7 +106,6 @@ class _DeepLinkScreenState extends State<DeepLinkScreen> {
       context.pushReplacement('/folders/$id', extra: {
         'canEdit': false,
         'canManage': false,
-        'isAdmin': false,
       });
     } else {
       final parentFolderId = parent ?? '';
@@ -128,14 +113,12 @@ class _DeepLinkScreenState extends State<DeepLinkScreen> {
         context.pushReplacement('/folders/$parentFolderId', extra: {
           'canEdit': false,
           'canManage': false,
-          'isAdmin': false,
         });
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
             context.push('/folders/$parentFolderId/sub/$id', extra: {
               'canEdit': false,
               'canManage': false,
-              'isAdmin': false,
             });
           }
         });

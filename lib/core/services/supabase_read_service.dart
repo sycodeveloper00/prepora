@@ -240,8 +240,8 @@ class SupabaseReadService {
     // These tables have RLS or need service_role for reliable reads:
     // notes/notices/student_activities: RLS requires auth.uid() (null for Firebase users)
     // settings/app_updates: admin writes via service_role, anon reads may be blocked
-    // notifications/admin_notifications: RLS may block anon reads
-    final readKey = (table == 'notes' || table == 'notices' || table == 'student_activities' || table == 'settings' || table == 'app_updates' || table == 'feedbacks' || table == 'notifications' || table == 'admin_notifications') ? 'service' : 'anon';
+    // notifications: RLS may block anon reads
+    final readKey = (table == 'notes' || table == 'notices' || table == 'student_activities' || table == 'settings' || table == 'app_updates' || table == 'feedbacks' || table == 'notifications') ? 'service' : 'anon';
 
     for (final idx in tryOrder) {
       final p = _projects[idx];
@@ -399,7 +399,6 @@ class SupabaseReadService {
     'web_sessions': ['uid', 'status', 'last_active', 'web_browser'],
     'login_attempts': ['uid', 'device_id', 'device_model', 'timestamp'],
     'notifications': ['uid', 'read', 'message', 'type', 'created_at'],
-    'admin_notifications': ['read', 'message', 'type', 'created_at'],
     'notices': [],
     'feedbacks': ['uid', 'status', 'message', 'reply'],
     'settings': [],
@@ -846,17 +845,6 @@ class SupabaseReadService {
     return _poll('notifications', 'uid=eq.$uid&created_at=gte.$iso&$_sel&order=created_at.desc', interval: interval);
   }
 
-  static Stream<List<Map<String, dynamic>>> streamAdminNotifications({
-    Duration interval = const Duration(seconds: 30),
-  }) {
-    return _poll('admin_notifications', '$_sel&order=created_at.desc', interval: interval);
-  }
-
-  static Future<int> getAdminUnreadCount() async {
-    final rows = await _query('admin_notifications', 'read=eq.false&select=id');
-    if (rows == null) return -1;
-    return rows.length;
-  }
 
   // ─── feedbacks ────────────────────────────────────────────────────────────
 
@@ -1099,51 +1087,6 @@ class SupabaseReadService {
 
   // ─── notifications extras ────────────────────────────────────────────────
 
-  static Future<List<Map<String, dynamic>>?> getUnreadAdminNotifications() async {
-    final rows = await _query('admin_notifications', 'read=eq.false&$_sel');
-    if (rows == null) return null;
-    return rows.map(_flatten).toList();
-  }
-
-  /// Delete ALL admin notifications across all projects.
-  static Future<void> clearAllAdminNotifications() async {
-    final rows = await _query('admin_notifications', 'select=id');
-    if (rows == null || rows.isEmpty) return;
-    final ids = rows.map((r) => r['id'] as String).where((id) => id.isNotEmpty).toList();
-    if (ids.isEmpty) return;
-    final futures = ids.map((id) => _writeAll('admin_notifications', id, {}, delete: true));
-    await Future.wait(futures);
-  }
-
-  /// Delete only login/logout/registration notifications (Login Details tab).
-  static Future<void> clearLoginNotifications() async {
-    const types = {'login', 'logout', 'registration'};
-    final rows = await _query('admin_notifications', 'select=id,type');
-    if (rows == null || rows.isEmpty) return;
-    final ids = rows
-        .where((r) => types.contains(r['type']))
-        .map((r) => r['id'] as String)
-        .where((id) => id.isNotEmpty)
-        .toList();
-    if (ids.isEmpty) return;
-    final futures = ids.map((id) => _writeAll('admin_notifications', id, {}, delete: true));
-    await Future.wait(futures);
-  }
-
-  /// Delete only NON-login notifications (bell icon Clear All).
-  static Future<void> clearNonLoginAdminNotifications() async {
-    const skipTypes = {'login', 'logout', 'registration'};
-    final rows = await _query('admin_notifications', 'select=id,type');
-    if (rows == null || rows.isEmpty) return;
-    final ids = rows
-        .where((r) => !skipTypes.contains(r['type']))
-        .map((r) => r['id'] as String)
-        .where((id) => id.isNotEmpty)
-        .toList();
-    if (ids.isEmpty) return;
-    final futures = ids.map((id) => _writeAll('admin_notifications', id, {}, delete: true));
-    await Future.wait(futures);
-  }
 
   static Future<List<Map<String, dynamic>>?> getUnreadNotificationsForUser(String uid) async {
     final rows = await _query('notifications', 'uid=eq.$uid&read=eq.false&$_sel');
@@ -1310,7 +1253,7 @@ class SupabaseReadService {
       'users', 'folders', 'contents', 'notifications',
       'conversations', 'messages', 'ai_api_keys',
       'web_sessions', 'login_attempts', 'student_activities',
-      'feedbacks', 'admin_notifications', 'assistant_access',
+      'feedbacks', 'assistant_access',
       'login_history', 'settings', 'notes',
     ];
     final result = <String, int>{};

@@ -21,12 +21,10 @@ class NotificationService {
   static final FirebaseMessaging _fcm = FirebaseMessaging.instance;
   static const String _badgeChannelId = 'app_badge_channel';
   static const String _studentChannelId = 'student_notifications';
-  static const String _adminChannelId = 'admin_notifications';
   static const int _badgeNotificationId = 9999;
   static const int _dailyStreakNotificationId = 8888;
   static const int _streakEveningNotificationId = 8889;
   static StreamSubscription? _studentSub;
-  static StreamSubscription? _adminSub;
   static StreamSubscription? _fcmMessageSub;
   static StreamSubscription? _webSessionSub;
   static Set<String> _knownWebSessionIds = {};
@@ -75,15 +73,6 @@ class NotificationService {
         showBadge: true,
       );
       try { await androidPlugin?.createNotificationChannel(studentChannel); debugPrint('NFS: student channel created'); } catch (e) { debugPrint('NFS: student channel FAILED: $e'); }
-      const adminChannel = AndroidNotificationChannel(
-        _adminChannelId, 'Admin Notifications',
-        description: 'Student activity notifications',
-        importance: Importance.high,
-        playSound: true,
-        enableVibration: true,
-        showBadge: true,
-      );
-      try { await androidPlugin?.createNotificationChannel(adminChannel); debugPrint('NFS: admin channel created'); } catch (e) { debugPrint('NFS: admin channel FAILED: $e'); }
       const streakChannel = AndroidNotificationChannel(
         'streak_channel', 'Daily Streak',
         description: 'Daily streak reminders',
@@ -486,68 +475,6 @@ class NotificationService {
     );
   }
 
-  // ΓöÇΓöÇΓöÇ Admin Notification Listener (badge + mobile panel) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
-
-  static void startAdminNotificationListener() {
-    if (kIsWeb) return;
-    _adminSub?.cancel();
-    bool _isFirstSnapshot = true;
-    Set<String> _seenIds = {};
-    _adminSub = SupabaseReadService.streamAdminNotifications(interval: const Duration(seconds: 15))
-        .listen((rows) async {
-      int unreadCount = 0;
-      for (final row in rows) {
-        if (row['read'] != true) unreadCount++;
-      }
-      await setBadgeCount(unreadCount);
-      if (_isFirstSnapshot) {
-        _isFirstSnapshot = false;
-        for (final row in rows) {
-          _seenIds.add(row['id'] as String? ?? '');
-        }
-        return;
-      }
-      for (final row in rows) {
-        final id = row['id'] as String? ?? '';
-        if (_seenIds.contains(id)) continue;
-        _seenIds.add(id);
-        final read = row['read'] as bool? ?? false;
-        if (!read) {
-          final message = row['message'] as String? ?? '';
-          final type = row['type'] as String? ?? '';
-          await _showAdminNotification(message, type);
-        }
-      }
-    });
-  }
-
-  static Future<void> _showAdminNotification(String message, String type) async {
-    if (kIsWeb) return;
-    String title;
-    switch (type) {
-      case 'registration': title = 'New Registration'; break;
-      case 'feedback': title = 'New Feedback'; break;
-      case 'login': title = 'User Login'; break;
-      case 'logout': title = 'User Logout'; break;
-      case 'blocked': title = 'Account Blocked'; break;
-      default: title = 'Admin Notification';
-    }
-    const androidDetails = AndroidNotificationDetails(
-      _adminChannelId, 'Admin Notifications',
-      channelDescription: 'Student activity notifications',
-      importance: Importance.high,
-      priority: Priority.high,
-      icon: '@drawable/ic_notification',
-    );
-    const details = NotificationDetails(android: androidDetails, iOS: DarwinNotificationDetails());
-    await _plugin.show(
-      id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
-      title: title,
-      body: message,
-      notificationDetails: details,
-    );
-  }
-
   // ─── Web Session Live Listener (connect/disconnect) ──────────────────────
 
   static void startWebSessionListener(String uid) {
@@ -742,7 +669,6 @@ class NotificationService {
 
   static void dispose() {
     _studentSub?.cancel();
-    _adminSub?.cancel();
     _fcmMessageSub?.cancel();
     _webSessionSub?.cancel();
   }

@@ -56,13 +56,6 @@ class AppRouter {
           );
         }
       }
-      // Admin routes not supported in Android app — redirect to login
-      if (uri.startsWith('/admin')) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          context.go('/auth/login');
-        });
-        return const Scaffold(body: Center(child: CircularProgressIndicator()));
-      }
       if (uri.contains('.pdf') || uri.startsWith('content://') || uri.startsWith('file://')) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           context.go('/pdf_reader/view', extra: {'url': uri});
@@ -113,7 +106,6 @@ class AppRouter {
             parentContentId: s.pathParameters['contentId']!,
             canEdit: extra?['canEdit'] as bool? ?? false,
             canManage: extra?['canManage'] as bool? ?? false,
-            isAdmin: extra?['isAdmin'] as bool? ?? false,
             targetStudentUid: extra?['targetStudentUid'] as String?,
             assistantContentAccess: extra?['assistantContentAccess'] is List
                 ? (extra!['assistantContentAccess'] as List).cast<String>().toSet()
@@ -130,7 +122,6 @@ class AppRouter {
             folderId: s.pathParameters['id']!,
             canEdit: extra?['canEdit'] as bool? ?? false,
             canManage: extra?['canManage'] as bool? ?? false,
-            isAdmin: extra?['isAdmin'] as bool? ?? false,
             targetStudentUid: extra?['targetStudentUid'] as String?,
             assistantContentAccess: extra?['assistantContentAccess'] is List
                 ? (extra!['assistantContentAccess'] as List).cast<String>().toSet()

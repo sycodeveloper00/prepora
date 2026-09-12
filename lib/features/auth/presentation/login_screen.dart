@@ -49,19 +49,13 @@ class _LoginScreenState extends State<LoginScreen> {
         await NotificationService.scheduleDailyStreakReminder();
         NotificationService.checkAndNotify();
         if (mounted) {
-          if (kIsWeb && role != 'admin' && role != 'Assistant') {
+          if (kIsWeb && role != 'Assistant') {
             setState(() => _isLoading = false);
             await FirebaseService.signOut();
             _showUnderDevelopmentDialog();
             return;
           }
-          if (role == 'admin') {
-            // Admin not supported in Android app
-            setState(() => _isLoading = false);
-            await FirebaseService.signOut();
-            _showUnderDevelopmentDialog();
-            return;
-          } else if (role == 'Assistant' || role == 'assistant') {
+          if (role == 'Assistant' || role == 'assistant') {
             final accessDocs = await FirebaseService.getAssistantFolderIds(credential.user!.uid)
                 .timeout(const Duration(seconds: 5), onTimeout: () => <Map<String, dynamic>>[]);
             final folderIds = accessDocs.map((e) => e['folderId'] as String?).whereType<String>().toList();
@@ -80,37 +74,25 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  void _forgotPassword() {
+    context.push('/auth/forgot-password');
+  }
+
   void _showUnderDevelopmentDialog() {
     showDialog(
       context: context,
-      barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1A0533),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(children: [
-          Icon(Icons.construction_rounded, color: Colors.orange, size: 24),
-          SizedBox(width: 10),
-          Text('Under Development', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-        ]),
-        content: const Text(
-          'The portal is under development. A team of developers is working on it. Once it will be complete you will be able to Login/register.',
-          style: TextStyle(color: Colors.white70, fontSize: 14, height: 1.5),
-        ),
+        backgroundColor: const Color(0xFF1E1E2E),
+        title: const Text('Under Development', style: TextStyle(color: Colors.white)),
+        content: const Text('This feature is under development.', style: TextStyle(color: Colors.white70)),
         actions: [
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade800),
-            child: const Text('OK', style: TextStyle(color: Colors.white)),
+          TextButton(
+            onPressed: () { Navigator.pop(ctx); context.go('/auth/login'); },
+            child: const Text('OK', style: TextStyle(color: Color(0xFF00B8D4))),
           ),
         ],
       ),
-    ).then((_) {
-      setState(() => _isLoading = false);
-    });
-  }
-
-  void _forgotPassword() {
-    context.push('/auth/forgot-password');
+    );
   }
 
   @override

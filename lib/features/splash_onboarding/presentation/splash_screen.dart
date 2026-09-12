@@ -81,10 +81,7 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   void _redirectByRole(String role, String uid) {
-    if (role == 'admin') {
-      // Admin not supported in Android app — redirect to login
-      context.go('/auth/login');
-    } else if (role == 'assistant' || role == 'Assistant') {
+    if (role == 'assistant' || role == 'Assistant') {
       // For assistant, try cached data first, then fetch with timeout
       _loadAssistantData(uid);
     } else {

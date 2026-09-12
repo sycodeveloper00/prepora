@@ -23,7 +23,6 @@ class FolderDetailsScreen extends ConsumerStatefulWidget {
   final String folderId;
   final bool canEdit;
   final bool canManage;
-  final bool isAdmin;
   final Set<String>? assistantContentAccess;
   final String? parentContentId;
   final String? targetStudentUid;
@@ -33,7 +32,6 @@ class FolderDetailsScreen extends ConsumerStatefulWidget {
     required this.folderId,
     this.canEdit = false,
     this.canManage = false,
-    this.isAdmin = false,
     this.assistantContentAccess,
     this.parentContentId,
     this.targetStudentUid,
@@ -58,6 +56,7 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
   String _sortMode = 'custom';
   final Map<String, double> _uploadProgress = {};
   final Set<String> _expandedDescriptions = {};
+  bool _isNavigating = false;
 
   int _naturalCompare(String a, String b) {
     final aLower = a.toLowerCase();
@@ -183,17 +182,15 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
   }
 
   void _refreshAssistantAccess() async {
-    if (!widget.isAdmin) {
-      final uid = FirebaseService.currentUser?.uid;
-      if (uid != null) {
-        final access = await FirebaseService.getContentAccess(uid);
-        final ids = access[widget.folderId] ?? [];
-        if (mounted) {
-          setState(() {
-            _assistantAccess = ids.toSet();
-            _assistantAccess.addAll(_pendingOptimistic);
-          });
-        }
+    final uid = FirebaseService.currentUser?.uid;
+    if (uid != null) {
+      final access = await FirebaseService.getContentAccess(uid);
+      final ids = access[widget.folderId] ?? [];
+      if (mounted) {
+        setState(() {
+          _assistantAccess = ids.toSet();
+          _assistantAccess.addAll(_pendingOptimistic);
+        });
       }
     }
   }
@@ -539,7 +536,7 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
               if (desc.isNotEmpty) data['description'] = desc;
               if (widget.parentContentId != null) data['parentContentId'] = widget.parentContentId!;
               final newId = await FirebaseService.addFolderContent(widget.folderId, data);
-              if (newId != null && !widget.isAdmin) { _assistantAccess.add(newId); _pendingOptimistic.add(newId); }
+              if (newId != null) { _assistantAccess.add(newId); _pendingOptimistic.add(newId); }
               await _sendScopedNotification('Created sub-folder: ${nameCtrl.text.trim()}', parentContentId: widget.parentContentId);
               _refreshAssistantAccess();
               _refreshContentsStream();
@@ -581,7 +578,7 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                final data = {'type': 'lecture', 'name': titleCtrl.text.trim(), 'youtubeUrl': urlCtrl.text.trim()};
               if (widget.parentContentId != null) data['parentContentId'] = widget.parentContentId!;
               final newId = await FirebaseService.addFolderContent(widget.folderId, data);
-              if (newId != null && !widget.isAdmin) { _assistantAccess.add(newId); _pendingOptimistic.add(newId); }
+              if (newId != null) { _assistantAccess.add(newId); _pendingOptimistic.add(newId); }
               await _sendScopedNotification('Added lecture: ${titleCtrl.text.trim()}', parentContentId: widget.parentContentId);
               _refreshAssistantAccess();
               _refreshContentsStream();
@@ -676,7 +673,7 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
       if (actualProvider == 'cloudinary') data['cloudAccount'] = await FirebaseService.getActiveCloudinaryAccountName();
       if (parentContentId != null) data['parentContentId'] = parentContentId;
       final newId = await FirebaseService.addFolderContent(folderId, data);
-      if (newId != null && !widget.isAdmin) { _assistantAccess.add(newId); _pendingOptimistic.add(newId); }
+      if (newId != null) { _assistantAccess.add(newId); _pendingOptimistic.add(newId); }
       await _sendScopedNotification('Uploaded file: $name', parentContentId: parentContentId);
       _refreshContentsStream();
     } catch (_) {}
@@ -756,7 +753,7 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                 final data = {'type': 'file', 'name': nameCtrl.text.trim(), 'url': urlCtrl.text.trim(), 'source': 'google_drive'};
                 if (widget.parentContentId != null) data['parentContentId'] = widget.parentContentId!;
                 final newId = await FirebaseService.addFolderContent(widget.folderId, data);
-                if (newId != null && !widget.isAdmin) { _assistantAccess.add(newId); _pendingOptimistic.add(newId); }
+                if (newId != null) { _assistantAccess.add(newId); _pendingOptimistic.add(newId); }
                 await _sendScopedNotification('Uploaded from Drive: ${nameCtrl.text.trim()}', parentContentId: widget.parentContentId);
                 _refreshAssistantAccess();
                 _refreshContentsStream();
@@ -810,7 +807,7 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                 final data = {'type': 'file', 'name': nameCtrl.text.trim(), 'url': linkCtrl.text.trim(), 'source': 'url'};
                 if (widget.parentContentId != null) data['parentContentId'] = widget.parentContentId!;
                 final newId = await FirebaseService.addFolderContent(widget.folderId, data);
-                if (newId != null && !widget.isAdmin) { _assistantAccess.add(newId); _pendingOptimistic.add(newId); }
+                if (newId != null) { _assistantAccess.add(newId); _pendingOptimistic.add(newId); }
                 await _sendScopedNotification('Uploaded file: ${nameCtrl.text.trim()}', parentContentId: widget.parentContentId);
                 _refreshAssistantAccess();
                 _refreshContentsStream();
@@ -864,7 +861,7 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                 final data = {'type': 'mocktest_url', 'name': nameCtrl.text.trim(), 'url': urlCtrl.text.trim()};
                 if (widget.parentContentId != null) data['parentContentId'] = widget.parentContentId!;
                 final newId = await FirebaseService.addFolderContent(widget.folderId, data);
-                if (newId != null && !widget.isAdmin) { _assistantAccess.add(newId); _pendingOptimistic.add(newId); }
+                if (newId != null) { _assistantAccess.add(newId); _pendingOptimistic.add(newId); }
                 await _sendScopedNotification('Added Mock Test URL: ${nameCtrl.text.trim()}', parentContentId: widget.parentContentId);
                 _refreshAssistantAccess();
                 _refreshContentsStream();
@@ -918,7 +915,7 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                 final data = {'type': 'mocktest_code', 'name': nameCtrl.text.trim(), 'code': codeCtrl.text.trim()};
                 if (widget.parentContentId != null) data['parentContentId'] = widget.parentContentId!;
                 final newId = await FirebaseService.addFolderContent(widget.folderId, data);
-                if (newId != null && !widget.isAdmin) { _assistantAccess.add(newId); _pendingOptimistic.add(newId); }
+                if (newId != null) { _assistantAccess.add(newId); _pendingOptimistic.add(newId); }
                 await _sendScopedNotification('Added Mock Test Code: ${nameCtrl.text.trim()}', parentContentId: widget.parentContentId);
                 _refreshAssistantAccess();
                 _refreshContentsStream();
@@ -1022,7 +1019,7 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
             if (actualProvider == 'cloudinary') data['cloudAccount'] = await FirebaseService.getActiveCloudinaryAccountName();
             if (widget.parentContentId != null) data['parentContentId'] = widget.parentContentId!;
             final newId = await FirebaseService.addFolderContent(widget.folderId, data);
-            if (newId != null && !widget.isAdmin) { _assistantAccess.add(newId); _pendingOptimistic.add(newId); }
+            if (newId != null) { _assistantAccess.add(newId); _pendingOptimistic.add(newId); }
             await _sendScopedNotification('Uploaded mock test file: $displayName', parentContentId: widget.parentContentId);
             count++;
           } catch (e) {
@@ -1280,9 +1277,9 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
     final locked = data['locked'] as bool? ?? false;
     final updating = data['updating'] as bool? ?? false;
     final invisible = data['invisible'] as bool? ?? false;
-    if (!widget.isAdmin && locked) return true;
-    if (!widget.isAdmin && updating) return true;
-    if (!widget.isAdmin && invisible) return true;
+    if (locked) return true;
+    if (updating) return true;
+    if (invisible) return true;
     if (widget.assistantContentAccess != null && _assistantAccess.isNotEmpty && !_assistantAccess.contains(contentId)) return true;
     return false;
   }
@@ -1378,7 +1375,6 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
   }
 
   Future<bool> _isAncestorBlocked(String contentId) async {
-    if (widget.isAdmin) return false;
     var currentId = contentId;
     final visited = <String>{};
     while (currentId.isNotEmpty && !visited.contains(currentId)) {
@@ -1401,6 +1397,8 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
   }
 
   Future<void> _openContent(Map<String, dynamic> data, {String? folderName}) async {
+    if (_isNavigating) return;
+    _isNavigating = true;
     folderName ??= _subfolderName.isNotEmpty ? _subfolderName : _folderName;
     final type = data['type'] as String? ?? 'file';
     final name = FirebaseService.cleanTitle(data['name'] as String? ?? '');
@@ -1408,35 +1406,31 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
     final updating = data['updating'] as bool? ?? false;
     final contentId = data['id'] as String?;
 
-    if (!widget.isAdmin) {
-      if (locked) {
+    if (locked) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('You are not authorized to view this content'), backgroundColor: Colors.redAccent));
+      return;
+    }
+    if (updating) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('This content is being updated'), backgroundColor: Colors.orange));
+      return;
+    }
+    if (data['invisible'] == true || data['enabled'] == false) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('You are not authorized to view this content'), backgroundColor: Colors.redAccent));
+      return;
+    }
+    if (contentId != null && await _isAncestorBlocked(contentId)) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('You are not authorized to view this content'), backgroundColor: Colors.redAccent));
-        return;
       }
-      if (updating) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('This content is being updated'), backgroundColor: Colors.orange));
-        return;
-      }
-      if (data['invisible'] == true || data['enabled'] == false) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('You are not authorized to view this content'), backgroundColor: Colors.redAccent));
-        return;
-      }
-      if (contentId != null && await _isAncestorBlocked(contentId)) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('You are not authorized to view this content'), backgroundColor: Colors.redAccent));
-        }
-        return;
-      }
+      return;
     }
 
     String? activityId;
-    if (!widget.isAdmin) {
-      final currentUser = FirebaseService.currentUser;
-      if (currentUser != null) {
-        final parentPath = await _buildFullPath(widget.parentContentId);
-        final folderPath = parentPath.isNotEmpty ? '$parentPath > $name' : name;
-        activityId = await FirebaseService.logActivity(uid: currentUser.uid, name: name, type: type, folderPath: folderPath, contentId: contentId);
-      }
+    final currentUser = FirebaseService.currentUser;
+    if (currentUser != null) {
+      final parentPath = await _buildFullPath(widget.parentContentId);
+      final folderPath = parentPath.isNotEmpty ? '$parentPath > $name' : name;
+      activityId = await FirebaseService.logActivity(uid: currentUser.uid, name: name, type: type, folderPath: folderPath, contentId: contentId);
     }
 
     switch (type) {
@@ -1445,9 +1439,11 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
         final videoId = _extractYoutubeId(url);
         if (videoId.isNotEmpty) {
           context.push('/lectures/$videoId', extra: {'name': name, 'folderId': widget.folderId, 'folderName': folderName, 'parentContentId': widget.parentContentId}).then((_) {
+            _isNavigating = false;
             if (activityId != null) FirebaseService.endActivity(activityId!);
           });
         } else {
+          _isNavigating = false;
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Invalid YouTube URL')));
         }
         break;
@@ -1455,6 +1451,7 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
         final url = data['url'] as String? ?? '';
         if (url.isNotEmpty) {
           context.push('/webview', extra: {'url': url, 'title': name, 'folderId': widget.folderId, 'parentContentId': widget.parentContentId, 'isMockTest': true}).then((_) {
+            _isNavigating = false;
             if (activityId != null) FirebaseService.endActivity(activityId!);
           });
         }
@@ -1463,6 +1460,7 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
         final code = data['code'] as String? ?? '';
         if (code.isNotEmpty) {
           context.push('/webview', extra: {'html': code, 'title': name, 'folderId': widget.folderId, 'parentContentId': widget.parentContentId, 'isMockTest': true}).then((_) {
+            _isNavigating = false;
             if (activityId != null) FirebaseService.endActivity(activityId!);
           });
         }
@@ -1473,12 +1471,14 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
         if (url.isNotEmpty) {
           if (fileType == 'pdf') {
             context.push('/pdf_reader/view', extra: {'url': url, 'folderId': widget.folderId, 'parentContentId': widget.parentContentId, 'title': name}).then((_) {
+              _isNavigating = false;
               if (activityId != null) FirebaseService.endActivity(activityId!);
             });
           } else {
             // Navigate immediately with URL — webview fetches content in background
             if (context.mounted) {
               context.push('/webview', extra: {'url': url, 'title': name, 'folderId': widget.folderId, 'parentContentId': widget.parentContentId, 'isMockTest': true}).then((_) {
+                _isNavigating = false;
                 if (activityId != null) FirebaseService.endActivity(activityId!);
               });
             }
@@ -1489,6 +1489,7 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
         _openFile(data, activityId: activityId);
         break;
       default:
+        _isNavigating = false;
         if (activityId != null) FirebaseService.endActivity(activityId!);
         break;
     }
@@ -1500,6 +1501,7 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
     final name = data['name'] as String? ?? 'File';
 
     if (url.isEmpty) {
+      _isNavigating = false;
       if (activityId != null) FirebaseService.endActivity(activityId!);
       return;
     }
@@ -1517,6 +1519,7 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
         backgroundColor: Colors.redAccent,
         duration: Duration(seconds: 4),
       ));
+      _isNavigating = false;
       if (activityId != null) FirebaseService.endActivity(activityId!);
       return;
     }
@@ -1544,18 +1547,22 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
 
     if (['jpg', 'jpeg', 'png', 'gif', 'webp'].contains(ext)) {
       context.push('/image_viewer', extra: {'url': fileUrlToOpen, 'title': displayTitle}).then((_) {
+        _isNavigating = false;
         if (activityId != null) FirebaseService.endActivity(activityId);
       });
     } else if (ext == 'pdf') {
       context.push('/pdf_reader/view', extra: {'url': fileUrlToOpen, 'folderId': widget.folderId, 'parentContentId': widget.parentContentId, 'title': name}).then((_) {
+        _isNavigating = false;
         if (activityId != null) FirebaseService.endActivity(activityId);
       });
     } else if (['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', 'webm'].contains(ext)) {
       context.push('/media_player', extra: {'url': fileUrlToOpen, 'title': displayTitle, 'isAudio': false}).then((_) {
+        _isNavigating = false;
         if (activityId != null) FirebaseService.endActivity(activityId);
       });
     } else if (['mp3', 'wav', 'aac', 'ogg', 'flac', 'wma', 'm4a', 'opus'].contains(ext)) {
       context.push('/media_player', extra: {'url': fileUrlToOpen, 'title': displayTitle, 'isAudio': true}).then((_) {
+        _isNavigating = false;
         if (activityId != null) FirebaseService.endActivity(activityId);
       });
     } else if (source == 'internal_storage' && !url.startsWith('http://') && !url.startsWith('https://')) {
@@ -1564,6 +1571,7 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
           content: Text('This file is stored on device, cannot open on web'),
           backgroundColor: Colors.redAccent,
         ));
+        _isNavigating = false;
         if (activityId != null) FirebaseService.endActivity(activityId!);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Opening $name...')));
@@ -1572,6 +1580,7 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Cannot open file: ${result.message}'), backgroundColor: Colors.redAccent));
         }
+        _isNavigating = false;
         if (activityId != null) FirebaseService.endActivity(activityId!);
       }
     } else if (url.isNotEmpty) {
@@ -1583,9 +1592,11 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
         if (await canLaunchUrl(uri)) {
           await launchUrl(uri, mode: LaunchMode.platformDefault);
         }
+        _isNavigating = false;
         if (activityId != null) FirebaseService.endActivity(activityId);
       } else {
         context.push('/webview', extra: {'url': fileUrlToOpen, 'title': displayTitle, 'folderId': widget.folderId, 'parentContentId': widget.parentContentId}).then((_) {
+          _isNavigating = false;
           if (activityId != null) FirebaseService.endActivity(activityId);
         });
       }
@@ -1675,58 +1686,6 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  if (widget.isAdmin) PopupMenuButton<String>(
-                    onSelected: _saveSortMode,
-                    icon: Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).brightness == Brightness.dark
-                            ? Colors.cyanAccent.withValues(alpha: 0.15)
-                            : const Color(0xFF4A148C).withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: Theme.of(context).brightness == Brightness.dark
-                              ? Colors.cyanAccent.withValues(alpha: 0.3)
-                              : const Color(0xFF4A148C).withValues(alpha: 0.3),
-                        ),
-                      ),
-                      child: Icon(
-                        _sortMode.startsWith('custom') ? Icons.drag_indicator_rounded : Icons.sort_by_alpha_rounded,
-                        color: Theme.of(context).brightness == Brightness.dark
-                            ? Colors.cyanAccent
-                            : const Color(0xFF4A148C),
-                        size: 20,
-                      ),
-                    ),
-                    itemBuilder: (_) => [
-                      CheckedPopupMenuItem<String>(
-                        value: 'custom',
-                        checked: _sortMode == 'custom',
-                        child: const Text('Custom Order'),
-                      ),
-                      CheckedPopupMenuItem<String>(
-                        value: 'custom_asc',
-                        checked: _sortMode == 'custom_asc',
-                        child: const Text('Custom Ascending'),
-                      ),
-                      CheckedPopupMenuItem<String>(
-                        value: 'custom_desc',
-                        checked: _sortMode == 'custom_desc',
-                        child: const Text('Custom Descending'),
-                      ),
-                      const PopupMenuDivider(),
-                      CheckedPopupMenuItem<String>(
-                        value: 'az',
-                        checked: _sortMode == 'az',
-                        child: const Text('Title A → Z'),
-                      ),
-                      CheckedPopupMenuItem<String>(
-                        value: 'za',
-                        checked: _sortMode == 'za',
-                        child: const Text('Title Z → A'),
-                      ),
-                    ],
-                  ),
                 ]),
               ),
               _buildSelectionToolbar(),
@@ -1761,15 +1720,13 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                     }).toList();
 
                     final filteredDocs = _searchQuery.isNotEmpty ? _filterDocs(parentFiltered, _searchQuery) : parentFiltered;
-                    final visibleDocs = widget.isAdmin
-                        ? filteredDocs
-                        : filteredDocs.where((doc) {
-                            if (doc['invisible'] == true) return false;
-                            if (doc['locked'] == true) return false;
-                            if (doc['updating'] == true) return false;
-                            if (doc['enabled'] == false) return false;
-                            return true;
-                          }).toList();
+                    final visibleDocs = filteredDocs.where((doc) {
+                      if (doc['invisible'] == true) return false;
+                      if (doc['locked'] == true) return false;
+                      if (doc['updating'] == true) return false;
+                      if (doc['enabled'] == false) return false;
+                      return true;
+                    }).toList();
 
                     // If local order has missing or extra IDs vs stream, reset local order
                     if (_hasLocalOrder && _searchQuery.isEmpty) {
@@ -1824,72 +1781,16 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
 
                     _visibleContentIds = visibleDocs.map((d) => d['id'] as String).toList();
 
-                    final useCustomOrder = widget.isAdmin && (_sortMode == 'custom' || _sortMode == 'custom_asc' || _sortMode == 'custom_desc');
-                    final listWidget = useCustomOrder
-                        ? ReorderableListView.builder(
-                            padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 100),
-                            itemCount: visibleDocs.length,
-                            buildDefaultDragHandles: false,
-                            onReorderItem: (int oldIndex, int newIndex) async {
-                              final ids = _localOrderMap.keys.toList();
-                              if (oldIndex >= ids.length || newIndex >= ids.length) return;
-                              final id = ids.removeAt(oldIndex);
-                              ids.insert(newIndex, id);
-                              _localOrderMap.clear();
-                              for (int i = 0; i < ids.length; i++) {
-                                _localOrderMap[ids[i]] = i;
-                              }
-                              _hasLocalOrder = true;
-                              WidgetsBinding.instance.addPostFrameCallback((_) {
-                                if (mounted) setState(() {});
-                              });
-                              final allDocs = snapshot.data!;
-                              final reordered = allDocs.where((doc) {
-                                final d = doc;
-                                final pid = d['parentContentId'] as String?;
-                                if (widget.parentContentId != null) {
-                                  return pid == widget.parentContentId;
-                                }
-                                return pid == null;
-                              }).toList();
-                              reordered.sort((a, b) => (_localOrderMap[a['id'] as String] ?? 9999).compareTo(_localOrderMap[b['id'] as String] ?? 9999));
-                              final batch = FirebaseService.firestore.batch();
-                              for (int i = 0; i < reordered.length; i++) {
-                                batch.update(FirebaseService.firestore.collection('folders').doc(widget.folderId).collection('contents').doc(reordered[i]['id'] as String), {'order': i});
-                              }
-                              await batch.commit();
-                            },
-                            proxyDecorator: (child, index, animation) {
-                              return AnimatedBuilder(
-                                animation: animation,
-                                builder: (context, child) => Material(
-                                  elevation: 4,
-                                  color: Colors.transparent,
-                                  child: child,
-                                ),
-                                child: child,
-                              );
-                            },
-                            itemBuilder: (context, index) {
-                              final data = visibleDocs[index];
-                              final type = data['type'] as String? ?? 'file';
-                              final docId = data['id'] as String;
-                              return Container(
-                                key: ValueKey(docId),
-                                child: _buildContentCard(context, docId, data, type, index),
-                              );
-                            },
-                          )
-                        : ListView.builder(
-                            padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 100),
-                            itemCount: visibleDocs.length,
-                            itemBuilder: (context, index) {
-                              final data = visibleDocs[index];
-                              final type = data['type'] as String? ?? 'file';
-                              final docId = data['id'] as String;
-                              return _buildContentCard(context, docId, data, type, index);
-                            },
-                          );
+                    final listWidget = ListView.builder(
+                        padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 100),
+                        itemCount: visibleDocs.length,
+                        itemBuilder: (context, index) {
+                          final data = visibleDocs[index];
+                          final type = data['type'] as String? ?? 'file';
+                          final docId = data['id'] as String;
+                          return _buildContentCard(context, docId, data, type, index);
+                        },
+                      );
 
                     if (_uploadProgress.isNotEmpty) {
                       return Column(children: [
@@ -1897,7 +1798,7 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                         Expanded(child: listWidget),
                       ]);
                     }
-                    if (_groupLink == null || _groupLink!.isEmpty || !widget.isAdmin) return listWidget;
+                    if (_groupLink == null || _groupLink!.isEmpty) return listWidget;
                     return Column(children: [_buildGroupBanner(), Expanded(child: listWidget)]);
                   },
                 ),
@@ -2007,9 +1908,13 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
       child: FloatingActionButton(
         heroTag: 'ai_chat_folder_${widget.folderId}',
         onPressed: () async {
+          if (_isNavigating) return;
+          _isNavigating = true;
           final contextStr = await _buildFolderContext();
           if (context.mounted) {
-            context.push('/ai_tutor', extra: {'folderContext': contextStr});
+            context.push('/ai_tutor', extra: {'folderContext': contextStr}).then((_) { _isNavigating = false; });
+          } else {
+            _isNavigating = false;
           }
         },
         backgroundColor: Colors.transparent, elevation: 0,
@@ -2086,12 +1991,6 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
               }
             },
           ),
-          if (widget.isAdmin)
-            IconButton(
-              icon: Icon(Icons.edit_rounded, color: isDark ? Colors.white54 : Colors.black45, size: 16),
-              tooltip: 'Edit Group Link',
-              onPressed: () => _showGroupLinkDialog(),
-            ),
         ],
       ),
     );
@@ -2293,7 +2192,7 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
     final name = FirebaseService.cleanTitle(data['name'] as String? ?? 'Lecture');
     final disabled = _isDisabled(data, id);
     return GestureDetector(
-      onLongPress: ((!widget.isAdmin && !widget.canEdit) || disabled) ? null : () => _onContentSelect(id),
+      onLongPress: (!widget.canEdit || disabled) ? null : () => _onContentSelect(id),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         child: GlassmorphicContainer(
@@ -2305,14 +2204,6 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
               _openContent(data);
             },
             child: Row(children: [
-              if (widget.isAdmin && (_sortMode == 'custom' || _sortMode == 'custom_asc' || _sortMode == 'custom_desc'))
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: ReorderableDragStartListener(
-                    index: index,
-                    child: Icon(Icons.drag_indicator, size: 20, color: Theme.of(context).brightness == Brightness.dark ? Colors.white24 : Colors.black26),
-                  ),
-                ),
               Icon(Icons.play_circle_fill_rounded, color: disabled ? Colors.grey : (updating ? Colors.orange : Colors.red), size: 36),
               const SizedBox(width: 14),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -2349,22 +2240,6 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                   },
                   itemBuilder: (context) => [
                     const PopupMenuItem(value: 'share', child: ListTile(leading: Icon(Icons.share_rounded, color: Colors.cyanAccent), title: Text('Share'))),
-                    if (widget.isAdmin) ...[
-                      PopupMenuItem(
-                        value: 'lock',
-                        child: ListTile(
-                          leading: Icon(locked ? Icons.lock_rounded : Icons.lock_open_rounded, color: Colors.redAccent),
-                          title: Text(locked ? 'Unlock' : 'Lock'),
-                        ),
-                      ),
-                      const PopupMenuItem(
-                        value: 'Assistant',
-                        child: ListTile(leading: Icon(Icons.people_alt_rounded, color: Colors.orange), title: Text('Assistant Access')),
-                      ),
-                      const PopupMenuItem(value: 'edit', child: ListTile(leading: Icon(Icons.edit, color: Colors.green), title: Text('Edit'))),
-                      const PopupMenuItem(value: 'rename', child: ListTile(leading: Icon(Icons.drive_file_rename_outline, color: Colors.blue), title: Text('Rename'))),
-                      const PopupMenuItem(value: 'delete', child: ListTile(leading: Icon(Icons.delete, color: Colors.red), title: Text('Delete', style: TextStyle(color: Colors.red)))),
-                    ],
                   ],
                 ),
             ]),
@@ -2383,7 +2258,7 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
     final disabled = _isDisabled(data, id);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return GestureDetector(
-      onLongPress: ((!widget.isAdmin && !widget.canEdit) || disabled) ? null : () => _onContentSelect(id),
+      onLongPress: (!widget.canEdit || disabled) ? null : () => _onContentSelect(id),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         child: GlassmorphicContainer(
@@ -2392,52 +2267,43 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
             borderRadius: BorderRadius.circular(16),
             onTap: disabled ? null : () async {
               if (_isSelectMode) { _onContentSelect(id); return; }
-              if (!widget.isAdmin) {
-                final isLocked = data['locked'] as bool? ?? false;
-                final isUpdating = data['updating'] as bool? ?? false;
-                final isInvisible = data['invisible'] as bool? ?? false;
-                final isEnabled = data['enabled'] as bool? ?? true;
-                if (isLocked) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('You are not authorized to view this content'), backgroundColor: Colors.redAccent));
-                  return;
-                }
-                if (isUpdating) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('This content is being updated'), backgroundColor: Colors.orange));
-                  return;
-                }
-                if (isInvisible || !isEnabled) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('You are not authorized to view this content'), backgroundColor: Colors.redAccent));
-                  return;
-                }
-                if (await _isAncestorBlocked(id)) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('You are not authorized to view this content'), backgroundColor: Colors.redAccent));
-                  }
-                  return;
-                }
-                final currentUser = FirebaseService.currentUser;
-                if (currentUser != null) {
-                  final parentPath = await _buildFullPath(widget.parentContentId);
-                  final folderPath = parentPath.isNotEmpty ? '$parentPath > $name' : name;
-                  FirebaseService.logActivity(uid: currentUser.uid, name: name, type: 'subfolder', folderPath: folderPath, contentId: id);
-                }
+              if (_isNavigating) return;
+              final isLocked = data['locked'] as bool? ?? false;
+              final isUpdating = data['updating'] as bool? ?? false;
+              final isInvisible = data['invisible'] as bool? ?? false;
+              final isEnabled = data['enabled'] as bool? ?? true;
+              if (isLocked) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('You are not authorized to view this content'), backgroundColor: Colors.redAccent));
+                return;
               }
-              context.push('/folders/${widget.folderId}/sub/$id', extra: {
+              if (isUpdating) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('This content is being updated'), backgroundColor: Colors.orange));
+                return;
+              }
+              if (isInvisible || !isEnabled) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('You are not authorized to view this content'), backgroundColor: Colors.redAccent));
+                return;
+              }
+              if (await _isAncestorBlocked(id)) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('You are not authorized to view this content'), backgroundColor: Colors.redAccent));
+                }
+                return;
+              }
+              final currentUser = FirebaseService.currentUser;
+              if (currentUser != null) {
+                final parentPath = await _buildFullPath(widget.parentContentId);
+                final folderPath = parentPath.isNotEmpty ? '$parentPath > $name' : name;
+                FirebaseService.logActivity(uid: currentUser.uid, name: name, type: 'subfolder', folderPath: folderPath, contentId: id);
+              }
+              _isNavigating = true;
+              context.pushReplacement('/folders/${widget.folderId}/sub/$id', extra: {
                 'canEdit': widget.canEdit, 'canManage': widget.canManage,
-                'isAdmin': widget.isAdmin,
                 if (widget.targetStudentUid != null) 'targetStudentUid': widget.targetStudentUid,
                 if (widget.assistantContentAccess != null) 'assistantContentAccess': widget.assistantContentAccess!.toList(),
-              });
+              }).then((_) { _isNavigating = false; });
             },
             child: Row(crossAxisAlignment: hasDesc ? CrossAxisAlignment.start : CrossAxisAlignment.center, children: [
-              if (widget.isAdmin && (_sortMode == 'custom' || _sortMode == 'custom_asc' || _sortMode == 'custom_desc'))
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: ReorderableDragStartListener(
-                    index: index,
-                    child: Icon(Icons.drag_indicator, size: 20, color: isDark ? Colors.white24 : Colors.black26),
-                  ),
-                ),
               Icon(Icons.folder_rounded, color: disabled ? Colors.grey : (updating ? Colors.orange : Colors.blue), size: 36),
               const SizedBox(width: 14),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -2492,26 +2358,6 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                   },
                   itemBuilder: (context) => [
                     const PopupMenuItem(value: 'share', child: ListTile(leading: Icon(Icons.share_rounded, color: Colors.cyanAccent), title: Text('Share'))),
-                    if (widget.isAdmin) ...[
-                      PopupMenuItem(
-                        value: 'lock',
-                        child: ListTile(
-                          leading: Icon(locked ? Icons.lock_rounded : Icons.lock_open_rounded, color: Colors.redAccent),
-                          title: Text(locked ? 'Unlock' : 'Lock'),
-                        ),
-                      ),
-                      const PopupMenuItem(
-                        value: 'Assistant',
-                        child: ListTile(leading: Icon(Icons.people_alt_rounded, color: Colors.orange), title: Text('Assistant Access')),
-                      ),
-                      const PopupMenuItem(
-                        value: 'group',
-                        child: ListTile(leading: Icon(Icons.groups_rounded, color: Colors.amber), title: Text('Group Link')),
-                      ),
-                      const PopupMenuItem(value: 'edit', child: ListTile(leading: Icon(Icons.edit, color: Colors.green), title: Text('Edit'))),
-                      const PopupMenuItem(value: 'rename', child: ListTile(leading: Icon(Icons.drive_file_rename_outline, color: Colors.blue), title: Text('Rename'))),
-                      const PopupMenuItem(value: 'delete', child: ListTile(leading: Icon(Icons.delete, color: Colors.red), title: Text('Delete', style: TextStyle(color: Colors.red)))),
-                    ],
                   ],
                 ),
             ]),
@@ -2527,7 +2373,7 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
     final name = FirebaseService.cleanTitle(data['name'] as String? ?? 'Mock Test');
     final disabled = _isDisabled(data, id);
     return GestureDetector(
-      onLongPress: ((!widget.isAdmin && !widget.canEdit) || disabled) ? null : () => _onContentSelect(id),
+      onLongPress: (!widget.canEdit || disabled) ? null : () => _onContentSelect(id),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         child: GlassmorphicContainer(
@@ -2539,14 +2385,6 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
               _openContent(data);
             },
             child: Row(children: [
-              if (widget.isAdmin && (_sortMode == 'custom' || _sortMode == 'custom_asc' || _sortMode == 'custom_desc'))
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: ReorderableDragStartListener(
-                    index: index,
-                    child: Icon(Icons.drag_indicator, size: 20, color: Theme.of(context).brightness == Brightness.dark ? Colors.white24 : Colors.black26),
-                  ),
-                ),
               Icon(Icons.assignment_rounded, color: disabled ? Colors.grey : (updating ? Colors.orange : Colors.orange), size: 36),
               const SizedBox(width: 14),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -2583,22 +2421,6 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                   },
                   itemBuilder: (context) => [
                     const PopupMenuItem(value: 'share', child: ListTile(leading: Icon(Icons.share_rounded, color: Colors.cyanAccent), title: Text('Share'))),
-                    if (widget.isAdmin) ...[
-                      PopupMenuItem(
-                        value: 'lock',
-                        child: ListTile(
-                          leading: Icon(locked ? Icons.lock_rounded : Icons.lock_open_rounded, color: Colors.redAccent),
-                          title: Text(locked ? 'Unlock' : 'Lock'),
-                        ),
-                      ),
-                      const PopupMenuItem(
-                        value: 'Assistant',
-                        child: ListTile(leading: Icon(Icons.people_alt_rounded, color: Colors.orange), title: Text('Assistant Access')),
-                      ),
-                      const PopupMenuItem(value: 'edit', child: ListTile(leading: Icon(Icons.edit, color: Colors.green), title: Text('Edit'))),
-                      const PopupMenuItem(value: 'rename', child: ListTile(leading: Icon(Icons.drive_file_rename_outline, color: Colors.blue), title: Text('Rename'))),
-                      const PopupMenuItem(value: 'delete', child: ListTile(leading: Icon(Icons.delete, color: Colors.red), title: Text('Delete', style: TextStyle(color: Colors.red)))),
-                    ],
                   ],
                 ),
             ]),
@@ -2614,7 +2436,7 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
     final name = FirebaseService.cleanTitle(data['name'] as String? ?? 'Mock Test');
     final disabled = _isDisabled(data, id);
     return GestureDetector(
-      onLongPress: ((!widget.isAdmin && !widget.canEdit) || disabled) ? null : () => _onContentSelect(id),
+      onLongPress: (!widget.canEdit || disabled) ? null : () => _onContentSelect(id),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         child: GlassmorphicContainer(
@@ -2626,14 +2448,6 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
               _openContent(data);
             },
             child: Row(children: [
-              if (widget.isAdmin && (_sortMode == 'custom' || _sortMode == 'custom_asc' || _sortMode == 'custom_desc'))
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: ReorderableDragStartListener(
-                    index: index,
-                    child: Icon(Icons.drag_indicator, size: 20, color: Theme.of(context).brightness == Brightness.dark ? Colors.white24 : Colors.black26),
-                  ),
-                ),
               Icon(Icons.assignment_rounded, color: disabled ? Colors.grey : (updating ? Colors.orange : Colors.orange), size: 36),
               const SizedBox(width: 14),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -2670,22 +2484,6 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                   },
                   itemBuilder: (context) => [
                     const PopupMenuItem(value: 'share', child: ListTile(leading: Icon(Icons.share_rounded, color: Colors.cyanAccent), title: Text('Share'))),
-                    if (widget.isAdmin) ...[
-                      PopupMenuItem(
-                        value: 'lock',
-                        child: ListTile(
-                          leading: Icon(locked ? Icons.lock_rounded : Icons.lock_open_rounded, color: Colors.redAccent),
-                          title: Text(locked ? 'Unlock' : 'Lock'),
-                        ),
-                      ),
-                      const PopupMenuItem(
-                        value: 'Assistant',
-                        child: ListTile(leading: Icon(Icons.people_alt_rounded, color: Colors.orange), title: Text('Assistant Access')),
-                      ),
-                      const PopupMenuItem(value: 'edit', child: ListTile(leading: Icon(Icons.edit, color: Colors.green), title: Text('Edit'))),
-                      const PopupMenuItem(value: 'rename', child: ListTile(leading: Icon(Icons.drive_file_rename_outline, color: Colors.blue), title: Text('Rename'))),
-                      const PopupMenuItem(value: 'delete', child: ListTile(leading: Icon(Icons.delete, color: Colors.red), title: Text('Delete', style: TextStyle(color: Colors.red)))),
-                    ],
                   ],
                 ),
             ]),
@@ -2702,7 +2500,7 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
     final fileType = data['fileType'] as String? ?? 'pdf';
     final disabled = _isDisabled(data, id);
     return GestureDetector(
-      onLongPress: ((!widget.isAdmin && !widget.canEdit) || disabled) ? null : () => _onContentSelect(id),
+      onLongPress: (!widget.canEdit || disabled) ? null : () => _onContentSelect(id),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         child: GlassmorphicContainer(
@@ -2714,14 +2512,6 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
               _openContent(data);
             },
             child: Row(children: [
-              if (widget.isAdmin && (_sortMode == 'custom' || _sortMode == 'custom_asc' || _sortMode == 'custom_desc'))
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: ReorderableDragStartListener(
-                    index: index,
-                    child: Icon(Icons.drag_indicator, size: 20, color: Theme.of(context).brightness == Brightness.dark ? Colors.white24 : Colors.black26),
-                  ),
-                ),
               Icon(Icons.assignment_rounded, color: disabled ? Colors.grey : Colors.orange, size: 36),
               const SizedBox(width: 14),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -2756,22 +2546,6 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                   },
                   itemBuilder: (context) => [
                     const PopupMenuItem(value: 'share', child: ListTile(leading: Icon(Icons.share_rounded, color: Colors.cyanAccent), title: Text('Share'))),
-                    if (widget.isAdmin) ...[
-                      PopupMenuItem(
-                        value: 'lock',
-                        child: ListTile(
-                          leading: Icon(locked ? Icons.lock_rounded : Icons.lock_open_rounded, color: Colors.redAccent),
-                          title: Text(locked ? 'Unlock' : 'Lock'),
-                        ),
-                      ),
-                      const PopupMenuItem(
-                        value: 'Assistant',
-                        child: ListTile(leading: Icon(Icons.people_alt_rounded, color: Colors.orange), title: Text('Assistant Access')),
-                      ),
-                      const PopupMenuItem(value: 'edit', child: ListTile(leading: Icon(Icons.edit, color: Colors.green), title: Text('Edit'))),
-                      const PopupMenuItem(value: 'rename', child: ListTile(leading: Icon(Icons.drive_file_rename_outline, color: Colors.blue), title: Text('Rename'))),
-                      const PopupMenuItem(value: 'delete', child: ListTile(leading: Icon(Icons.delete, color: Colors.red), title: Text('Delete', style: TextStyle(color: Colors.red)))),
-                    ],
                   ],
                 ),
             ]),
@@ -2787,7 +2561,7 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
     final name = FirebaseService.cleanTitle(data['name'] as String? ?? 'File');
     final disabled = _isDisabled(data, id);
     return GestureDetector(
-      onLongPress: ((!widget.isAdmin && !widget.canEdit) || disabled) ? null : () => _onContentSelect(id),
+      onLongPress: (!widget.canEdit || disabled) ? null : () => _onContentSelect(id),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         child: GlassmorphicContainer(
@@ -2799,14 +2573,6 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
               _openContent(data);
             },
             child: Row(children: [
-              if (widget.isAdmin && (_sortMode == 'custom' || _sortMode == 'custom_asc' || _sortMode == 'custom_desc'))
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: ReorderableDragStartListener(
-                    index: index,
-                    child: Icon(Icons.drag_indicator, size: 20, color: Theme.of(context).brightness == Brightness.dark ? Colors.white24 : Colors.black26),
-                  ),
-                ),
               Icon(_fileIcon(name), color: disabled ? Colors.grey : (updating ? Colors.orange : Colors.teal), size: 36),
               const SizedBox(width: 14),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -2845,22 +2611,6 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                   },
                   itemBuilder: (context) => [
                     const PopupMenuItem(value: 'share', child: ListTile(leading: Icon(Icons.share_rounded, color: Colors.cyanAccent), title: Text('Share'))),
-                    if (widget.isAdmin) ...[
-                      PopupMenuItem(
-                        value: 'lock',
-                        child: ListTile(
-                          leading: Icon(locked ? Icons.lock_rounded : Icons.lock_open_rounded, color: Colors.redAccent),
-                          title: Text(locked ? 'Unlock' : 'Lock'),
-                        ),
-                      ),
-                      const PopupMenuItem(
-                        value: 'Assistant',
-                        child: ListTile(leading: Icon(Icons.people_alt_rounded, color: Colors.orange), title: Text('Assistant Access')),
-                      ),
-                      const PopupMenuItem(value: 'edit', child: ListTile(leading: Icon(Icons.edit, color: Colors.green), title: Text('Edit'))),
-                      const PopupMenuItem(value: 'rename', child: ListTile(leading: Icon(Icons.drive_file_rename_outline, color: Colors.blue), title: Text('Rename'))),
-                      const PopupMenuItem(value: 'delete', child: ListTile(leading: Icon(Icons.delete, color: Colors.red), title: Text('Delete', style: TextStyle(color: Colors.red)))),
-                    ],
                   ],
                 ),
             ]),
