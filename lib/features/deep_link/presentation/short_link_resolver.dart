@@ -28,28 +28,6 @@ class _ShortLinkResolverState extends State<ShortLinkResolver> {
     return uri.queryParameters['v'] ?? '';
   }
 
-  Future<List<String>> _resolveParentChain(String folderId, String contentId) async {
-    final chain = <String>[];
-    try {
-      var currentId = contentId;
-      final visited = <String>{};
-      while (currentId.isNotEmpty && !visited.contains(currentId)) {
-        visited.add(currentId);
-        final content = await SupabaseReadService.getContent(folderId, currentId)
-            .timeout(const Duration(seconds: 3), onTimeout: () => null);
-        if (content == null) break;
-        final parentId = content['parentContentId'] as String?;
-        if (parentId != null && parentId.isNotEmpty) {
-          chain.add(parentId);
-          currentId = parentId;
-        } else {
-          break;
-        }
-      }
-    } catch (_) {}
-    return chain.reversed.toList();
-  }
-
   Future<void> _resolve() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -62,7 +40,7 @@ class _ShortLinkResolverState extends State<ShortLinkResolver> {
       final link = await SupabaseReadService.getShareLinkByShortId(widget.shortId)
           .timeout(const Duration(seconds: 5), onTimeout: () => null);
 
-      if (link == null || !mounted) {
+      if (link == null) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Share link not found or expired'), backgroundColor: Colors.redAccent),
@@ -75,38 +53,23 @@ class _ShortLinkResolverState extends State<ShortLinkResolver> {
       final contentType = link['content_type'] as String? ?? 'folder';
       final folderId = link['folder_id'] as String? ?? '';
 
-      if (!mounted) return;
-
-      final navDelay = const Duration(milliseconds: 150);
+      final router = GoRouter.of(context);
 
       if (contentType == 'folder') {
-        context.go('/dashboard');
-        await Future.delayed(navDelay);
-        if (!mounted) return;
-        context.push('/folders/$contentId', extra: {'canEdit': false, 'canManage': false});
+        router.go('/dashboard');
+        await Future.delayed(const Duration(milliseconds: 200));
+        router.push('/folders/$contentId', extra: {'canEdit': false, 'canManage': false});
       } else if (contentType == 'subfolder') {
-        final parentChain = await _resolveParentChain(folderId, contentId);
-        if (!mounted) return;
-        context.go('/dashboard');
-        await Future.delayed(navDelay);
-        if (!mounted) return;
-        context.push('/folders/$folderId', extra: {'canEdit': false, 'canManage': false});
-        for (final parentId in parentChain) {
-          if (!mounted) return;
-          await Future.delayed(navDelay);
-          context.push('/folders/$folderId/sub/$parentId', extra: {'canEdit': false, 'canManage': false});
-        }
-        if (!mounted) return;
-        await Future.delayed(navDelay);
-        context.push('/folders/$folderId/sub/$contentId', extra: {'canEdit': false, 'canManage': false});
+        router.go('/dashboard');
+        await Future.delayed(const Duration(milliseconds: 200));
+        router.push('/folders/$folderId/sub/$contentId', extra: {'canEdit': false, 'canManage': false});
       } else {
         final content = await SupabaseReadService.getContent(folderId, contentId)
             .timeout(const Duration(seconds: 5), onTimeout: () => null);
-        if (content == null || !mounted) {
-          context.go('/dashboard');
-          await Future.delayed(navDelay);
-          if (!mounted) return;
-          context.push('/folders/$folderId', extra: {'canEdit': false, 'canManage': false});
+        if (content == null) {
+          router.go('/dashboard');
+          await Future.delayed(const Duration(milliseconds: 200));
+          router.push('/folders/$folderId', extra: {'canEdit': false, 'canManage': false});
           return;
         }
 
@@ -116,76 +79,67 @@ class _ShortLinkResolverState extends State<ShortLinkResolver> {
         final youtubeUrl = content['youtubeUrl'] as String? ?? '';
         final immediateParentId = content['parentContentId'] as String?;
 
-        context.go('/dashboard');
-        await Future.delayed(navDelay);
-        if (!mounted) return;
+        router.go('/dashboard');
+        await Future.delayed(const Duration(milliseconds: 200));
 
         if (immediateParentId != null && immediateParentId.isNotEmpty) {
-          final parentChain = await _resolveParentChain(folderId, immediateParentId);
-          if (!mounted) return;
-          context.push('/folders/$folderId', extra: {'canEdit': false, 'canManage': false});
-          for (final parentId in parentChain) {
-            if (!mounted) return;
-            await Future.delayed(navDelay);
-            context.push('/folders/$folderId/sub/$parentId', extra: {'canEdit': false, 'canManage': false});
-          }
+          router.push('/folders/$folderId/sub/$immediateParentId', extra: {'canEdit': false, 'canManage': false});
+          await Future.delayed(const Duration(milliseconds: 200));
         } else {
-          context.push('/folders/$folderId', extra: {'canEdit': false, 'canManage': false});
+          router.push('/folders/$folderId', extra: {'canEdit': false, 'canManage': false});
+          await Future.delayed(const Duration(milliseconds: 200));
         }
-
-        if (!mounted) return;
-        await Future.delayed(navDelay);
 
         switch (type) {
           case 'lecture':
             final videoId = _extractYoutubeId(youtubeUrl);
             if (videoId.isNotEmpty) {
-              context.push('/lectures/$videoId', extra: {
+              router.push('/lectures/$videoId', extra: {
                 'name': name, 'folderId': folderId, 'parentContentId': immediateParentId,
               });
             } else if (immediateParentId != null) {
-              context.push('/folders/$folderId/sub/$immediateParentId', extra: {'canEdit': false, 'canManage': false});
+              router.push('/folders/$folderId/sub/$immediateParentId', extra: {'canEdit': false, 'canManage': false});
             } else {
-              context.push('/folders/$folderId', extra: {'canEdit': false, 'canManage': false});
+              router.push('/folders/$folderId', extra: {'canEdit': false, 'canManage': false});
             }
             break;
           case 'mocktest_url':
             if (url.isNotEmpty) {
-              context.push('/webview', extra: {
+              router.push('/webview', extra: {
                 'url': url, 'title': name, 'folderId': folderId,
                 'parentContentId': immediateParentId, 'isMockTest': true,
               });
             } else {
-              context.push('/folders/$folderId', extra: {'canEdit': false, 'canManage': false});
+              router.push('/folders/$folderId', extra: {'canEdit': false, 'canManage': false});
             }
             break;
           case 'mocktest_code':
             final code = content['code'] as String? ?? '';
             if (code.isNotEmpty) {
-              context.push('/webview', extra: {
+              router.push('/webview', extra: {
                 'html': code, 'title': name, 'folderId': folderId,
                 'parentContentId': immediateParentId, 'isMockTest': true,
               });
             } else {
-              context.push('/folders/$folderId', extra: {'canEdit': false, 'canManage': false});
+              router.push('/folders/$folderId', extra: {'canEdit': false, 'canManage': false});
             }
             break;
           case 'mocktest_file':
             final fileType = content['fileType'] as String? ?? 'pdf';
             if (url.isNotEmpty) {
               if (fileType == 'pdf') {
-                context.push('/pdf_reader/view', extra: {
+                router.push('/pdf_reader/view', extra: {
                   'url': url, 'folderId': folderId,
                   'parentContentId': immediateParentId, 'title': name,
                 });
               } else {
-                context.push('/webview', extra: {
+                router.push('/webview', extra: {
                   'url': url, 'title': name, 'folderId': folderId,
                   'parentContentId': immediateParentId, 'isMockTest': true,
                 });
               }
             } else {
-              context.push('/folders/$folderId', extra: {'canEdit': false, 'canManage': false});
+              router.push('/folders/$folderId', extra: {'canEdit': false, 'canManage': false});
             }
             break;
           case 'file':
@@ -196,29 +150,29 @@ class _ShortLinkResolverState extends State<ShortLinkResolver> {
                 ext = urlName.contains('.') ? urlName.split('.').last.toLowerCase() : '';
               }
               if (ext == 'pdf') {
-                context.push('/pdf_reader/view', extra: {
+                router.push('/pdf_reader/view', extra: {
                   'url': url, 'folderId': folderId,
                   'parentContentId': immediateParentId, 'title': name,
                 });
               } else if (['mp4', 'mkv', 'avi', 'mov', 'webm'].contains(ext)) {
-                context.push('/media_player', extra: {'url': url, 'title': name, 'isAudio': false});
+                router.push('/media_player', extra: {'url': url, 'title': name, 'isAudio': false});
               } else if (['mp3', 'wav', 'm4a', 'aac', 'ogg'].contains(ext)) {
-                context.push('/media_player', extra: {'url': url, 'title': name, 'isAudio': true});
+                router.push('/media_player', extra: {'url': url, 'title': name, 'isAudio': true});
               } else {
-                context.push('/webview', extra: {
+                router.push('/webview', extra: {
                   'url': url, 'title': name, 'folderId': folderId,
                   'parentContentId': immediateParentId,
                 });
               }
             } else {
-              context.push('/folders/$folderId', extra: {'canEdit': false, 'canManage': false});
+              router.push('/folders/$folderId', extra: {'canEdit': false, 'canManage': false});
             }
             break;
           default:
             if (immediateParentId != null) {
-              context.push('/folders/$folderId/sub/$immediateParentId', extra: {'canEdit': false, 'canManage': false});
+              router.push('/folders/$folderId/sub/$immediateParentId', extra: {'canEdit': false, 'canManage': false});
             } else {
-              context.push('/folders/$folderId', extra: {'canEdit': false, 'canManage': false});
+              router.push('/folders/$folderId', extra: {'canEdit': false, 'canManage': false});
             }
             break;
         }
@@ -231,9 +185,9 @@ class _ShortLinkResolverState extends State<ShortLinkResolver> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0A0E1A),
-      body: const Center(
+    return const Scaffold(
+      backgroundColor: Color(0xFF0A0E1A),
+      body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
