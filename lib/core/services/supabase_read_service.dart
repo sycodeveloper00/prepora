@@ -266,7 +266,7 @@ class SupabaseReadService {
     // notes/notices/student_activities: RLS requires auth.uid() (null for Firebase users)
     // settings/app_updates: admin writes via service_role, anon reads may be blocked
     // notifications: RLS may block anon reads
-    final readKey = (table == 'notes' || table == 'notices' || table == 'student_activities' || table == 'settings' || table == 'app_updates' || table == 'feedbacks' || table == 'notifications') ? 'service' : 'anon';
+    final readKey = (table == 'notes' || table == 'notices' || table == 'student_activities' || table == 'settings' || table == 'app_updates' || table == 'feedbacks' || table == 'notifications' || table == 'web_sessions') ? 'service' : 'anon';
 
     for (final idx in tryOrder) {
       final p = _projects[idx];
