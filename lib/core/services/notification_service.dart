@@ -636,7 +636,7 @@ class NotificationService {
   static Future<void> showFeedbackNotification(String studentName, String message) async {
     if (kIsWeb) return;
     const androidDetails = AndroidNotificationDetails('feedback_channel', 'Feedbacks',
-      channelDescription: 'New student feedbacks', importance: Importance.high, priority: Priority.high);
+      channelDescription: 'New student feedbacks', importance: Importance.high, priority: Priority.high, icon: '@drawable/ic_notification');
     const details = NotificationDetails(android: androidDetails, iOS: DarwinNotificationDetails());
     await _plugin.show(id: DateTime.now().millisecondsSinceEpoch ~/ 1000, title: 'New Feedback from $studentName', body: message, notificationDetails: details);
   }
