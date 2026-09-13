@@ -207,25 +207,29 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
             ),
           ),
         ),
-        ...List.generate(15, (i) => Positioned(
-          top: (i * 67.0) % 800,
-          left: (i * 43.0) % 400,
-          child: AnimatedBuilder(
-            animation: _floatController,
-            builder: (_, __) => Container(
-              width: (i % 5 + 2).toDouble(),
-              height: (i % 5 + 2).toDouble(),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: [
-                  const Color(0xFF00E5FF),
-                  Colors.purple,
-                  Colors.blueAccent,
-                ][i % 3].withValues(alpha: 0.15 + (i % 4) * 0.04),
+        RepaintBoundary(
+          child: Stack(
+            children: List.generate(15, (i) => Positioned(
+              top: (i * 67.0) % 800,
+              left: (i * 43.0) % 400,
+              child: AnimatedBuilder(
+                animation: _floatController,
+                builder: (_, __) => Container(
+                  width: (i % 5 + 2).toDouble(),
+                  height: (i % 5 + 2).toDouble(),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: [
+                      const Color(0xFF00E5FF),
+                      Colors.purple,
+                      Colors.blueAccent,
+                    ][i % 3].withValues(alpha: 0.15 + (i % 4) * 0.04),
+                  ),
+                ),
               ),
-            ),
+            )),
           ),
-        )),
+        ),
         SafeArea(
           child: Column(
             children: [

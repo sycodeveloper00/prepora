@@ -4,6 +4,7 @@ import '../../../core/services/firebase_service.dart';
 import '../../../core/services/supabase_read_service.dart';
 import '../../../core/utils.dart';
 import '../../../core/widgets/professional_loader.dart';
+import '../../../core/widgets/network_error_overlay.dart';
 
 class BrowseNode {
   final String id;
@@ -41,6 +42,7 @@ class FolderBrowserScreen extends StatefulWidget {
 
 class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
   bool _loading = true;
+  String? _error;
 
   // Tree structure: top-level folders (root level)
   List<BrowseNode> _rootFolders = [];
@@ -58,10 +60,12 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
   }
 
   Future<void> _loadAll() async {
-    setState(() => _loading = true);
+    setState(() { _loading = true; _error = null; });
     try {
-      // Use Supabase mirror for fast single-query fetch
-      final folders = await SupabaseReadService.getFolders();
+      final folders = await SupabaseReadService.getFolders()
+          .timeout(const Duration(seconds: 10), onTimeout: () {
+        throw Exception('timeout');
+      });
       if (folders == null || !mounted) return;
       
       // Build tree structure from flat list
@@ -114,11 +118,7 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
       setState(() => _loading = false);
     } catch (e) {
       if (mounted) {
-        setState(() => _loading = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Error loading: $e'),
-          backgroundColor: Colors.redAccent,
-        ));
+        setState(() { _loading = false; _error = 'Network error'; });
       }
     }
   }
@@ -390,7 +390,9 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
           Expanded(
             child: _loading
                 ? const Center(child: ProfessionalLoader())
-                : _currentNodes.isEmpty
+                : _error != null
+                    ? NetworkErrorOverlay(message: _error!, onRetry: _loadAll)
+                    : _currentNodes.isEmpty
                     ? Center(child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [

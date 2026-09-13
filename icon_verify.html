@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Notification Icon Verification</title>
+<style>
+  body { background: #222; color: #fff; font-family: Arial; display: flex; gap: 40px; padding: 40px; align-items: flex-start; }
+  .col { text-align: center; }
+  .box { width: 200px; height: 200px; display: flex; align-items: center; justify-content: center; border-radius: 20px; margin: 10px auto; }
+  .dark { background: #333; }
+  .light { background: #e0e0e0; }
+  .status-dark { background: #1a1a2e; }
+  .status-light { background: #f5f5f5; }
+  h3 { margin: 5px 0; }
+  .status-bar { width: 300px; height: 28px; display: flex; align-items: center; padding: 0 12px; border-radius: 14px; margin: 10px auto; }
+  .status-bar.dark { background: #1a1a2e; }
+  .status-bar.light { background: #e8e8e8; }
+  svg { filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3)); }
+  .ref-img { width: 200px; height: 200px; border-radius: 20px; background: #555; display: flex; align-items: center; justify-content: center; }
+  .ref-img img { width: 160px; height: 160px; }
+</style>
+</head>
+<body>
+
+<div class="col">
+  <h3>Reference Image</h3>
+  <div class="ref-img">
+    <img src="icon_reference.png" alt="reference">
+  </div>
+</div>
+
+<div class="col">
+  <h3>Current Vector (24dp @ 8x)</h3>
+  <div class="box dark">
+    <svg width="160" height="160" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <!-- Cap: Mortarboard flat top diamond -->
+      <path fill="#FFFFFF" d="M12,2 L2,7 L12,12 L22,7 Z" />
+      <!-- Cap: Skull cap band under diamond -->
+      <path fill="#FFFFFF" d="M4.5,8 L19.5,8 L19.5,10 C19.5,12 16.5,14 12,14 C7.5,14 4.5,12 4.5,10 Z" />
+      <!-- Tassel: string from right side of cap -->
+      <path d="M17,8 L17,15.5" stroke="#FFFFFF" stroke-width="1.2" fill="none"/>
+      <!-- Tassel: ball at bottom -->
+      <path fill="#FFFFFF" d="M15.8,15.5 A1.2,1.2 0 1,1 18.2,15.5 A1.2,1.2 0 1,1 15.8,15.5 Z" />
+      <!-- Book: Left page -->
+      <path fill="#FFFFFF" d="M2.5,15.5 L12,15.5 L12,21.5 C8.5,21.5 5,21.5 5,21.5 L3,21.5 C2.5,21.5 2.5,15.5 2.5,15.5 Z" />
+      <!-- Book: Right page -->
+      <path fill="#FFFFFF" d="M21.5,15.5 L12,15.5 L12,21.5 C15.5,21.5 19,21.5 19,21.5 L21,21.5 C21.5,21.5 21.5,15.5 21.5,15.5 Z" />
+      <!-- Book: Spine center line -->
+      <path d="M12,15 L12,22" stroke="#FFFFFF" stroke-width="0.8" fill="none"/>
+    </svg>
+  </div>
+  <div class="box light">
+    <svg width="160" height="160" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <path fill="#333333" d="M12,2 L2,7 L12,12 L22,7 Z" />
+      <path fill="#333333" d="M4.5,8 L19.5,8 L19.5,10 C19.5,12 16.5,14 12,14 C7.5,14 4.5,12 4.5,10 Z" />
+      <path d="M17,8 L17,15.5" stroke="#333333" stroke-width="1.2" fill="none"/>
+      <path fill="#333333" d="M15.8,15.5 A1.2,1.2 0 1,1 18.2,15.5 A1.2,1.2 0 1,1 15.8,15.5 Z" />
+      <path fill="#333333" d="M2.5,15.5 L12,15.5 L12,21.5 C8.5,21.5 5,21.5 5,21.5 L3,21.5 C2.5,21.5 2.5,15.5 2.5,15.5 Z" />
+      <path fill="#333333" d="M21.5,15.5 L12,15.5 L12,21.5 C15.5,21.5 19,21.5 19,21.5 L21,21.5 C21.5,21.5 21.5,15.5 21.5,15.5 Z" />
+      <path d="M12,15 L12,22" stroke="#333333" stroke-width="0.8" fill="none"/>
+    </svg>
+  </div>
+  <p>Dark bg = white icon<br>Light bg = system auto-tints</p>
+</div>
+
+<div class="col">
+  <h3>Status Bar Preview</h3>
+  <div class="status-bar dark">
+    <svg width="18" height="18" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <path fill="#FFFFFF" d="M12,2 L2,7 L12,12 L22,7 Z" />
+      <path fill="#FFFFFF" d="M4.5,8 L19.5,8 L19.5,10 C19.5,12 16.5,14 12,14 C7.5,14 4.5,12 4.5,10 Z" />
+      <path d="M17,8 L17,15.5" stroke="#FFFFFF" stroke-width="1.2" fill="none"/>
+      <path fill="#FFFFFF" d="M15.8,15.5 A1.2,1.2 0 1,1 18.2,15.5 A1.2,1.2 0 1,1 15.8,15.5 Z" />
+      <path fill="#FFFFFF" d="M2.5,15.5 L12,15.5 L12,21.5 C8.5,21.5 5,21.5 5,21.5 L3,21.5 C2.5,21.5 2.5,15.5 2.5,15.5 Z" />
+      <path fill="#FFFFFF" d="M21.5,15.5 L12,15.5 L12,21.5 C15.5,21.5 19,21.5 19,21.5 L21,21.5 C21.5,21.5 21.5,15.5 21.5,15.5 Z" />
+      <path d="M12,15 L12,22" stroke="#FFFFFF" stroke-width="0.8" fill="none"/>
+    </svg>
+    <span style="color:#fff;margin-left:8px;font-size:13px">PrePora</span>
+    <span style="color:#aaa;margin-left:auto;font-size:12px">12:00</span>
+  </div>
+  <div class="status-bar light">
+    <svg width="18" height="18" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <path fill="#333333" d="M12,2 L2,7 L12,12 L22,7 Z" />
+      <path fill="#333333" d="M4.5,8 L19.5,8 L19.5,10 C19.5,12 16.5,14 12,14 C7.5,14 4.5,12 4.5,10 Z" />
+      <path d="M17,8 L17,15.5" stroke="#333333" stroke-width="1.2" fill="none"/>
+      <path fill="#333333" d="M15.8,15.5 A1.2,1.2 0 1,1 18.2,15.5 A1.2,1.2 0 1,1 15.8,15.5 Z" />
+      <path fill="#333333" d="M2.5,15.5 L12,15.5 L12,21.5 C8.5,21.5 5,21.5 5,21.5 L3,21.5 C2.5,21.5 2.5,15.5 2.5,15.5 Z" />
+      <path fill="#333333" d="M21.5,15.5 L12,15.5 L12,21.5 C15.5,21.5 19,21.5 19,21.5 L21,21.5 C21.5,21.5 21.5,15.5 21.5,15.5 Z" />
+      <path d="M12,15 L12,22" stroke="#333333" stroke-width="0.8" fill="none"/>
+    </svg>
+    <span style="color:#333;margin-left:8px;font-size:13px">PrePora</span>
+    <span style="color:#666;margin-left:auto;font-size:12px">12:00</span>
+  </div>
+
+  <h3 style="margin-top:30px">Issues Found</h3>
+  <ul style="text-align:left;font-size:13px;line-height:1.8">
+    <li>Book pages are too angular - ref has curved pages</li>
+    <li>Gap between cap and book - ref has them closer</li>
+    <li>Tassel line too thin for small sizes</li>
+    <li>Book needs curved page edges like reference</li>
+  </ul>
+</div>
+
+</body>
+</html>

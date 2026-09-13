@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/services/firebase_service.dart';
 import '../../../core/widgets/professional_loader.dart';
+import '../../../core/widgets/network_error_overlay.dart';
 
 class NotesListScreen extends StatefulWidget {
   const NotesListScreen({super.key});
@@ -12,6 +13,7 @@ class NotesListScreen extends StatefulWidget {
 class _NotesListScreenState extends State<NotesListScreen> {
   List<Map<String, dynamic>>? _notes;
   bool _loading = true;
+  String? _error;
 
   @override
   void initState() {
@@ -20,9 +22,16 @@ class _NotesListScreenState extends State<NotesListScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
-    final notes = await FirebaseService.getAllNotes();
-    if (mounted) setState(() { _notes = notes; _loading = false; });
+    setState(() { _loading = true; _error = null; });
+    try {
+      final notes = await FirebaseService.getAllNotes()
+          .timeout(const Duration(seconds: 10), onTimeout: () {
+        throw Exception('timeout');
+      });
+      if (mounted) setState(() { _notes = notes; _loading = false; });
+    } catch (e) {
+      if (mounted) setState(() { _loading = false; _error = 'Network error'; });
+    }
   }
 
   Future<void> _delete(String id) async {
@@ -73,7 +82,9 @@ class _NotesListScreenState extends State<NotesListScreen> {
       ),
       body: _loading
           ? const Center(child: ProfessionalLoader())
-          : _notes == null || _notes!.isEmpty
+          : _error != null
+              ? NetworkErrorOverlay(message: _error!, onRetry: _load)
+              : _notes == null || _notes!.isEmpty
               ? Center(child: Text('No notes yet', style: TextStyle(color: isDark ? Colors.white38 : Colors.black38)))
               : ListView.builder(
                   padding: const EdgeInsets.all(16),

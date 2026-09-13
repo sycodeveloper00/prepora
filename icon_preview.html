@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Notification Icon Preview</title>
+<style>
+  body { background: #1a1a2e; color: white; font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; padding: 40px; }
+  h1 { margin-bottom: 10px; }
+  .subtitle { color: #aaa; margin-bottom: 40px; }
+  .row { display: flex; gap: 60px; margin-bottom: 50px; align-items: flex-start; }
+  .card { background: #16213e; border-radius: 16px; padding: 30px; text-align: center; }
+  .card h3 { margin-top: 16px; color: #ccc; }
+  .card p { color: #888; font-size: 13px; }
+
+  /* Status bar simulation */
+  .statusbar { width: 360px; height: 28px; background: #000; border-radius: 14px; display: flex; align-items: center; justify-content: flex-end; padding: 0 12px; gap: 6px; margin-top: 10px; }
+  .statusbar .time { color: white; font-size: 12px; font-weight: bold; margin-right: auto; }
+  .statusbar svg { width: 16px; height: 16px; fill: white; opacity: 0.9; }
+
+  /* Notification shade simulation */
+  .notif { width: 360px; background: #1e1e2e; border-radius: 16px; padding: 16px; display: flex; align-items: center; gap: 14px; margin-top: 10px; }
+  .notif .icon-bg { width: 40px; height: 40px; background: #2d2d44; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .notif .icon-bg svg { width: 24px; height: 24px; }
+  .notif .text .title { color: white; font-size: 14px; font-weight: 600; }
+  .notif .text .body { color: #888; font-size: 12px; margin-top: 2px; }
+  .notif .text .time { color: #555; font-size: 11px; }
+
+  .label { color: #666; font-size: 12px; margin-top: 8px; text-transform: uppercase; letter-spacing: 1px; }
+
+  /* Dark/light mode comparison */
+  .modes { display: flex; gap: 30px; margin-top: 20px; }
+  .mode-card { padding: 20px; border-radius: 12px; text-align: center; }
+  .dark { background: #0D0D2E; }
+  .light { background: #F5F5F5; }
+</style>
+</head>
+<body>
+
+<h1>Notification Icon Preview</h1>
+<p class="subtitle">ic_notification.xml — Graduation Cap + Book</p>
+
+<div class="row">
+  <!-- Large preview -->
+  <div class="card">
+    <h3>24dp (Status Bar Size)</h3>
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
+      <path d="M12,3 L1,9 L12,15 L23,9 Z"/>
+      <path d="M5,10.5 L5,16.5 C5,18 8.5,20 12,20 C15.5,20 19,18 19,16.5 L19,10.5 L12,14 Z"/>
+      <path d="M4,17 L12,20.5 L12,22 L4,22 Z"/>
+      <path d="M12,20.5 L20,17 L20,22 L12,22 Z"/>
+    </svg>
+    <p>Actual notification size</p>
+  </div>
+
+  <div class="card">
+    <h3>48dp (Notification Panel)</h3>
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="white">
+      <path d="M12,3 L1,9 L12,15 L23,9 Z"/>
+      <path d="M5,10.5 L5,16.5 C5,18 8.5,20 12,20 C15.5,20 19,18 19,16.5 L19,10.5 L12,14 Z"/>
+      <path d="M4,17 L12,20.5 L12,22 L4,22 Z"/>
+      <path d="M12,20.5 L20,17 L20,22 L12,22 Z"/>
+    </svg>
+    <p>Enlarged for visibility</p>
+  </div>
+
+  <!-- App Icon comparison -->
+  <div class="card">
+    <h3>App Icon (for comparison)</h3>
+    <svg width="48" height="48" viewBox="0 0 108 108">
+      <path d="M54,24 L30,32 L30,78 L54,70 Z" fill="url(#grad1)"/>
+      <path d="M54,24 L78,32 L78,78 L54,70 Z" fill="url(#grad2)"/>
+      <path d="M54,24 L55,24 L55,70 L54,70 Z" fill="rgba(255,255,255,0.8)"/>
+      <defs>
+        <linearGradient id="grad1" x1="30" y1="32" x2="54" y2="78">
+          <stop offset="0%" stop-color="#09A2B4"/>
+          <stop offset="100%" stop-color="#6E48B9"/>
+        </linearGradient>
+        <linearGradient id="grad2" x1="54" y1="24" x2="78" y2="78">
+          <stop offset="0%" stop-color="#1BA4A8"/>
+          <stop offset="100%" stop-color="#6950C5"/>
+        </linearGradient>
+      </defs>
+    </svg>
+    <p>Notification icon is monochrome white version of this</p>
+  </div>
+</div>
+
+<h2 style="margin-bottom: 10px;">Status Bar Simulation</h2>
+
+<div class="statusbar">
+  <span class="time">12:34</span>
+  <!-- WiFi -->
+  <svg viewBox="0 0 24 24"><path d="M1,9l2,2c4.97,-4.97 13.03,-4.97 18,0l2,-2C16.93,2.93 7.08,2.93 1,9zM5,13l2,2c2.76,-2.76 7.24,-2.76 10,0l2,-2C15.14,9.14 8.87,9.14 5,13zM9,17l3,3 3,-3c-1.65,-1.66 -4.34,-1.66 -6,0z"/></svg>
+  <!-- Battery -->
+  <svg viewBox="0 0 24 24"><path d="M15.67,4H14V2h-4v2H8.33C7.6,4 7,4.6 7,5.33v15.34C7,21.4 7.6,22 8.33,22h7.34c0.73,0 1.33,-0.6 1.33,-1.33V5.33C17,4.6 16.4,4 15.67,4z"/></svg>
+  <!-- NOTIFICATION ICON -->
+  <svg viewBox="0 0 24 24" fill="white">
+    <path d="M12,3 L1,9 L12,15 L23,9 Z"/>
+    <path d="M5,10.5 L5,16.5 C5,18 8.5,20 12,20 C15.5,20 19,18 19,16.5 L19,10.5 L12,14 Z"/>
+    <path d="M4,17 L12,20.5 L12,22 L4,22 Z"/>
+    <path d="M12,20.5 L20,17 L20,22 L12,22 Z"/>
+  </svg>
+</div>
+<p class="label">Status bar with notification icon</p>
+
+<h2 style="margin-top: 40px; margin-bottom: 10px;">Notification Panel Simulation</h2>
+
+<div class="notif">
+  <div class="icon-bg">
+    <svg viewBox="0 0 24 24" fill="white">
+      <path d="M12,3 L1,9 L12,15 L23,9 Z"/>
+      <path d="M5,10.5 L5,16.5 C5,18 8.5,20 12,20 C15.5,20 19,18 19,16.5 L19,10.5 L12,14 Z"/>
+      <path d="M4,17 L12,20.5 L12,22 L4,22 Z"/>
+      <path d="M12,20.5 L20,17 L20,22 L12,22 Z"/>
+    </svg>
+  </div>
+  <div class="text">
+    <div class="title">PrePora</div>
+    <div class="body">New content available in your folder</div>
+    <div class="time">Just now</div>
+  </div>
+</div>
+
+<div class="modes" style="margin-top: 40px;">
+  <div class="mode-card dark">
+    <p style="color: #888; margin-bottom: 8px;">Dark Mode Status Bar</p>
+    <div class="statusbar" style="background: #0D0221;">
+      <span class="time">12:34</span>
+      <svg viewBox="0 0 24 24"><path d="M1,9l2,2c4.97,-4.97 13.03,-4.97 18,0l2,-2C16.93,2.93 7.08,2.93 1,9zM5,13l2,2c2.76,-2.76 7.24,-2.76 10,0l2,-2C15.14,9.14 8.87,9.14 5,13z" fill="white"/></svg>
+      <svg viewBox="0 0 24 24" fill="white">
+        <path d="M12,3 L1,9 L12,15 L23,9 Z"/>
+        <path d="M5,10.5 L5,16.5 C5,18 8.5,20 12,20 C15.5,20 19,18 19,16.5 L19,10.5 L12,14 Z"/>
+        <path d="M4,17 L12,20.5 L12,22 L4,22 Z"/>
+        <path d="M12,20.5 L20,17 L20,22 L12,22 Z"/>
+      </svg>
+    </div>
+  </div>
+  <div class="mode-card light">
+    <p style="color: #666; margin-bottom: 8px;">Light Mode Status Bar</p>
+    <div class="statusbar" style="background: #F5F5F5;">
+      <span class="time" style="color: #000;">12:34</span>
+      <svg viewBox="0 0 24 24"><path d="M1,9l2,2c4.97,-4.97 13.03,-4.97 18,0l2,-2C16.93,2.93 7.08,2.93 1,9zM5,13l2,2c2.76,-2.76 7.24,-2.76 10,0l2,-2C15.14,9.14 8.87,9.14 5,13z" fill="#000"/></svg>
+      <svg viewBox="0 0 24 24" fill="#000">
+        <path d="M12,3 L1,9 L12,15 L23,9 Z"/>
+        <path d="M5,10.5 L5,16.5 C5,18 8.5,20 12,20 C15.5,20 19,18 19,16.5 L19,10.5 L12,14 Z"/>
+        <path d="M4,17 L12,20.5 L12,22 L4,22 Z"/>
+        <path d="M12,20.5 L20,17 L20,22 L12,22 Z"/>
+      </svg>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

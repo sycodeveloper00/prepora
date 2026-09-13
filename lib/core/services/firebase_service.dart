@@ -1712,6 +1712,10 @@ class FirebaseService {
     return false;
   }
 
+  /// Public API — checks if any ancestor of [contentId] is locked/invisible/updating.
+  static Future<bool> isAnyAncestorRestricted(String folderId, String? contentId) =>
+      _isAnyAncestorRestricted(folderId, contentId);
+
   static Future<bool> _isNotificationBlocked(String? folderId, String? parentContentId, Map<String, dynamic>? contentData) async {
     if (contentData != null) {
       final locked = contentData['locked'] as bool? ?? false;

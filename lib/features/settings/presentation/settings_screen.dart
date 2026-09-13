@@ -31,7 +31,7 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
   Future<void> _loadAll() async {
     try {
       final futures = <Future<dynamic>>[
-        FirebaseService.getUserAutoDownload(),
+        FirebaseService.getUserAutoDownload().timeout(const Duration(seconds: 5), onTimeout: () => false),
         PackageInfo.fromPlatform(),
       ];
       if (!kIsWeb) {
@@ -46,11 +46,7 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
       _appVersion = (results[1] as PackageInfo).version;
       if (!kIsWeb) _notificationsEnabled = (results[2] as bool?) ?? true;
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load settings: $e'), backgroundColor: Colors.redAccent),
-        );
-      }
+      _appVersion = '3.1.0';
     } finally {
       if (mounted) setState(() {});
     }

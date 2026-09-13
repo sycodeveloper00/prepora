@@ -58,6 +58,8 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
   final Map<String, double> _uploadProgress = {};
   final Set<String> _expandedDescriptions = {};
   bool _isNavigating = false;
+  Timer? _searchDebounce;
+  String? _groupLinkCache;
 
   int _naturalCompare(String a, String b) {
     final aLower = a.toLowerCase();
@@ -1736,7 +1738,12 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                 child: Row(children: [
                   Expanded(
                     child: TextField(
-                      onChanged: (v) => setState(() => _searchQuery = v),
+                      onChanged: (v) {
+                        _searchDebounce?.cancel();
+                        _searchDebounce = Timer(const Duration(milliseconds: 300), () {
+                          if (mounted) setState(() => _searchQuery = v);
+                        });
+                      },
                       style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87),
                       decoration: InputDecoration(
                         hintText: 'Search content...', hintStyle: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white38 : Colors.black38),
@@ -1890,7 +1897,10 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                       return const SizedBox.shrink();
                     }
                     return FutureBuilder<String?>(
-                      future: FirebaseService.getGroupLinkForLevel(widget.folderId, parentContentId: widget.parentContentId ?? 'root'),
+                      future: _groupLinkCache != null 
+                          ? Future.value(_groupLinkCache)
+                          : FirebaseService.getGroupLinkForLevel(widget.folderId, parentContentId: widget.parentContentId ?? 'root')
+                              .then((link) { _groupLinkCache = link; return link; }),
                       builder: (context, snap) {
                         final link = snap.data;
                         final hasGroup = link != null && link.isNotEmpty;
@@ -2282,33 +2292,39 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                 if (invisible)
                   const Row(children: [Icon(Icons.visibility_off_rounded, color: Colors.purple, size: 12), SizedBox(width: 4), Text('Hidden', style: TextStyle(color: Colors.purple, fontSize: 11))]),
               ])),
-              PopupMenuButton<String>(
-                  icon: Icon(Icons.more_vert, size: 20, color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87),
-                  color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2D2D2D) : Colors.white,
-                  onSelected: (value) {
-                    switch (value) {
-                      case 'share':
-                        _shareContent(id, name, data['type'] as String? ?? 'content');
-                      case 'lock':
-                        _showContentLockSheet(id, name, locked, updating, invisible);
-                      case 'Assistant':
-                        _showContentAssistantSheet(id, name);
-                      case 'edit':
-                        if (data['type'] == 'subfolder') {
-                          _showEditSubfolderDialog(id, name, data['description'] as String?);
-                        } else {
-                          _showEditContentDialog(id, name, data['type'] as String? ?? 'file', data);
+              Opacity(
+                opacity: (locked || updating || invisible) ? 0.3 : 1.0,
+                child: AbsorbPointer(
+                  absorbing: locked || updating || invisible,
+                  child: PopupMenuButton<String>(
+                      icon: Icon(Icons.more_vert, size: 20, color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87),
+                      color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2D2D2D) : Colors.white,
+                      onSelected: (value) {
+                        switch (value) {
+                          case 'share':
+                            _shareContent(id, name, data['type'] as String? ?? 'content');
+                          case 'lock':
+                            _showContentLockSheet(id, name, locked, updating, invisible);
+                          case 'Assistant':
+                            _showContentAssistantSheet(id, name);
+                          case 'edit':
+                            if (data['type'] == 'subfolder') {
+                              _showEditSubfolderDialog(id, name, data['description'] as String?);
+                            } else {
+                              _showEditContentDialog(id, name, data['type'] as String? ?? 'file', data);
+                            }
+                          case 'rename':
+                            _showRenameContentDialog(id, name);
+                          case 'delete':
+                            _confirmDeleteContent(id, name, data);
                         }
-                      case 'rename':
-                        _showRenameContentDialog(id, name);
-                      case 'delete':
-                        _confirmDeleteContent(id, name, data);
-                    }
-                  },
-                  itemBuilder: (context) => [
-                    const PopupMenuItem(value: 'share', child: ListTile(leading: Icon(Icons.share_rounded, color: Colors.cyanAccent), title: Text('Share'))),
-                  ],
+                      },
+                      itemBuilder: (context) => [
+                        const PopupMenuItem(value: 'share', child: ListTile(leading: Icon(Icons.share_rounded, color: Colors.cyanAccent), title: Text('Share'))),
+                      ],
+                    ),
                 ),
+              ),
             ]),
           ),
         ),
@@ -2401,31 +2417,37 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                 if (invisible)
                   const Row(children: [Icon(Icons.visibility_off_rounded, color: Colors.purple, size: 12), SizedBox(width: 4), Text('Hidden', style: TextStyle(color: Colors.purple, fontSize: 11))]),
               ])),
-              PopupMenuButton<String>(
-                  icon: Icon(Icons.more_vert, size: 20, color: isDark ? Colors.white : Colors.black87),
-                  color: isDark ? const Color(0xFF2D2D2D) : Colors.white,
-                  onSelected: (value) {
-                    switch (value) {
-                      case 'share':
-                        _shareContent(id, name, 'subfolder');
-                      case 'lock':
-                        _showContentLockSheet(id, name, locked, updating, invisible);
-                      case 'Assistant':
-                        _showContentAssistantSheet(id, name);
-                      case 'group':
-                        _showGroupLinkDialogForContent(id);
-                      case 'edit':
-                        _showEditSubfolderDialog(id, name, description);
-                      case 'rename':
-                        _showRenameContentDialog(id, name);
-                      case 'delete':
-                        _confirmDeleteContent(id, name, data);
-                    }
-                  },
-                  itemBuilder: (context) => [
-                    const PopupMenuItem(value: 'share', child: ListTile(leading: Icon(Icons.share_rounded, color: Colors.cyanAccent), title: Text('Share'))),
-                  ],
+              Opacity(
+                opacity: (locked || updating || invisible) ? 0.3 : 1.0,
+                child: AbsorbPointer(
+                  absorbing: locked || updating || invisible,
+                  child: PopupMenuButton<String>(
+                      icon: Icon(Icons.more_vert, size: 20, color: isDark ? Colors.white : Colors.black87),
+                      color: isDark ? const Color(0xFF2D2D2D) : Colors.white,
+                      onSelected: (value) {
+                        switch (value) {
+                          case 'share':
+                            _shareContent(id, name, 'subfolder');
+                          case 'lock':
+                            _showContentLockSheet(id, name, locked, updating, invisible);
+                          case 'Assistant':
+                            _showContentAssistantSheet(id, name);
+                          case 'group':
+                            _showGroupLinkDialogForContent(id);
+                          case 'edit':
+                            _showEditSubfolderDialog(id, name, description);
+                          case 'rename':
+                            _showRenameContentDialog(id, name);
+                          case 'delete':
+                            _confirmDeleteContent(id, name, data);
+                        }
+                      },
+                      itemBuilder: (context) => [
+                        const PopupMenuItem(value: 'share', child: ListTile(leading: Icon(Icons.share_rounded, color: Colors.cyanAccent), title: Text('Share'))),
+                      ],
+                    ),
                 ),
+              ),
             ]),
           ),
         ),
@@ -2462,33 +2484,39 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                 if (invisible)
                   const Row(children: [Icon(Icons.visibility_off_rounded, color: Colors.purple, size: 12), SizedBox(width: 4), Text('Hidden', style: TextStyle(color: Colors.purple, fontSize: 11))]),
               ])),
-              PopupMenuButton<String>(
-                  icon: Icon(Icons.more_vert, size: 20, color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87),
-                  color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2D2D2D) : Colors.white,
-                  onSelected: (value) {
-                    switch (value) {
-                      case 'share':
-                        _shareContent(id, name, 'mocktest_url');
-                      case 'lock':
-                        _showContentLockSheet(id, name, locked, updating, invisible);
-                      case 'Assistant':
-                        _showContentAssistantSheet(id, name);
-                      case 'edit':
-                        if (data['type'] == 'subfolder') {
-                          _showEditSubfolderDialog(id, name, data['description'] as String?);
-                        } else {
-                          _showEditContentDialog(id, name, data['type'] as String? ?? 'file', data);
+              Opacity(
+                opacity: (locked || updating || invisible) ? 0.3 : 1.0,
+                child: AbsorbPointer(
+                  absorbing: locked || updating || invisible,
+                  child: PopupMenuButton<String>(
+                      icon: Icon(Icons.more_vert, size: 20, color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87),
+                      color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2D2D2D) : Colors.white,
+                      onSelected: (value) {
+                        switch (value) {
+                          case 'share':
+                            _shareContent(id, name, 'mocktest_url');
+                          case 'lock':
+                            _showContentLockSheet(id, name, locked, updating, invisible);
+                          case 'Assistant':
+                            _showContentAssistantSheet(id, name);
+                          case 'edit':
+                            if (data['type'] == 'subfolder') {
+                              _showEditSubfolderDialog(id, name, data['description'] as String?);
+                            } else {
+                              _showEditContentDialog(id, name, data['type'] as String? ?? 'file', data);
+                            }
+                          case 'rename':
+                            _showRenameContentDialog(id, name);
+                          case 'delete':
+                            _confirmDeleteContent(id, name, data);
                         }
-                      case 'rename':
-                        _showRenameContentDialog(id, name);
-                      case 'delete':
-                        _confirmDeleteContent(id, name, data);
-                    }
-                  },
-                  itemBuilder: (context) => [
-                    const PopupMenuItem(value: 'share', child: ListTile(leading: Icon(Icons.share_rounded, color: Colors.cyanAccent), title: Text('Share'))),
-                  ],
+                      },
+                      itemBuilder: (context) => [
+                        const PopupMenuItem(value: 'share', child: ListTile(leading: Icon(Icons.share_rounded, color: Colors.cyanAccent), title: Text('Share'))),
+                      ],
+                    ),
                 ),
+              ),
             ]),
           ),
         ),
@@ -2525,33 +2553,39 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                 if (invisible)
                   const Row(children: [Icon(Icons.visibility_off_rounded, color: Colors.purple, size: 12), SizedBox(width: 4), Text('Hidden', style: TextStyle(color: Colors.purple, fontSize: 11))]),
               ])),
-              PopupMenuButton<String>(
-                  icon: Icon(Icons.more_vert, size: 20, color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87),
-                  color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2D2D2D) : Colors.white,
-                  onSelected: (value) {
-                    switch (value) {
-                      case 'share':
-                        _shareContent(id, name, 'mocktest_code');
-                      case 'lock':
-                        _showContentLockSheet(id, name, locked, updating, invisible);
-                      case 'Assistant':
-                        _showContentAssistantSheet(id, name);
-                      case 'edit':
-                        if (data['type'] == 'subfolder') {
-                          _showEditSubfolderDialog(id, name, data['description'] as String?);
-                        } else {
-                          _showEditContentDialog(id, name, data['type'] as String? ?? 'file', data);
+              Opacity(
+                opacity: (locked || updating || invisible) ? 0.3 : 1.0,
+                child: AbsorbPointer(
+                  absorbing: locked || updating || invisible,
+                  child: PopupMenuButton<String>(
+                      icon: Icon(Icons.more_vert, size: 20, color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87),
+                      color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2D2D2D) : Colors.white,
+                      onSelected: (value) {
+                        switch (value) {
+                          case 'share':
+                            _shareContent(id, name, 'mocktest_code');
+                          case 'lock':
+                            _showContentLockSheet(id, name, locked, updating, invisible);
+                          case 'Assistant':
+                            _showContentAssistantSheet(id, name);
+                          case 'edit':
+                            if (data['type'] == 'subfolder') {
+                              _showEditSubfolderDialog(id, name, data['description'] as String?);
+                            } else {
+                              _showEditContentDialog(id, name, data['type'] as String? ?? 'file', data);
+                            }
+                          case 'rename':
+                            _showRenameContentDialog(id, name);
+                          case 'delete':
+                            _confirmDeleteContent(id, name, data);
                         }
-                      case 'rename':
-                        _showRenameContentDialog(id, name);
-                      case 'delete':
-                        _confirmDeleteContent(id, name, data);
-                    }
-                  },
-                  itemBuilder: (context) => [
-                    const PopupMenuItem(value: 'share', child: ListTile(leading: Icon(Icons.share_rounded, color: Colors.cyanAccent), title: Text('Share'))),
-                  ],
+                      },
+                      itemBuilder: (context) => [
+                        const PopupMenuItem(value: 'share', child: ListTile(leading: Icon(Icons.share_rounded, color: Colors.cyanAccent), title: Text('Share'))),
+                      ],
+                    ),
                 ),
+              ),
             ]),
           ),
         ),
@@ -2591,29 +2625,35 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                 if (invisible)
                   const Row(children: [Icon(Icons.visibility_off_rounded, color: Colors.purple, size: 12), SizedBox(width: 4), Text('Hidden', style: TextStyle(color: Colors.purple, fontSize: 11))]),
               ])),
-              PopupMenuButton<String>(
-                  icon: Icon(Icons.more_vert, size: 20, color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87),
-                  color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2D2D2D) : Colors.white,
-                  onSelected: (value) {
-                    switch (value) {
-                      case 'share':
-                        _shareContent(id, name, 'mocktest_file');
-                      case 'lock':
-                        _showContentLockSheet(id, name, locked, updating, invisible);
-                      case 'Assistant':
-                        _showContentAssistantSheet(id, name);
-                      case 'edit':
-                        _showEditContentDialog(id, name, 'mocktest_file', data);
-                      case 'rename':
-                        _showRenameContentDialog(id, name);
-                      case 'delete':
-                        _confirmDeleteContent(id, name, data);
-                    }
-                  },
-                  itemBuilder: (context) => [
-                    const PopupMenuItem(value: 'share', child: ListTile(leading: Icon(Icons.share_rounded, color: Colors.cyanAccent), title: Text('Share'))),
-                  ],
+              Opacity(
+                opacity: (locked || updating || invisible) ? 0.3 : 1.0,
+                child: AbsorbPointer(
+                  absorbing: locked || updating || invisible,
+                  child: PopupMenuButton<String>(
+                      icon: Icon(Icons.more_vert, size: 20, color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87),
+                      color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2D2D2D) : Colors.white,
+                      onSelected: (value) {
+                        switch (value) {
+                          case 'share':
+                            _shareContent(id, name, 'mocktest_file');
+                          case 'lock':
+                            _showContentLockSheet(id, name, locked, updating, invisible);
+                          case 'Assistant':
+                            _showContentAssistantSheet(id, name);
+                          case 'edit':
+                            _showEditContentDialog(id, name, 'mocktest_file', data);
+                          case 'rename':
+                            _showRenameContentDialog(id, name);
+                          case 'delete':
+                            _confirmDeleteContent(id, name, data);
+                        }
+                      },
+                      itemBuilder: (context) => [
+                        const PopupMenuItem(value: 'share', child: ListTile(leading: Icon(Icons.share_rounded, color: Colors.cyanAccent), title: Text('Share'))),
+                      ],
+                    ),
                 ),
+              ),
             ]),
           ),
         ),
@@ -2652,33 +2692,39 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
                 if (invisible)
                   const Row(children: [Icon(Icons.visibility_off_rounded, color: Colors.purple, size: 12), SizedBox(width: 4), Text('Hidden', style: TextStyle(color: Colors.purple, fontSize: 11))]),
               ])),
-              PopupMenuButton<String>(
-                  icon: Icon(Icons.more_vert, size: 20, color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87),
-                  color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2D2D2D) : Colors.white,
-                  onSelected: (value) {
-                    switch (value) {
-                      case 'share':
-                        _shareContent(id, name, 'content');
-                      case 'lock':
-                        _showContentLockSheet(id, name, locked, updating, invisible);
-                      case 'Assistant':
-                        _showContentAssistantSheet(id, name);
-                      case 'edit':
-                        if (data['type'] == 'subfolder') {
-                          _showEditSubfolderDialog(id, name, data['description'] as String?);
-                        } else {
-                          _showEditContentDialog(id, name, data['type'] as String? ?? 'file', data);
+              Opacity(
+                opacity: (locked || updating || invisible) ? 0.3 : 1.0,
+                child: AbsorbPointer(
+                  absorbing: locked || updating || invisible,
+                  child: PopupMenuButton<String>(
+                      icon: Icon(Icons.more_vert, size: 20, color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87),
+                      color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2D2D2D) : Colors.white,
+                      onSelected: (value) {
+                        switch (value) {
+                          case 'share':
+                            _shareContent(id, name, 'content');
+                          case 'lock':
+                            _showContentLockSheet(id, name, locked, updating, invisible);
+                          case 'Assistant':
+                            _showContentAssistantSheet(id, name);
+                          case 'edit':
+                            if (data['type'] == 'subfolder') {
+                              _showEditSubfolderDialog(id, name, data['description'] as String?);
+                            } else {
+                              _showEditContentDialog(id, name, data['type'] as String? ?? 'file', data);
+                            }
+                          case 'rename':
+                            _showRenameContentDialog(id, name);
+                          case 'delete':
+                            _confirmDeleteContent(id, name, data);
                         }
-                      case 'rename':
-                        _showRenameContentDialog(id, name);
-                      case 'delete':
-                        _confirmDeleteContent(id, name, data);
-                    }
-                  },
-                  itemBuilder: (context) => [
-                    const PopupMenuItem(value: 'share', child: ListTile(leading: Icon(Icons.share_rounded, color: Colors.cyanAccent), title: Text('Share'))),
-                  ],
+                      },
+                      itemBuilder: (context) => [
+                        const PopupMenuItem(value: 'share', child: ListTile(leading: Icon(Icons.share_rounded, color: Colors.cyanAccent), title: Text('Share'))),
+                      ],
+                    ),
                 ),
+              ),
             ]),
           ),
         ),
@@ -2790,6 +2836,7 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
   @override
   void dispose() {
     _uploadThrottle?.cancel();
+    _searchDebounce?.cancel();
     if (UploadManager.instance.onContentSaved == _saveUploadedContent) {
       UploadManager.instance.onContentSaved = null;
     }

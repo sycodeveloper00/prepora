@@ -6,6 +6,7 @@ import '../../../core/services/supabase_read_service.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/widgets/notification_bell_box.dart';
 import '../../../core/widgets/professional_loader.dart';
+import '../../../core/widgets/network_error_overlay.dart';
 
 class AssistantDashboardScreen extends StatefulWidget {
   final List<String>? folderIds;
@@ -19,6 +20,7 @@ class AssistantDashboardScreen extends StatefulWidget {
 class _AssistantDashboardScreenState extends State<AssistantDashboardScreen> {
   Map<String, List<String>> _contentAccess = {};
   bool _loadingAccess = true;
+  String? _accessError;
   bool _loggingOut = false;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
@@ -38,13 +40,21 @@ class _AssistantDashboardScreenState extends State<AssistantDashboardScreen> {
   }
 
   Future<void> _loadContentAccess() async {
-    final user = FirebaseService.currentUser;
-    if (user != null) {
-      final access = await FirebaseService.getContentAccess(user.uid);
-      if (!mounted) return;
-      setState(() { _contentAccess = access; _loadingAccess = false; });
-    } else {
-      setState(() => _loadingAccess = false);
+    setState(() { _loadingAccess = true; _accessError = null; });
+    try {
+      final user = FirebaseService.currentUser;
+      if (user != null) {
+        final access = await FirebaseService.getContentAccess(user.uid)
+            .timeout(const Duration(seconds: 10), onTimeout: () {
+          throw Exception('timeout');
+        });
+        if (!mounted) return;
+        setState(() { _contentAccess = access; _loadingAccess = false; });
+      } else {
+        setState(() => _loadingAccess = false);
+      }
+    } catch (e) {
+      if (mounted) setState(() { _loadingAccess = false; _accessError = 'Network error'; });
     }
   }
 
@@ -256,7 +266,9 @@ class _AssistantDashboardScreenState extends State<AssistantDashboardScreen> {
                       ]))
                     : _loadingAccess
                         ? const Center(child: ProfessionalLoader())
-                        : _buildFolderList(accessibleIds, extraFolderIds),
+                        : _accessError != null
+                            ? NetworkErrorOverlay(message: _accessError!, onRetry: _loadContentAccess)
+                            : _buildFolderList(accessibleIds, extraFolderIds),
               ),
             ]
           ]),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/services/firebase_service.dart';
 import '../../../core/widgets/professional_loader.dart';
+import '../../../core/widgets/network_error_overlay.dart';
 
 class DrawPoint {
   final Offset position;
@@ -42,6 +43,8 @@ class _NotepadViewState extends State<NotepadView> {
   double _strokeWidth = 3.0;
   bool _isEraser = false;
   bool _isSaving = false;
+  bool _loading = true;
+  String? _loadError;
 
   @override
   void initState() {
@@ -50,9 +53,19 @@ class _NotepadViewState extends State<NotepadView> {
   }
 
   Future<void> _loadNote() async {
-    final doc = await FirebaseService.getNote(widget.lectureId);
-    if (doc != null && mounted) {
-      setState(() => _textController.text = (doc.data() as Map<String, dynamic>?)?['content'] ?? '');
+    setState(() { _loading = true; _loadError = null; });
+    try {
+      final doc = await FirebaseService.getNote(widget.lectureId)
+          .timeout(const Duration(seconds: 10), onTimeout: () {
+        throw Exception('timeout');
+      });
+      if (doc != null && mounted) {
+        setState(() { _textController.text = (doc.data() as Map<String, dynamic>?)?['content'] ?? ''; _loading = false; });
+      } else if (mounted) {
+        setState(() { _loading = false; });
+      }
+    } catch (e) {
+      if (mounted) setState(() { _loading = false; _loadError = 'Network error'; });
     }
   }
 
@@ -208,7 +221,11 @@ class _NotepadViewState extends State<NotepadView> {
     );
 
     Widget content = Expanded(
-      child: _isDrawMode
+      child: _loading
+          ? const Center(child: ProfessionalLoader())
+          : _loadError != null
+              ? NetworkErrorOverlay(message: _loadError!, onRetry: _loadNote)
+              : _isDrawMode
           ? Container(
               color: Colors.white,
               child: GestureDetector(

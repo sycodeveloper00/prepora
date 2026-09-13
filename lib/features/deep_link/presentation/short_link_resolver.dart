@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/services/supabase_read_service.dart';
+import '../../../core/services/firebase_service.dart';
 
 class ShortLinkResolver extends StatefulWidget {
   final String shortId;
@@ -37,6 +38,35 @@ class _ShortLinkResolverState extends State<ShortLinkResolver> {
     }
 
     try {
+      final settings = await SupabaseReadService.getSettings('general')
+          .timeout(const Duration(seconds: 5), onTimeout: () => null);
+      final paidAccess = settings?['paidAccess'] as bool? ?? false;
+      final settingsData = settings?['data'] as Map<String, dynamic>?;
+      final paidAccessFromData = paidAccess || (settingsData?['paidAccess'] as bool? ?? false);
+
+      bool isPaidBlocked = false;
+      if (paidAccessFromData) {
+        final userDoc = await SupabaseReadService.getUser(user.uid)
+            .timeout(const Duration(seconds: 5), onTimeout: () => null);
+        final isVerified = userDoc?['verified'] as bool? ?? false;
+        final freeTrialActive = userDoc?['freeTrialActive'] as bool? ?? (userDoc?['free_trial_active'] as bool? ?? false);
+        if (!isVerified && !freeTrialActive) {
+          isPaidBlocked = true;
+        }
+      }
+
+      if (isPaidBlocked) {
+        if (!mounted) return;
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Paid Access Required'),
+            content: const Text('Please verify your account or activate free trial to access content.'),
+            actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
+          ),
+        );
+        return;
+      }
       final link = await SupabaseReadService.getShareLinkByShortId(widget.shortId)
           .timeout(const Duration(seconds: 5), onTimeout: () => null);
 
@@ -55,11 +85,51 @@ class _ShortLinkResolverState extends State<ShortLinkResolver> {
 
       final router = GoRouter.of(context);
 
+      void showBlockedDialog(String message) {
+        if (!mounted) return;
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Access Denied'),
+            content: Text(message),
+            actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
+          ),
+        );
+      }
+
       if (contentType == 'folder') {
+        final folder = await SupabaseReadService.getFolder(contentId)
+            .timeout(const Duration(seconds: 5), onTimeout: () => null);
+        if (folder != null) {
+          final locked = folder['locked'] as bool? ?? false;
+          final invisible = folder['invisible'] as bool? ?? false;
+          final updating = folder['updating'] as bool? ?? false;
+          if (locked || invisible || updating) {
+            showBlockedDialog('You are not authorized to access this content.');
+            return;
+          }
+        }
         router.go('/dashboard');
         await Future.delayed(const Duration(milliseconds: 200));
         router.push('/folders/$contentId', extra: {'canEdit': false, 'canManage': false});
       } else if (contentType == 'subfolder') {
+        final sub = await SupabaseReadService.getContent(folderId, contentId)
+            .timeout(const Duration(seconds: 5), onTimeout: () => null);
+        if (sub != null) {
+          final locked = sub['locked'] as bool? ?? false;
+          final invisible = sub['invisible'] as bool? ?? false;
+          final updating = sub['updating'] as bool? ?? false;
+          if (locked || invisible || updating) {
+            showBlockedDialog('You are not authorized to access this content.');
+            return;
+          }
+        }
+        final subBlocked = await FirebaseService.isAnyAncestorRestricted(folderId, contentId)
+            .timeout(const Duration(seconds: 3), onTimeout: () => false);
+        if (subBlocked) {
+          showBlockedDialog('You are not authorized to access this content.');
+          return;
+        }
         router.go('/dashboard');
         await Future.delayed(const Duration(milliseconds: 200));
         router.push('/folders/$folderId/sub/$contentId', extra: {'canEdit': false, 'canManage': false});
@@ -70,6 +140,37 @@ class _ShortLinkResolverState extends State<ShortLinkResolver> {
           router.go('/dashboard');
           await Future.delayed(const Duration(milliseconds: 200));
           router.push('/folders/$folderId', extra: {'canEdit': false, 'canManage': false});
+          return;
+        }
+
+        final locked = content['locked'] as bool? ?? false;
+        final invisible = content['invisible'] as bool? ?? false;
+        final updating = content['updating'] as bool? ?? false;
+        if (locked || invisible || updating) {
+          if (!mounted) return;
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Access Denied'),
+              content: const Text('You are not authorized to access this content.'),
+              actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
+            ),
+          );
+          return;
+        }
+
+        final ancestorBlocked = await FirebaseService.isAnyAncestorRestricted(folderId, contentId)
+            .timeout(const Duration(seconds: 3), onTimeout: () => false);
+        if (ancestorBlocked) {
+          if (!mounted) return;
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Access Denied'),
+              content: const Text('You are not authorized to access this content.'),
+              actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
+            ),
+          );
           return;
         }
 
