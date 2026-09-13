@@ -1654,7 +1654,7 @@ class FirebaseService {
         final todayStr = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
         final yesterday = today.subtract(const Duration(days: 1));
         final yesterdayStr = '${yesterday.year}-${yesterday.month.toString().padLeft(2, '0')}-${yesterday.day.toString().padLeft(2, '0')}';
-        if (lastActive != todayStr && lastActive != yesterdayStr) {
+        if (lastActive.isNotEmpty && lastActive != todayStr && lastActive != yesterdayStr) {
           streakCount = 0;
         }
         return {
