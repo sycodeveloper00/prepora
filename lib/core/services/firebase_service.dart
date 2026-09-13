@@ -1597,25 +1597,35 @@ class FirebaseService {
     } catch (_) {}
   }
 
+  // In-memory streak cache: updated by updateStreak(), read by getStreak()
+  // Prevents race condition where getStreak() runs before updateStreak() writes to DB.
+  static final Map<String, Map<String, dynamic>> _streakCache = {};
+
+  static String _todayStr() {
+    final now = DateTime.now();
+    return '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+  }
+
+  static String _yesterdayStr() {
+    final yesterday = DateTime.now().subtract(const Duration(days: 1));
+    return '${yesterday.year}-${yesterday.month.toString().padLeft(2, '0')}-${yesterday.day.toString().padLeft(2, '0')}';
+  }
+
   static Future<void> updateStreak(String uid) async {
     try {
-      Map<String, dynamic>? data;
-      try {
-        data = await SupabaseReadService.getUser(uid);
-      } catch (_) {}
-      if (data == null) {
-        final doc = await firestore.collection('users').doc(uid).get();
-        if (!doc.exists) return;
-        data = doc.data() as Map<String, dynamic>;
-      }
+      final data = await SupabaseReadService.getUser(uid);
+      if (data == null) return;
       final lastActive = (data['lastActiveDate'] as String?) ?? (data['last_active_date'] as String?) ?? '';
-      final today = DateTime.now();
-      final todayStr = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
-      if (lastActive == todayStr) return;
+      final todayStr = _todayStr();
+      if (lastActive == todayStr) {
+        int streak = (data['streakCount'] as int?) ?? (data['streak_count'] as int?) ?? (data['streak'] as int?) ?? 0;
+        final totalDays = (data['totalActiveDays'] as int?) ?? (data['total_active_days'] as int?) ?? 0;
+        _streakCache[uid] = {'streakCount': streak, 'totalActiveDays': totalDays, 'lastActiveDate': lastActive};
+        return;
+      }
 
       int streak = (data['streakCount'] as int?) ?? (data['streak_count'] as int?) ?? (data['streak'] as int?) ?? 0;
-      final yesterday = today.subtract(const Duration(days: 1));
-      final yesterdayStr = '${yesterday.year}-${yesterday.month.toString().padLeft(2, '0')}-${yesterday.day.toString().padLeft(2, '0')}';
+      final yesterdayStr = _yesterdayStr();
 
       if (lastActive == yesterdayStr) {
         streak += 1;
@@ -1627,7 +1637,8 @@ class FirebaseService {
       int streakBest = (data['streakBest'] as int?) ?? (data['streak_best'] as int?) ?? 0;
       if (streak > streakBest) streakBest = streak;
 
-      // Read existing JSONB data so we don't destroy name/email/etc
+      _streakCache[uid] = {'streakCount': streak, 'totalActiveDays': totalDays + 1, 'lastActiveDate': todayStr};
+
       Map<String, dynamic>? existingData;
       try {
         existingData = await SupabaseReadService.readPrimary('users', uid);
@@ -1638,44 +1649,44 @@ class FirebaseService {
         'streakCount': streak,
         'totalActiveDays': totalDays + 1,
         'streakBest': streakBest,
-        'lastLogin': today.toIso8601String(),
+        'lastLogin': DateTime.now().toIso8601String(),
       };
       await _mirrorWrite('users', uid, mergedData);
     } catch (_) {}
   }
 
   static Future<Map<String, dynamic>> getStreak(String uid) async {
+    final cached = _streakCache[uid];
+    if (cached != null) {
+      final lastActive = cached['lastActiveDate'] as String? ?? '';
+      final todayStr = _todayStr();
+      final yesterdayStr = _yesterdayStr();
+      if (lastActive == todayStr || lastActive == yesterdayStr) {
+        return Map<String, dynamic>.from(cached);
+      }
+    }
+
     try {
       final mirror = await SupabaseReadService.getUser(uid);
       if (mirror != null) {
         final lastActive = (mirror['lastActiveDate'] as String?) ?? (mirror['last_active_date'] as String?) ?? '';
         int streakCount = (mirror['streakCount'] as int?) ?? (mirror['streak_count'] as int?) ?? (mirror['streak'] as int?) ?? 0;
-        final today = DateTime.now();
-        final todayStr = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
-        final yesterday = today.subtract(const Duration(days: 1));
-        final yesterdayStr = '${yesterday.year}-${yesterday.month.toString().padLeft(2, '0')}-${yesterday.day.toString().padLeft(2, '0')}';
+        final totalActiveDays = (mirror['totalActiveDays'] as int?) ?? (mirror['total_active_days'] as int?) ?? 0;
+        final todayStr = _todayStr();
+        final yesterdayStr = _yesterdayStr();
         if (lastActive.isNotEmpty && lastActive != todayStr && lastActive != yesterdayStr) {
           streakCount = 0;
         }
-        return {
+        final result = {
           'streakCount': streakCount,
-          'totalActiveDays': (mirror['totalActiveDays'] as int?) ?? (mirror['total_active_days'] as int?) ?? 0,
+          'totalActiveDays': totalActiveDays,
           'lastActiveDate': lastActive,
         };
+        _streakCache[uid] = result;
+        return result;
       }
     } catch (_) {}
-    try {
-      final doc = await firestore.collection('users').doc(uid).get();
-      if (!doc.exists) return {'streakCount': 0, 'totalActiveDays': 0};
-      final data = doc.data() as Map<String, dynamic>;
-      return {
-        'streakCount': data['streakCount'] as int? ?? 0,
-        'totalActiveDays': data['totalActiveDays'] as int? ?? 0,
-        'lastActiveDate': data['lastActiveDate'] as String? ?? '',
-      };
-    } catch (_) {
-      return {'streakCount': 0, 'totalActiveDays': 0};
-    }
+    return {'streakCount': 0, 'totalActiveDays': 0, 'lastActiveDate': ''};
   }
 
   static Future<bool> _isAnyAncestorRestricted(String folderId, String? contentId) async {

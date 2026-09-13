@@ -364,6 +364,8 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
     bool firestoreSuccess = false;
 
     // 1) Set status=disconnected via Supabase FIRST — web app reads status from here
+    //    Row is NOT deleted here — web app needs it to detect the disconnect.
+    //    Stale sessions are cleaned up by _cleanupStaleSessions() on the web.
     try {
       await FirebaseService.mirrorWebSession(sessionId, {
         'status': 'disconnected',
@@ -375,15 +377,7 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
       debugPrint('WEB: Supabase disconnect FAILED: $e');
     }
 
-    // 2) Also DELETE the Supabase row entirely so it never appears again
-    try {
-      await FirebaseService.mirrorWebSession(sessionId, {}, delete: true);
-      debugPrint('WEB: Supabase delete OK');
-    } catch (e) {
-      debugPrint('WEB: Supabase delete FAILED: $e');
-    }
-
-    // 3) Also update Firestore (set+merge works even if doc is missing)
+    // 2) Also update Firestore (set+merge works even if doc is missing)
     try {
       await FirebaseService.firestore.collection('web_sessions').doc(sessionId).set({
         'status': 'disconnected',
@@ -393,14 +387,6 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
       debugPrint('WEB: Firestore disconnect OK');
     } catch (e) {
       debugPrint('WEB: Firestore disconnect FAILED: $e');
-    }
-
-    // 4) Also DELETE the Firestore doc entirely
-    try {
-      await FirebaseService.firestore.collection('web_sessions').doc(sessionId).delete();
-      debugPrint('WEB: Firestore delete OK');
-    } catch (e) {
-      debugPrint('WEB: Firestore delete FAILED: $e');
     }
 
     // 5) Refresh active sessions after a short delay to let writes propagate
@@ -521,16 +507,10 @@ class _LinkWebScreenState extends State<LinkWebScreen> {
           });
         } catch (_) {}
         try {
-          await FirebaseService.mirrorWebSession(sid, {}, delete: true);
-        } catch (_) {}
-        try {
           await FirebaseService.firestore.collection('web_sessions').doc(sid).set({
             'status': 'disconnected',
             'disconnectedAt': Timestamp.fromDate(DateTime.now()),
           }, SetOptions(merge: true));
-        } catch (_) {}
-        try {
-          await FirebaseService.firestore.collection('web_sessions').doc(sid).delete();
         } catch (_) {}
       }
     }
