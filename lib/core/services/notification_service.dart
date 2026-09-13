@@ -241,7 +241,7 @@ class NotificationService {
   }) async {
     try {
       final response = await http.post(
-        Uri.parse('https://prepora-coral.vercel.app/api/send-push'),
+        Uri.parse('https://prepora-web.vercel.app/api/send-push'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'targetUid': targetUid,
