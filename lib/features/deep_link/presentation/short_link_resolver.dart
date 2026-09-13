@@ -59,6 +59,21 @@ class _ShortLinkResolverState extends State<ShortLinkResolver> {
     );
   }
 
+  Future<List<String>> _fetchParentChain(String folderId, String contentId) async {
+    final chain = <String>[];
+    String? currentId = contentId;
+    for (int i = 0; i < 5; i++) {
+      final content = await SupabaseReadService.getContent(folderId, currentId)
+          .timeout(const Duration(seconds: 2), onTimeout: () => null);
+      if (content == null) break;
+      final parentId = content['parentContentId'] as String?;
+      if (parentId == null || parentId.isEmpty) break;
+      chain.insert(0, parentId);
+      currentId = parentId;
+    }
+    return chain;
+  }
+
   Future<void> _resolve() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -117,7 +132,8 @@ class _ShortLinkResolverState extends State<ShortLinkResolver> {
             return;
           }
         }
-        context.go('/folders/$contentId', extra: {'canEdit': false, 'canManage': false});
+        context.go('/dashboard');
+        context.push('/folders/$contentId', extra: {'canEdit': false, 'canManage': false});
       } else if (contentType == 'subfolder') {
         final subFuture = SupabaseReadService.getContent(folderId, contentId)
             .timeout(const Duration(seconds: 3), onTimeout: () => null);
@@ -141,12 +157,16 @@ class _ShortLinkResolverState extends State<ShortLinkResolver> {
           _showBlockedDialog('You are not authorized to access this content.');
           return;
         }
-        context.go('/folders/$folderId/sub/$contentId', extra: {'canEdit': false, 'canManage': false});
+
+        context.go('/dashboard');
+        context.push('/folders/$folderId', extra: {'canEdit': false, 'canManage': false});
+        context.push('/folders/$folderId/sub/$contentId', extra: {'canEdit': false, 'canManage': false});
       } else {
         final content = await SupabaseReadService.getContent(folderId, contentId)
             .timeout(const Duration(seconds: 3), onTimeout: () => null);
         if (content == null) {
-          context.go('/folders/$folderId', extra: {'canEdit': false, 'canManage': false});
+          context.go('/dashboard');
+          context.push('/folders/$folderId', extra: {'canEdit': false, 'canManage': false});
           return;
         }
 
@@ -171,60 +191,64 @@ class _ShortLinkResolverState extends State<ShortLinkResolver> {
         final youtubeUrl = content['youtubeUrl'] as String? ?? '';
         final immediateParentId = content['parentContentId'] as String?;
 
-        final parentPath = immediateParentId != null && immediateParentId.isNotEmpty
-            ? '/folders/$folderId/sub/$immediateParentId'
-            : '/folders/$folderId';
+        final parentChain = await _fetchParentChain(folderId, contentId);
+
+        context.go('/dashboard');
+        context.push('/folders/$folderId', extra: {'canEdit': false, 'canManage': false});
+        for (final ancestorId in parentChain) {
+          context.push('/folders/$folderId/sub/$ancestorId', extra: {'canEdit': false, 'canManage': false});
+        }
 
         switch (type) {
           case 'lecture':
             final videoId = _extractYoutubeId(youtubeUrl);
             if (videoId.isNotEmpty) {
-              context.go('/dashboard');
-              context.push(parentPath, extra: {'canEdit': false, 'canManage': false});
               context.push('/lectures/$videoId', extra: {
                 'name': name, 'folderId': folderId, 'parentContentId': immediateParentId,
               });
+            } else if (immediateParentId != null) {
+              context.push('/folders/$folderId/sub/$immediateParentId', extra: {'canEdit': false, 'canManage': false});
             } else {
-              context.go(parentPath, extra: {'canEdit': false, 'canManage': false});
+              context.push('/folders/$folderId', extra: {'canEdit': false, 'canManage': false});
             }
             break;
           case 'mocktest_url':
             if (url.isNotEmpty) {
-              context.go('/webview', extra: {
+              context.push('/webview', extra: {
                 'url': url, 'title': name, 'folderId': folderId,
                 'parentContentId': immediateParentId, 'isMockTest': true,
               });
             } else {
-              context.go(parentPath, extra: {'canEdit': false, 'canManage': false});
+              context.push('/folders/$folderId', extra: {'canEdit': false, 'canManage': false});
             }
             break;
           case 'mocktest_code':
             final code = content['code'] as String? ?? '';
             if (code.isNotEmpty) {
-              context.go('/webview', extra: {
+              context.push('/webview', extra: {
                 'html': code, 'title': name, 'folderId': folderId,
                 'parentContentId': immediateParentId, 'isMockTest': true,
               });
             } else {
-              context.go(parentPath, extra: {'canEdit': false, 'canManage': false});
+              context.push('/folders/$folderId', extra: {'canEdit': false, 'canManage': false});
             }
             break;
           case 'mocktest_file':
             final fileType = content['fileType'] as String? ?? 'pdf';
             if (url.isNotEmpty) {
               if (fileType == 'pdf') {
-                context.go('/pdf_reader/view', extra: {
+                context.push('/pdf_reader/view', extra: {
                   'url': url, 'folderId': folderId,
                   'parentContentId': immediateParentId, 'title': name,
                 });
               } else {
-                context.go('/webview', extra: {
+                context.push('/webview', extra: {
                   'url': url, 'title': name, 'folderId': folderId,
                   'parentContentId': immediateParentId, 'isMockTest': true,
                 });
               }
             } else {
-              context.go(parentPath, extra: {'canEdit': false, 'canManage': false});
+              context.push('/folders/$folderId', extra: {'canEdit': false, 'canManage': false});
             }
             break;
           case 'file':
@@ -235,26 +259,30 @@ class _ShortLinkResolverState extends State<ShortLinkResolver> {
                 ext = urlName.contains('.') ? urlName.split('.').last.toLowerCase() : '';
               }
               if (ext == 'pdf') {
-                context.go('/pdf_reader/view', extra: {
+                context.push('/pdf_reader/view', extra: {
                   'url': url, 'folderId': folderId,
                   'parentContentId': immediateParentId, 'title': name,
                 });
               } else if (['mp4', 'mkv', 'avi', 'mov', 'webm'].contains(ext)) {
-                context.go('/media_player', extra: {'url': url, 'title': name, 'isAudio': false});
+                context.push('/media_player', extra: {'url': url, 'title': name, 'isAudio': false});
               } else if (['mp3', 'wav', 'm4a', 'aac', 'ogg'].contains(ext)) {
-                context.go('/media_player', extra: {'url': url, 'title': name, 'isAudio': true});
+                context.push('/media_player', extra: {'url': url, 'title': name, 'isAudio': true});
               } else {
-                context.go('/webview', extra: {
+                context.push('/webview', extra: {
                   'url': url, 'title': name, 'folderId': folderId,
                   'parentContentId': immediateParentId,
                 });
               }
             } else {
-              context.go(parentPath, extra: {'canEdit': false, 'canManage': false});
+              context.push('/folders/$folderId', extra: {'canEdit': false, 'canManage': false});
             }
             break;
           default:
-            context.go(parentPath, extra: {'canEdit': false, 'canManage': false});
+            if (immediateParentId != null) {
+              context.push('/folders/$folderId/sub/$immediateParentId', extra: {'canEdit': false, 'canManage': false});
+            } else {
+              context.push('/folders/$folderId', extra: {'canEdit': false, 'canManage': false});
+            }
             break;
         }
       }

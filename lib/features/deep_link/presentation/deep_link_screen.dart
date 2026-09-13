@@ -95,18 +95,23 @@ class _DeepLinkScreenState extends State<DeepLinkScreen> {
     if (!mounted) return;
 
     if (type == 'folder') {
-      context.go('/folders/$id', extra: {'canEdit': false, 'canManage': false});
+      context.go('/dashboard');
+      context.push('/folders/$id', extra: {'canEdit': false, 'canManage': false});
     } else if (type == 'subfolder') {
       final parentFolderId = parent ?? '';
       if (parentFolderId.isNotEmpty) {
-        context.go('/folders/$parentFolderId/sub/$id', extra: {'canEdit': false, 'canManage': false});
+        context.go('/dashboard');
+        context.push('/folders/$parentFolderId', extra: {'canEdit': false, 'canManage': false});
+        context.push('/folders/$parentFolderId/sub/$id', extra: {'canEdit': false, 'canManage': false});
       } else {
         context.go('/dashboard');
       }
     } else {
       final parentFolderId = parent ?? '';
       if (parentFolderId.isNotEmpty) {
-        context.go('/folders/$parentFolderId/sub/$id', extra: {'canEdit': false, 'canManage': false});
+        context.go('/dashboard');
+        context.push('/folders/$parentFolderId', extra: {'canEdit': false, 'canManage': false});
+        context.push('/folders/$parentFolderId/sub/$id', extra: {'canEdit': false, 'canManage': false});
       } else {
         context.go('/dashboard');
       }
