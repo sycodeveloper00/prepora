@@ -498,6 +498,20 @@ class NotificationService {
         final browser = session['webBrowser'] as String? ?? 'Web Browser';
         final title = 'Web App Connected';
         final body = '$browser connected to your account';
+        const androidDetails = AndroidNotificationDetails(
+          _studentChannelId, 'Student Notifications',
+          channelDescription: 'Notifications from admin',
+          importance: Importance.high,
+          priority: Priority.high,
+          icon: '@drawable/ic_notification',
+        );
+        const details = NotificationDetails(android: androidDetails, iOS: DarwinNotificationDetails());
+        await _plugin.show(
+          id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+          title: title,
+          body: body,
+          notificationDetails: details,
+        );
         try {
           await sendPushToUser(targetUid: uid, title: title, body: body, type: 'web_connect');
         } catch (_) {}
@@ -505,6 +519,20 @@ class NotificationService {
       for (final id in _knownWebSessionIds.difference(currentIds)) {
         final title = 'Web App Disconnected';
         final body = 'A web session has been disconnected';
+        const androidDetails = AndroidNotificationDetails(
+          _studentChannelId, 'Student Notifications',
+          channelDescription: 'Notifications from admin',
+          importance: Importance.high,
+          priority: Priority.high,
+          icon: '@drawable/ic_notification',
+        );
+        const details = NotificationDetails(android: androidDetails, iOS: DarwinNotificationDetails());
+        await _plugin.show(
+          id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+          title: title,
+          body: body,
+          notificationDetails: details,
+        );
         try {
           await sendPushToUser(targetUid: uid, title: title, body: body, type: 'web_disconnect');
         } catch (_) {}
