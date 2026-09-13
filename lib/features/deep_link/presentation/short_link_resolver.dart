@@ -63,6 +63,7 @@ class _ShortLinkResolverState extends State<ShortLinkResolver> {
     final chain = <String>[];
     String? currentId = contentId;
     for (int i = 0; i < 5; i++) {
+      if (currentId == null) break;
       final content = await SupabaseReadService.getContent(folderId, currentId)
           .timeout(const Duration(seconds: 2), onTimeout: () => null);
       if (content == null) break;
