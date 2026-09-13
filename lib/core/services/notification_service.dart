@@ -212,8 +212,6 @@ class NotificationService {
       importance: Importance.high,
       priority: Priority.high,
       icon: '@drawable/ic_notification',
-      autoCancel: false,
-      ongoing: true,
     );
     final details = NotificationDetails(
       android: androidDetails,
@@ -305,8 +303,7 @@ class NotificationService {
         importance: Importance.high,
         priority: Priority.high,
         icon: '@drawable/ic_notification',
-        autoCancel: false,
-        ongoing: true,      );
+      );
       const details = NotificationDetails(android: androidDetails, iOS: DarwinNotificationDetails());
 
       final androidPlugin = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
@@ -383,8 +380,7 @@ class NotificationService {
         importance: Importance.high,
         priority: Priority.high,
         icon: '@drawable/ic_notification',
-        autoCancel: false,
-        ongoing: true,      );
+      );
       const details = NotificationDetails(android: androidDetails, iOS: DarwinNotificationDetails());
 
       final androidPlugin = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
@@ -469,8 +465,7 @@ class NotificationService {
       importance: Importance.high,
       priority: Priority.high,
       icon: '@drawable/ic_notification',
-        autoCancel: false,
-        ongoing: true,    );
+    );
     const details = NotificationDetails(android: androidDetails, iOS: DarwinNotificationDetails());
     await _plugin.show(
       id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
@@ -587,7 +582,7 @@ class NotificationService {
   static Future<void> _showStreakNotification(String title, String body) async {
     if (kIsWeb) return;
     const androidDetails = AndroidNotificationDetails('streak_channel', 'Daily Streak',
- channelDescription: 'Daily streak reminders', importance: Importance.high, priority: Priority.high, icon: '@drawable/ic_notification', autoCancel: false, ongoing: true);
+     channelDescription: 'Daily streak reminders', importance: Importance.high, priority: Priority.high, icon: '@drawable/ic_notification');
     const details = NotificationDetails(android: androidDetails, iOS: DarwinNotificationDetails());
     await _plugin.show(id: DateTime.now().millisecondsSinceEpoch ~/ 1000, title: title, body: body, notificationDetails: details);
   }
@@ -600,8 +595,7 @@ class NotificationService {
       importance: Importance.high,
       priority: Priority.high,
       icon: '@drawable/ic_notification',
-        autoCancel: false,
-        ongoing: true,    );
+    );
     const details = NotificationDetails(android: androidDetails, iOS: DarwinNotificationDetails());
     await _plugin.show(
       id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
@@ -614,7 +608,7 @@ class NotificationService {
   static Future<void> showFeedbackNotification(String studentName, String message) async {
     if (kIsWeb) return;
     const androidDetails = AndroidNotificationDetails('feedback_channel', 'Feedbacks',
-      channelDescription: 'New student feedbacks', importance: Importance.high, priority: Priority.high, icon: '@drawable/ic_notification', autoCancel: false, ongoing: true);
+      channelDescription: 'New student feedbacks', importance: Importance.high, priority: Priority.high, icon: '@drawable/ic_notification');
     const details = NotificationDetails(android: androidDetails, iOS: DarwinNotificationDetails());
     await _plugin.show(id: DateTime.now().millisecondsSinceEpoch ~/ 1000, title: 'New Feedback from $studentName', body: message, notificationDetails: details);
   }
