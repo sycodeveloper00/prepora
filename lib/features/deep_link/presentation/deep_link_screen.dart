@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../../../core/services/app_update_service.dart';
 import '../../../core/services/supabase_read_service.dart';
 
 class DeepLinkScreen extends StatefulWidget {
@@ -16,8 +15,6 @@ class DeepLinkScreen extends StatefulWidget {
 
 class _DeepLinkScreenState extends State<DeepLinkScreen> {
   String? _error;
-  String? _updateUrl;
-  bool _updateShown = false;
 
   @override
   void initState() {
@@ -42,7 +39,7 @@ class _DeepLinkScreenState extends State<DeepLinkScreen> {
 
     try {
       final userData = await SupabaseReadService.getUser(user.uid)
-          .timeout(const Duration(seconds: 5), onTimeout: () => null);
+          .timeout(const Duration(seconds: 3), onTimeout: () => null);
 
       if (userData != null) {
         final isVerified = userData['verified'] == true || userData['isVerified'] == true;
@@ -72,7 +69,10 @@ class _DeepLinkScreenState extends State<DeepLinkScreen> {
                   ),
                   actions: [
                     TextButton(
-                      onPressed: () { Navigator.pop(ctx); context.go('/dashboard'); },
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        context.go('/dashboard');
+                      },
                       child: const Text('Go to Dashboard', style: TextStyle(color: Colors.cyanAccent)),
                     ),
                   ],
@@ -81,19 +81,6 @@ class _DeepLinkScreenState extends State<DeepLinkScreen> {
               return;
             }
           }
-        }
-      }
-
-      final updateInfo = await AppUpdateService.checkForUpdate().timeout(
-        const Duration(seconds: 5),
-        onTimeout: () => null,
-      );
-      if (updateInfo != null && mounted) {
-        _updateUrl = updateInfo['updateUrl'] as String? ?? '';
-        if (_updateUrl != null && _updateUrl!.isNotEmpty && !_updateShown && mounted) {
-          _updateShown = true;
-          _showUpdateDialog();
-          return;
         }
       }
 
@@ -106,37 +93,20 @@ class _DeepLinkScreenState extends State<DeepLinkScreen> {
 
   void _navigateToContent(String id, String? type, String? parent) {
     if (!mounted) return;
-    final navDelay = const Duration(milliseconds: 150);
 
     if (type == 'folder') {
-      context.go('/dashboard');
-      Future.delayed(navDelay, () {
-        if (!mounted) return;
-        context.push('/folders/$id', extra: {'canEdit': false, 'canManage': false});
-      });
+      context.go('/folders/$id', extra: {'canEdit': false, 'canManage': false});
     } else if (type == 'subfolder') {
       final parentFolderId = parent ?? '';
       if (parentFolderId.isNotEmpty) {
-        context.go('/dashboard');
-        Future.delayed(navDelay, () {
-          if (!mounted) return;
-          context.push('/folders/$parentFolderId', extra: {'canEdit': false, 'canManage': false});
-          Future.delayed(navDelay, () {
-            if (!mounted) return;
-            context.push('/folders/$parentFolderId/sub/$id', extra: {'canEdit': false, 'canManage': false});
-          });
-        });
+        context.go('/folders/$parentFolderId/sub/$id', extra: {'canEdit': false, 'canManage': false});
       } else {
         context.go('/dashboard');
       }
     } else {
       final parentFolderId = parent ?? '';
       if (parentFolderId.isNotEmpty) {
-        context.go('/dashboard');
-        Future.delayed(navDelay, () {
-          if (!mounted) return;
-          context.push('/folders/$parentFolderId/sub/$id', extra: {'canEdit': false, 'canManage': false});
-        });
+        context.go('/folders/$parentFolderId/sub/$id', extra: {'canEdit': false, 'canManage': false});
       } else {
         context.go('/dashboard');
       }
@@ -172,43 +142,6 @@ class _DeepLinkScreenState extends State<DeepLinkScreen> {
                   const Text('Opening...', style: TextStyle(color: Colors.white38, fontSize: 13)),
                 ],
               ),
-      ),
-    );
-  }
-
-  void _showUpdateDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E2F),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(children: [
-          Icon(Icons.system_update_rounded, color: Colors.orange),
-          SizedBox(width: 8),
-          Text('Update Available', style: TextStyle(color: Colors.white)),
-        ]),
-        content: const Text(
-          'A new version is available. Please update to continue.',
-          style: TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _navigateToContent(widget.id ?? '', widget.type, widget.parent);
-            },
-            child: const Text('Later', style: TextStyle(color: Colors.white54)),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(ctx);
-              AppUpdateService.openUpdateLink(_updateUrl ?? '');
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4A148C)),
-            child: const Text('Update', style: TextStyle(color: Colors.white)),
-          ),
-        ],
       ),
     );
   }
