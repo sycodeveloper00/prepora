@@ -15,7 +15,8 @@ import '../../../core/widgets/professional_loader.dart';
 
 class AiChatScreen extends StatefulWidget {
   final String? folderContext;
-  const AiChatScreen({super.key, this.folderContext});
+  final String? folderId;
+  const AiChatScreen({super.key, this.folderContext, this.folderId});
   @override
   State<AiChatScreen> createState() => _AiChatScreenState();
 }
@@ -59,6 +60,9 @@ class _AiChatScreenState extends State<AiChatScreen> with SingleTickerProviderSt
     );
     _sessionId = DateTime.now().millisecondsSinceEpoch.toString();
     _aiService.setContext(widget.folderContext ?? 'New chat');
+    if (widget.folderId != null && widget.folderContext != null) {
+      _loadFolderContextInBackground(widget.folderId!);
+    }
     _messages.add(_Message(
       text: "Welcome to PrePora AI! \u{1F44B}\n\nI am your AI-powered learning assistant. I can help you understand concepts, solve problems, and prepare for exams. Feel free to ask me anything!",
       isUser: false,
@@ -69,6 +73,30 @@ class _AiChatScreenState extends State<AiChatScreen> with SingleTickerProviderSt
         _retryLastMessage();
       }
     });
+  }
+
+  Future<void> _loadFolderContextInBackground(String folderId) async {
+    try {
+      final folderDoc = await FirebaseService.firestore.collection('folders').doc(folderId).get();
+      final folderName = folderDoc.exists ? (folderDoc.data()?['name'] as String? ?? 'Folder') : 'Folder';
+      final contentsSnap = await FirebaseService.firestore
+          .collection('folders').doc(folderId)
+          .collection('contents').orderBy('createdAt', descending: false).get();
+      if (contentsSnap.docs.isEmpty) return;
+      final buffer = StringBuffer('User is viewing folder "$folderName". Contents:\n');
+      for (final doc in contentsSnap.docs) {
+        final data = doc.data();
+        final type = data['type'] as String? ?? 'file';
+        final name = FirebaseService.cleanTitle(data['name'] as String? ?? 'Unnamed');
+        buffer.write('- "$name" (type: $type)');
+        if (type == 'lecture') {
+          final url = data['youtubeUrl'] as String?;
+          if (url != null && url.isNotEmpty) buffer.write(' — YouTube: $url');
+        }
+        buffer.write('\n');
+      }
+      _aiService.setContext(buffer.toString());
+    } catch (_) {}
   }
 
   void _onScroll() {

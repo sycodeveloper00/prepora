@@ -132,7 +132,7 @@ class AppRouter {
       ),
       GoRoute(path: '/ai_tutor', builder: (c, s) {
         final extra = s.extra as Map<String, dynamic>?;
-        return AiChatScreen(folderContext: extra?['folderContext'] as String?);
+        return AiChatScreen(folderContext: extra?['folderContext'] as String?, folderId: extra?['folderId'] as String?);
       }),
       GoRoute(
         path: '/notepad/:lectureId',

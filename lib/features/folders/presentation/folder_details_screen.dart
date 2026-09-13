@@ -1984,15 +1984,10 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
       width: 56, height: 56,
       child: FloatingActionButton(
         heroTag: 'ai_chat_folder_${widget.folderId}',
-        onPressed: () async {
+        onPressed: () {
           if (_isNavigating) return;
           _isNavigating = true;
-          final contextStr = await _buildFolderContext();
-          if (context.mounted) {
-            context.push('/ai_tutor', extra: {'folderContext': contextStr}).then((_) { _isNavigating = false; });
-          } else {
-            _isNavigating = false;
-          }
+          context.push('/ai_tutor', extra: {'folderContext': 'User is viewing folder ID: ${widget.folderId}', 'folderId': widget.folderId}).then((_) { _isNavigating = false; });
         },
         backgroundColor: Colors.transparent, elevation: 0,
         child: Container(
