@@ -1,26 +1,34 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:hive/hive.dart';
-import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Master Supabase client — ALL Firestore-migrated data.
-/// Reads/writes go through Vercel proxy (service key hidden server-side).
-/// Only realtime subscriptions use direct Supabase (anon key — safe for public).
+/// Direct Supabase connection with service-key bypass for RLS tables.
 class MasterSupabaseService {
   MasterSupabaseService._();
 
   static const String _masterUrl = 'https://ybiviymuxubvloqjngfu.supabase.co';
   static const String _masterAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InliaXZpeW11eHVidmxvcWpuZ2Z1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzNzI0MzksImV4cCI6MjEwNDk0ODQzOX0.2__dxf4r6cWnG5TLxqTymDLtFbP9fkZJzC8fkOY9VXc';
+  static const String masterServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InliaXZpeW11eHVidmxvcWpuZ2Z1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4OTM3MjQzOSwiZXhwIjoyMTA0OTQ4NDM5fQ.kIoWInC-ZDNsPx6xpCACO0ee2Kfer7jMBRCtAQv_8gQ';
 
   static bool _initialized = false;
   static SupabaseClient? _client;
+  static SupabaseClient? _serviceClient;
 
   static SupabaseClient get client {
     if (_client == null) throw StateError('MasterSupabaseService not initialized');
     return _client!;
   }
+
+  static SupabaseClient get serviceClient {
+    if (_serviceClient == null) throw StateError('MasterSupabaseService not initialized');
+    return _serviceClient!;
+  }
+
+  static const _serviceTables = {'conversations', 'messages', 'notes', 'notices', 'student_activities', 'settings', 'app_updates', 'web_sessions'};
+
+  static SupabaseClient _getClientFor(String table) =>
+      _serviceTables.contains(table) ? serviceClient : client;
 
   static String get url => _masterUrl;
   static String get anonKey => _masterAnonKey;
@@ -29,144 +37,173 @@ class MasterSupabaseService {
     if (_initialized) return;
     try {
       _client = SupabaseClient(_masterUrl, _masterAnonKey);
+      _serviceClient = SupabaseClient(_masterUrl, masterServiceKey);
       _initialized = true;
-      debugPrint('[MasterSupabase] Initialized via proxy: $_masterUrl');
+      debugPrint('[MasterSupabase] Initialized (direct): $_masterUrl');
     } catch (e) {
       debugPrint('[MasterSupabase] Init failed: $e');
     }
   }
 
-  // ─── Proxy helpers ────────────────────────────────────────────────────────
-
-  /// Read proxy secret from Hive cache (populated by SupabaseReadService.loadProxySecret)
-  static String get _proxySecret {
+  static Future<List<Map<String, dynamic>>> read(String table, {String? query}) async {
     try {
-      final box = Hive.box('settings');
-      return (box.get('proxy_secret') as String?) ?? '';
-    } catch (_) {
-      return '';
-    }
-  }
-
-  static Future<List<Map<String, dynamic>>> _proxyRead(String table, String query) async {
-    try {
-      final res = await http.post(
-        Uri.parse('https://prepora-web.vercel.app/api/proxy-read'),
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Proxy-Secret': _proxySecret,
-        },
-        body: json.encode({'table': table, 'query': query, 'target': 'master'}),
-      ).timeout(const Duration(seconds: 10));
-      if (res.statusCode == 200) {
-        final json_ = json.decode(res.body);
-        final rows = json_['data'] as List<dynamic>?;
-        if (rows != null) return rows.cast<Map<String, dynamic>>();
-      }
-    } catch (e) {
-      debugPrint('[MasterSupabase] proxyRead($table) failed: $e');
-    }
-    return [];
-  }
-
-  static Future<Map<String, dynamic>?> _proxyWrite(String table, {String? id, Map<String, dynamic>? data, bool delete = false}) async {
-    try {
-      final body = <String, dynamic>{'table': table, 'target': 'master'};
-      if (id != null) body['id'] = id;
-      if (data != null) body['data'] = data;
-      if (delete) body['delete'] = true;
-      final res = await http.post(
-        Uri.parse('https://prepora-web.vercel.app/api/proxy-write'),
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Proxy-Secret': _proxySecret,
-        },
-        body: json.encode(body),
-      ).timeout(const Duration(seconds: 15));
-      if (res.statusCode == 200) {
-        final json_ = json.decode(res.body);
-        if (json_['success'] == true) {
-          final resultData = json_['data'];
-          if (resultData is List && resultData.isNotEmpty) return resultData.first as Map<String, dynamic>;
-          if (resultData is Map) return resultData as Map<String, dynamic>;
-          return {'ok': true};
+      final c = _getClientFor(table);
+      var builder = c.from(table).select();
+      if (query != null) {
+        final parts = query.split('&');
+        for (final part in parts) {
+          final eqIdx = part.indexOf('=');
+          if (eqIdx == -1) continue;
+          final field = part.substring(0, eqIdx);
+          final val = part.substring(eqIdx + 1);
+          if (val.startsWith('eq.')) {
+            builder = builder.eq(field, val.substring(3));
+          } else if (val.startsWith('gt.')) {
+            builder = builder.gt(field, val.substring(3));
+          } else if (val.startsWith('lt.')) {
+            builder = builder.lt(field, val.substring(3));
+          } else if (val.startsWith('gte.')) {
+            builder = builder.gte(field, val.substring(4));
+          } else if (val.startsWith('lte.')) {
+            builder = builder.lte(field, val.substring(4));
+          } else if (val.startsWith('like.')) {
+            builder = builder.like(field, val.substring(5));
+          } else if (val.startsWith('in.(')) {
+            final list = val.substring(4, val.length - 1).split(',');
+            builder = builder.inFilter(field, list);
+          } else if (val.startsWith('order=')) {
+            final orderPart = val.substring(6);
+            if (orderPart.endsWith('.desc')) {
+              builder = builder.order(orderPart.substring(0, orderPart.length - 5), ascending: false);
+            } else if (orderPart.endsWith('.asc')) {
+              builder = builder.order(orderPart.substring(0, orderPart.length - 4), ascending: true);
+            } else {
+              builder = builder.order(orderPart);
+            }
+          } else if (val.startsWith('limit=')) {
+            builder = builder.limit(int.parse(val.substring(6)));
+          } else {
+            builder = builder.eq(field, val);
+          }
         }
       }
+      final data = await builder.timeout(const Duration(seconds: 10));
+      return (data as List<dynamic>).cast<Map<String, dynamic>>();
     } catch (e) {
-      debugPrint('[MasterSupabase] proxyWrite($table) failed: $e');
+      debugPrint('[MasterSupabase] read($table) failed: $e');
+      return [];
     }
-    return null;
-  }
-
-  // ─── Generic CRUD via proxy ───────────────────────────────────────────────
-
-  static Future<List<Map<String, dynamic>>> read(String table, {String? query}) async {
-    return _proxyRead(table, query ?? 'limit=5000');
   }
 
   static Future<Map<String, dynamic>?> readById(String table, String id) async {
-    final rows = await _proxyRead(table, 'id=eq.$id&limit=1');
-    return rows.isEmpty ? null : rows.first;
+    try {
+      final c = _getClientFor(table);
+      final data = await c.from(table).select().eq('id', id).maybeSingle();
+      return data as Map<String, dynamic>?;
+    } catch (e) {
+      debugPrint('[MasterSupabase] readById($table, $id) failed: $e');
+      return null;
+    }
   }
 
   static Future<Map<String, dynamic>?> readSingle(String table, {required String field, required String value}) async {
-    final rows = await _proxyRead(table, '$field=eq.$value&limit=1');
-    return rows.isEmpty ? null : rows.first;
-  }
-
-  static Future<String?> insert(String table, Map<String, dynamic> data) async {
-    final result = await _proxyWrite(table, data: data);
-    return result?['id'] as String?;
+    try {
+      final c = _getClientFor(table);
+      final data = await c.from(table).select().eq(field, value).maybeSingle();
+      return data as Map<String, dynamic>?;
+    } catch (e) {
+      debugPrint('[MasterSupabase] readSingle($table) failed: $e');
+      return null;
+    }
   }
 
   static Future<bool> upsert(String table, Map<String, dynamic> data) async {
-    final result = await _proxyWrite(table, id: data['id'] as String?, data: data);
-    return result != null;
+    try {
+      final c = _getClientFor(table);
+      await c.from(table).upsert(data).timeout(const Duration(seconds: 10));
+      return true;
+    } catch (e) {
+      debugPrint('[MasterSupabase] upsert($table) failed: $e');
+      return false;
+    }
+  }
+
+  static Future<String?> insert(String table, Map<String, dynamic> data) async {
+    try {
+      final c = _getClientFor(table);
+      final result = await c.from(table).insert(data).select('id').single();
+      return result['id'] as String?;
+    } catch (e) {
+      debugPrint('[MasterSupabase] insert($table) failed: $e');
+      return null;
+    }
   }
 
   static Future<bool> update(String table, String id, Map<String, dynamic> data) async {
-    final result = await _proxyWrite(table, id: id, data: data);
-    return result != null;
+    try {
+      final c = _getClientFor(table);
+      await c.from(table).update(data).eq('id', id).timeout(const Duration(seconds: 10));
+      return true;
+    } catch (e) {
+      debugPrint('[MasterSupabase] update($table, $id) failed: $e');
+      return false;
+    }
   }
 
   static Future<bool> delete(String table, String id) async {
-    final result = await _proxyWrite(table, id: id, delete: true);
-    return result != null;
+    try {
+      final c = _getClientFor(table);
+      await c.from(table).delete().eq('id', id).timeout(const Duration(seconds: 10));
+      return true;
+    } catch (e) {
+      debugPrint('[MasterSupabase] delete($table, $id) failed: $e');
+      return false;
+    }
   }
 
   static Future<bool> deleteWhere(String table, {required String field, required String value}) async {
-    final rows = await _proxyRead(table, '$field=eq.$value&limit=500');
-    for (final row in rows) {
-      final id = row['id'] as String?;
-      if (id != null) await delete(table, id);
+    try {
+      final c = _getClientFor(table);
+      await c.from(table).delete().eq(field, value).timeout(const Duration(seconds: 10));
+      return true;
+    } catch (e) {
+      debugPrint('[MasterSupabase] deleteWhere($table) failed: $e');
+      return false;
     }
-    return true;
   }
 
   static Future<bool> updateWhere(String table, {required String filterField, required String filterValue, required Map<String, dynamic> data}) async {
-    final rows = await _proxyRead(table, '$filterField=eq.$filterValue&limit=500');
-    for (final row in rows) {
-      final id = row['id'] as String?;
-      if (id != null) await update(table, id, data);
+    try {
+      final c = _getClientFor(table);
+      await c.from(table).update(data).eq(filterField, filterValue).timeout(const Duration(seconds: 10));
+      return true;
+    } catch (e) {
+      debugPrint('[MasterSupabase] updateWhere($table) failed: $e');
+      return false;
     }
-    return true;
   }
-
-  // ─── Stream: realtime via direct Supabase (anon key — safe) ───────────────
 
   static Stream<List<Map<String, dynamic>>> stream(String table, {String? filterField, String? filterValue}) {
     final controller = StreamController<List<Map<String, dynamic>>>.broadcast();
+    final c = _getClientFor(table);
 
     Future<void> fetch() async {
-      final rows = await _proxyRead(table, filterField != null && filterValue != null
-          ? '$filterField=eq.$filterValue&order=updated_at.desc&limit=500'
-          : 'order=updated_at.desc&limit=500');
-      controller.add(rows);
+      try {
+        var builder = c.from(table).select();
+        if (filterField != null && filterValue != null) {
+          builder = builder.eq(filterField, filterValue);
+        }
+        builder = builder.order('updated_at', ascending: false).limit(500);
+        final data = await builder.timeout(const Duration(seconds: 10));
+        controller.add((data as List<dynamic>).cast<Map<String, dynamic>>());
+      } catch (e) {
+        controller.add([]);
+      }
     }
 
     fetch();
 
-    final channel = client
+    final channel = c
         .channel('master_${table}_stream')
         .onPostgresChanges(
           event: PostgresChangeEvent.all,
@@ -177,7 +214,7 @@ class MasterSupabaseService {
         .subscribe();
 
     controller.onCancel = () {
-      client.removeChannel(channel);
+      c.removeChannel(channel);
       controller.close();
     };
 
