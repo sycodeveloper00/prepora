@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../services/firebase_service.dart';
 import '../services/supabase_read_service.dart';
+import '../services/master_supabase_service.dart';
 
 class AiService {
   static const String _defaultBaseUrl = 'https://bazaarlink.ai/api/v1';
@@ -977,27 +978,22 @@ class AiService {
     if (uid == null) return null;
 
     try {
-      final doc = await FirebaseService.firestore.collection('users').doc(uid).get();
-      if (!doc.exists) return null;
+      final rows = await MasterSupabaseService.read('users', query: 'auth_id=eq.$uid&limit=1');
+      if (rows.isEmpty) return null;
 
-      final data = doc.data()!;
-      final name = data['name'] as String? ?? data['displayName'] as String? ?? 'Student';
+      final data = rows.first;
+      final name = data['name'] as String? ?? 'Student';
       final email = data['email'] as String? ?? '';
       final role = data['role'] as String? ?? 'student';
-      final verified = data['verified'] as bool? ?? true;
-      final blocked = data['blocked'] as bool? ?? false;
 
-      // Get enrolled subjects from folders the student has access to
+      final folders = await SupabaseReadService.getFolders();
       final subjects = <String>{};
-      try {
-        final foldersSnap = await FirebaseService.firestore.collection('folders').get();
-        for (final f in foldersSnap.docs) {
-          final fData = f.data();
-          final name2 = fData['name'] as String? ?? '';
-          if (name2.isNotEmpty) subjects.add(name2);
+      if (folders != null) {
+        for (final f in folders) {
+          final n = f['name'] as String? ?? '';
+          if (n.isNotEmpty) subjects.add(n);
         }
-      } catch (_) {}
-
+      }
       final subjectsStr = subjects.isNotEmpty ? subjects.take(5).join(', ') : 'General';
 
       return '''
@@ -1005,11 +1001,9 @@ class AiService {
 Name: $name
 Email: ${email.isNotEmpty ? email : 'Not available'}
 Role: $role
-Verified: $verified
-Account Active: ${!blocked}
-Enrolled Subjects/Topics: $subjectsStr
+Available Topics: $subjectsStr
 
-Use this information to personalize your responses. Address the student by name occasionally. 
+Use this information to personalize your responses. Address the student by name occasionally.
 If the student seems confused, offer simpler explanations. Suggest relevant topics based on their enrolled subjects.
 ''';
     } catch (_) {
@@ -1023,149 +1017,71 @@ If the student seems confused, offer simpler explanations. Suggest relevant topi
 
     final buffer = StringBuffer();
     buffer.writeln(
-        'Here is the complete study content catalog available to this user in the PrePora app:');
+        'Here is the study content catalog available to this user in the PrePora app:');
 
     try {
-      final userDoc = await FirebaseService.firestore.collection('users').doc(uid).get();
-      final role = (userDoc.data()?['role'] as String?) ?? 'student';
+      final folders = await SupabaseReadService.getFolders();
+      if (folders == null || folders.isEmpty) return '';
 
-      Set<String> allowedFolderIds;
-      if (role == 'Assistant') {
-        final accessSnap = await FirebaseService.firestore
-            .collection('Assistant_access')
-            .where('uid', isEqualTo: uid)
-            .get();
-        allowedFolderIds = accessSnap.docs
-            .map((d) => d.data()['folderId'] as String? ?? '')
-            .where((id) => id.isNotEmpty)
-            .toSet();
-        if (allowedFolderIds.isEmpty) return '';
-      } else {
-        allowedFolderIds = {};
-      }
+      final visibleFolders = folders.where((f) {
+        final locked = f['locked'] as bool? ?? false;
+        final updating = f['updating'] as bool? ?? false;
+        final invisible = f['invisible'] as bool? ?? false;
+        return !locked && !updating && !invisible;
+      }).toList();
 
-      final foldersSnap = await FirebaseService.firestore
-          .collection('folders')
-          .orderBy('createdAt')
-          .get();
+      final contentFutures = visibleFolders.map((f) async {
+        final folderId = f['id'] as String;
+        final contents = await SupabaseReadService.getAllContents(folderId);
+        return {'folder': f['name'] as String? ?? 'Unnamed', 'contents': contents};
+      }).toList();
 
-      for (final folderDoc in foldersSnap.docs) {
-        final folderData = folderDoc.data();
-        final folderName = folderData['name'] as String? ?? 'Unnamed';
-        final folderId = folderDoc.id;
-        final folderLocked = folderData['locked'] as bool? ?? false;
-        final folderUpdating = folderData['updating'] as bool? ?? false;
-        final folderInvisible = folderData['invisible'] as bool? ?? false;
+      final results = await Future.wait(contentFutures);
 
-        if (folderLocked || folderUpdating || folderInvisible) continue;
-        if (role == 'Assistant' && !allowedFolderIds.contains(folderId)) continue;
+      for (final result in results) {
+        final folderName = result['folder'] as String;
+        final contents = result['contents'] as List<Map<String, dynamic>>?;
+        if (contents == null || contents.isEmpty) continue;
 
-        buffer.writeln('\n📁 Folder: $folderName');
+        buffer.writeln('\nFolder: $folderName');
 
-        final contentsSnap = await FirebaseService.firestore
-            .collection('folders')
-            .doc(folderId)
-            .collection('contents')
-            .orderBy('createdAt')
-            .get();
-
-        final contentMap = <String, Map<String, dynamic>>{};
-        for (final c in contentsSnap.docs) {
-          contentMap[c.id] = c.data();
-        }
-
-        final lockedIds = <String>{};
-        final invisibleIds = <String>{};
-        for (final entry in contentMap.entries) {
-          final d = entry.value;
-          final t = d['type'] as String? ?? '';
-          if (d['locked'] == true && t == 'subfolder') lockedIds.add(entry.key);
-          if (d['invisible'] == true && t == 'subfolder') invisibleIds.add(entry.key);
-        }
-
-        String buildPath(String? parentContentId) {
-          if (parentContentId == null || parentContentId.isEmpty) return '';
-          final parent = contentMap[parentContentId];
-          if (parent == null) return '';
-          final parentName = parent['name'] as String? ?? '';
-          final grandParent = parent['parentContentId'] as String? ?? '';
-          if (grandParent.isNotEmpty) {
-            return '${buildPath(grandParent)} > $parentName';
-          }
-          return parentName;
-        }
-
-        bool isAncestorLocked(String? parentContentId, {int depth = 0}) {
-          if (parentContentId == null || parentContentId.isEmpty || depth > 10) return false;
-          if (lockedIds.contains(parentContentId) || invisibleIds.contains(parentContentId)) return true;
-          final parent = contentMap[parentContentId];
-          if (parent == null) return false;
-          final gp = parent['parentContentId'] as String? ?? '';
-          return isAncestorLocked(gp, depth: depth + 1);
-        }
-
-        for (final contentDoc in contentsSnap.docs) {
-          final data = contentDoc.data();
+        for (final data in contents) {
           final type = data['type'] as String? ?? 'file';
           final name = data['name'] as String? ?? 'Unnamed';
           final locked = data['locked'] as bool? ?? false;
           final invisible = data['invisible'] as bool? ?? false;
-          final parentContentId = data['parentContentId'] as String? ?? '';
-
           if (locked || invisible) continue;
-          if (isAncestorLocked(parentContentId)) continue;
-
-          final path = buildPath(parentContentId);
-          final prefix = path.isNotEmpty ? '  [$path] ' : '  ';
 
           switch (type) {
             case 'lecture':
-              final url = data['youtubeUrl'] as String? ?? '';
-              buffer.writeln(url.isNotEmpty
-                  ? '$prefix🎬 Lecture: "$name" → $url'
-                  : '$prefix🎬 Lecture: "$name"');
+              final url = data['url'] as String? ?? '';
+              buffer.writeln(url.isNotEmpty ? '  Lecture: "$name" -> $url' : '  Lecture: "$name"');
             case 'file':
               final url = data['url'] as String? ?? '';
-              buffer.writeln(url.isNotEmpty
-                  ? '$prefix📄 File: "$name" → $url'
-                  : '$prefix📄 File: "$name"');
+              buffer.writeln(url.isNotEmpty ? '  File: "$name" -> $url' : '  File: "$name"');
             case 'link':
               final url = data['url'] as String? ?? '';
-              buffer.writeln(url.isNotEmpty
-                  ? '$prefix🔗 Link: "$name" → $url'
-                  : '$prefix🔗 Link: "$name"');
+              buffer.writeln(url.isNotEmpty ? '  Link: "$name" -> $url' : '  Link: "$name"');
             case 'mocktest_url':
               final url = data['url'] as String? ?? '';
-              buffer.writeln(url.isNotEmpty
-                  ? '$prefix📝 Mock Test: "$name" → $url'
-                  : '$prefix📝 Mock Test: "$name"');
+              buffer.writeln(url.isNotEmpty ? '  Mock Test: "$name" -> $url' : '  Mock Test: "$name"');
             case 'mocktest_code':
-              buffer.writeln('$prefix📝 Mock Test (Code): "$name"');
+              buffer.writeln('  Mock Test (Code): "$name"');
             case 'subfolder':
-              buffer.writeln('$prefix📂 Sub-folder: "$name"');
+              buffer.writeln('  Sub-folder: "$name"');
             case 'group':
               final url = data['url'] as String? ?? data['group_link'] as String? ?? '';
-              buffer.writeln(url.isNotEmpty
-                  ? '$prefix💬 Group: "$name" → $url'
-                  : '$prefix💬 Group: "$name"');
+              buffer.writeln(url.isNotEmpty ? '  Group: "$name" -> $url' : '  Group: "$name"');
           }
         }
       }
 
-      final notesSnap = await FirebaseService.firestore
-          .collection('users')
-          .doc(uid)
-          .collection('notes')
-          .orderBy('updatedAt', descending: true)
-          .limit(10)
-          .get();
-
-      if (notesSnap.docs.isNotEmpty) {
-        buffer.writeln('\n📝 Recent notes:');
-        for (final noteDoc in notesSnap.docs) {
-          final noteData = noteDoc.data();
-          final lectureName =
-              noteData['lectureName'] as String? ?? noteDoc.id;
+      final notesRows = await MasterSupabaseService.read(
+        'notes', query: 'uid=eq.$uid&order=updated_at.desc&limit=10');
+      if (notesRows.isNotEmpty) {
+        buffer.writeln('\nRecent notes:');
+        for (final noteData in notesRows) {
+          final lectureName = noteData['lecture_name'] as String? ?? noteData['id'] as String? ?? '';
           final preview = (noteData['content'] as String? ?? '');
           buffer.writeln('  - $lectureName');
           if (preview.length > 80) {
