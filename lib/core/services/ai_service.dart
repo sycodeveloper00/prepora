@@ -5,13 +5,12 @@ import '../services/firebase_service.dart';
 import '../services/supabase_read_service.dart';
 
 class AiService {
-  static const String _defaultApiKey =
-      'sk-bl-foHbeBqqZJM8O6gYEmmouGtftnSBdpPNqvy_aRc-BTEW7Qfr';
   static const String _defaultBaseUrl = 'https://bazaarlink.ai/api/v1';
   static const String _defaultModel = 'qwen/qwen3.7-flash:free';
 
   // Loaded from the active AI API key in Firestore (admin-managed).
-  static String _apiKey = _defaultApiKey;
+  // No hardcoded key — APK is safe from extraction attacks.
+  static String _apiKey = '';
   static String _baseUrl = _defaultBaseUrl;
   static String _model = _defaultModel;
   static String _provider = 'openai';
@@ -33,7 +32,7 @@ class AiService {
   static List<Map<String, dynamic>>? _cachedPool;
 
   static void _applyPoolEntry(Map<String, dynamic> entry) {
-    _apiKey = (entry['apiKey'] as String?)?.trim() ?? _defaultApiKey;
+    _apiKey = (entry['apiKey'] as String?)?.trim() ?? '';
     _baseUrl = (entry['baseUrl'] as String?)?.trim() ?? _defaultBaseUrl;
     _model = (entry['model'] as String?)?.trim() ?? _defaultModel;
     _provider = (entry['provider'] as String?)?.trim() ?? 'openai';

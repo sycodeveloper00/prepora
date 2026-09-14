@@ -15,6 +15,7 @@ import 'core/router/app_router.dart';
 import 'core/services/firebase_service.dart';
 import 'core/services/notification_service.dart';
 import 'core/services/storage_account_keep_alive.dart';
+import 'core/services/supabase_read_service.dart';
 
 const _pdfChannel = MethodChannel('com.prepora.academy.prepora/pdf_intent');
 const _deepLinkChannel = MethodChannel('com.prepora.academy.prepora/deep_link');
@@ -151,6 +152,7 @@ class _AppLifecycleState extends State<_AppLifecycle> with WidgetsBindingObserve
       await Future.wait([
         NotificationService.initialize(),
         _initSessionData(),
+        SupabaseReadService.loadProxySecret(),
       ]);
       // Then do sequential permission-dependent tasks
       await NotificationService.requestNotificationPermission();

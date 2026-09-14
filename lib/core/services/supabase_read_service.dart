@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:uuid/uuid.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Shared HTTP client for connection reuse (avoids creating new TCP connections per request).
 /// Using a single client reuses the underlying socket connection pool.
@@ -181,6 +182,25 @@ class SupabaseReadService {
   static const String _proxyReadUrl = 'https://prepora-web.vercel.app/api/proxy-read';
   static const String _proxyWriteUrl = 'https://prepora-web.vercel.app/api/proxy-write';
 
+  // Proxy auth secret — loaded from Firestore (not in APK)
+  static String _proxySecret = '';
+  static bool _proxySecretLoaded = false;
+
+  /// Load proxy secret from Firestore settings doc (call once at startup)
+  static Future<void> loadProxySecret() async {
+    if (_proxySecretLoaded) return;
+    _proxySecretLoaded = true;
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('settings')
+          .doc('proxy_config')
+          .get();
+      if (doc.exists) {
+        _proxySecret = (doc.data()?['secret'] as String?) ?? '';
+      }
+    } catch (_) {}
+  }
+
   /// Read via Vercel proxy (service key hidden on server, failover handled server-side)
   static Future<List<Map<String, dynamic>>?> _proxyQuery(String table, [String? query]) async {
     try {
@@ -191,7 +211,10 @@ class SupabaseReadService {
       final res = await _sharedClient
           .post(
             Uri.parse(_proxyReadUrl),
-            headers: {'Content-Type': 'application/json'},
+            headers: {
+              'Content-Type': 'application/json',
+              if (_proxySecret.isNotEmpty) 'X-Proxy-Secret': _proxySecret,
+            },
             body: json.encode({'table': table, 'query': q, 'startIndex': _activeIndex}),
           )
           .timeout(const Duration(seconds: 8));
@@ -218,7 +241,10 @@ class SupabaseReadService {
       final res = await _sharedClient
           .post(
             Uri.parse(_proxyWriteUrl),
-            headers: {'Content-Type': 'application/json'},
+            headers: {
+              'Content-Type': 'application/json',
+              if (_proxySecret.isNotEmpty) 'X-Proxy-Secret': _proxySecret,
+            },
             body: json.encode(body),
           )
           .timeout(const Duration(seconds: 30));
