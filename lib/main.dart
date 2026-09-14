@@ -92,10 +92,6 @@ void _navigateToDeepLink(String uri) async {
     if (ctx != null) {
       final parsed = Uri.parse(uri);
       String path = parsed.path;
-      final host = parsed.host;
-      if (host.isNotEmpty && !path.startsWith('/$host')) {
-        path = '/$host$path';
-      }
       if (path.startsWith('/s/')) {
         final segments = path.split('/').where((s) => s.isNotEmpty).toList();
         final shortId = segments.length > 1 ? segments[1] : '';
