@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -8,6 +9,8 @@ class ImageViewerScreen extends StatelessWidget {
   final String title;
 
   const ImageViewerScreen({super.key, required this.url, required this.title});
+
+  static bool _isLocalPath(String path) => !path.startsWith('http://') && !path.startsWith('https://');
 
   @override
   Widget build(BuildContext context) {
@@ -22,26 +25,28 @@ class ImageViewerScreen extends StatelessWidget {
         minScale: 0.5,
         maxScale: 4.0,
         child: Center(
-          child: CachedNetworkImage(
-            imageUrl: url,
-            fit: BoxFit.contain,
-            placeholder: (_, __) => const Center(child: ProfessionalLoader()),
-            errorWidget: (_, url, error) {
-              final isNetworkError = error.toString().toLowerCase().contains('socket') ||
-                  error.toString().toLowerCase().contains('host lookup') ||
-                  error.toString().toLowerCase().contains('connection') ||
-                  error.toString().toLowerCase().contains('network');
-              return Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(isNetworkError ? Icons.wifi_off_rounded : Icons.broken_image_rounded, size: 60, color: Colors.white24),
-                  const SizedBox(height: 8),
-                  Text(isNetworkError ? 'No Internet Connection' : 'Failed to load image',
-                      style: const TextStyle(color: Colors.white54)),
-                ],
-              );
-            },
-          ),
+          child: _isLocalPath(url)
+              ? Image.file(File(url), fit: BoxFit.contain)
+              : CachedNetworkImage(
+                  imageUrl: url,
+                  fit: BoxFit.contain,
+                  placeholder: (_, __) => const Center(child: ProfessionalLoader()),
+                  errorWidget: (_, url, error) {
+                    final isNetworkError = error.toString().toLowerCase().contains('socket') ||
+                        error.toString().toLowerCase().contains('host lookup') ||
+                        error.toString().toLowerCase().contains('connection') ||
+                        error.toString().toLowerCase().contains('network');
+                    return Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(isNetworkError ? Icons.wifi_off_rounded : Icons.broken_image_rounded, size: 60, color: Colors.white24),
+                        const SizedBox(height: 8),
+                        Text(isNetworkError ? 'No Internet Connection' : 'Failed to load image',
+                            style: const TextStyle(color: Colors.white54)),
+                      ],
+                    );
+                  },
+                ),
         ),
       ),
     );

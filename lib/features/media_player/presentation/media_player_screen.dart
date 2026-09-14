@@ -31,7 +31,20 @@ class _MediaPlayerScreenState extends State<MediaPlayerScreen> {
 
   Future<void> _initPlayer() async {
     try {
-      _controller = VideoPlayerController.networkUrl(Uri.parse(widget.url));
+      final url = widget.url;
+      final isLocal = !url.startsWith('http://') && !url.startsWith('https://');
+      if (isLocal) {
+        final file = File(url);
+        if (!await file.exists()) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('File not found on device'), backgroundColor: Colors.redAccent));
+          }
+          return;
+        }
+        _controller = VideoPlayerController.file(file);
+      } else {
+        _controller = VideoPlayerController.networkUrl(Uri.parse(url));
+      }
       await _controller!.initialize();
       _controller!.addListener(_listener);
       if (!mounted) return;
