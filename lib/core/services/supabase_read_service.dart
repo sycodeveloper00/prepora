@@ -92,56 +92,48 @@ class SupabaseReadService {
       'role': 'primary',
       'url': 'https://brqdxhqrsfxlvwgstuto.supabase.co',
       'anon': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJycWR4aHFyc2Z4bHZ3Z3N0dXRvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcxNTY4MzMsImV4cCI6MjEwMjczMjgzM30.4djM6rSuAw3DFkKosHpYwkRKonHez9Y7TM0CTpoA6-o',
-      'service': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJycWR4aHFyc2Z4bHZ3Z3N0dXRvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NzE1NjgzMywiZXhwIjoyMTAyNzMyODMzfQ.gPkiuNGYAP_pJR1uSbAQWc25SyhmpwwgspJeFInXgWE',
     },
     {
       'name': 'Primary 3',
       'role': 'primary',
       'url': 'https://avzdjlwswulewgbciwyj.supabase.co',
       'anon': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF2emRqbHdzd3VsZXdnYmNpd3lqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcyMTA3MzEsImV4cCI6MjEwMjc4NjczMX0.YJpulLn6OFjD1iC3U87ElxUTQMhYHZNnEaQdS6wkTdg',
-      'service': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF2emRqbHdzd3VsZXdnYmNpd3lqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NzIxMDczMSwiZXhwIjoyMTAyNzg2NzMxfQ.xlnVp4yWL9Ptv0Y54aeXvFYN1MwTN5rI22Dy_0G7X-M',
     },
     {
       'name': 'Primary 4',
       'role': 'primary',
       'url': 'https://dneeqtkyyovsrbefbeyg.supabase.co',
       'anon': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRuZWVxdGt5eW92c3JiZWZiZXlnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODczMzExMzQsImV4cCI6MjEwMjkwNzEzNH0.kZjtsXGOP0sTXLvSxsQjSbRNSny_91PYnBj0D3MhkTM',
-      'service': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRuZWVxdGt5eW92c3JiZWZiZXlnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NzMzMTEzNCwiZXhwIjoyMTAyOTA3MTM0fQ.W9WJiBkwamdYlM124dUR8FwttYb503opPs4WaB2c2Ug',
     },
     {
       'name': 'Backup 1',
       'role': 'backup',
       'url': 'https://efxftqrdnlzqzyofcbxh.supabase.co',
       'anon': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmeGZ0cXJkbmx6cXp5b2ZjYnhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcxNTgwMjAsImV4cCI6MjEwMjczNDAyMH0.VOvLMUdrM3j9Fm1FucZfkMblZbHJxKbeMfcYCl-VPVQ',
-      'service': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmeGZ0cXJkbmx6cXp5b2ZjYnhoIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NzE1ODAyMCwiZXhwIjoyMTAyNzM0MDIwfQ._jFEeHO31gkVxnJQ3u-WCCFwSzkSttTYAVNQsnM857A',
     },
     {
       'name': 'Backup 3',
       'role': 'backup',
       'url': 'https://vllcbapmyldujxmqlrlu.supabase.co',
       'anon': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZsbGNiYXBteWxkdWp4bXFscmx1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODczMzExNjUsImV4cCI6MjEwMjkwNzE2NX0.gp5rEyAvcCSdx3tvX7v5L6-Ap38YNsY1x1Lpgcq7hZ0',
-      'service': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZsbGNiYXBteWxkdWp4bXFscmx1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NzMzMTE2NSwiZXhwIjoyMTAyOTA3MTY1fQ.yS6m34LpmhqKRTtw_Pew0y5SUHqoDD-6eZRrDNZdimc',
     },
     {
       'name': 'Backup 4',
       'role': 'backup',
       'url': 'https://ilbchsmxhtqeeqbljoyq.supabase.co',
       'anon': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlsYmNoc214aHRxZWVxYmxqb3lxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODczMzc4MjYsImV4cCI6MjEwMjkxMzgyNn0.VGP9NF7of8whCqLPBaYE1BRZTrHnXNv-irt470B3V7Y',
-      'service': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlsYmNoc214aHRxZWVxYmxqb3lxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NzMzNzgyNiwiZXhwIjoyMTAyOTEzODI2fQ.aJ0Bcaw9MMbd8M1voaZjbKumlL2RjHHFcg_MbG5YHXk',
     },
     {
       'name': 'Primary 1',
       'role': 'primary',
       'url': 'https://rqedljcelpbkocsdbbyu.supabase.co',
       'anon': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxZWRsamNlbHBia29jc2RiYnl1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc1NTk3OTMsImV4cCI6MjEwMzEzNTc5M30.EZ3i4W9Bp0ja3Tsnqfbw2mq6qkRMC5lkLhyQLaK2zTs',
-      'service': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxZWRsamNlbHBia29jc2RiYnl1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NzU1OTc5MywiZXhwIjoyMTAzMTM1NzkzfQ.b-yNIn1MJhzUYxTP_m94_AqpmAAUJXO63AMrSnBS54E',
     },
     {
       'name': 'Backup 2',
       'role': 'backup',
       'url': 'https://jlltinlyrcycofibztmk.supabase.co',
       'anon': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpsbHRpbmx5cmN5Y29maWJ6dG1rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc1NTkzMDgsImV4cCI6MjEwMzEzNTMwOH0.CZmWU4l7KYTcEfVJ7BWMXZXTj8u4d681KGxbDEb-7Fg',
-      'service': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpsbHRpbmx5cmN5Y29maWJ6dG1rIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NzU1OTMwOCwiZXhwIjoyMTAzMTM1MzA4fQ.LK7X3bADuHS65_7rp1PY3YVq0RKmfnPu2ROEqqLlNfo',
     },
   ];
 
@@ -184,6 +176,61 @@ class SupabaseReadService {
 
   static const int _pageSize = 5000;
   static const String _sel = 'select=id,data,*';
+
+  // ─── Vercel Proxy (service keys hidden on server) ─────────────────────
+  static const String _proxyReadUrl = 'https://prepora-web.vercel.app/api/proxy-read';
+  static const String _proxyWriteUrl = 'https://prepora-web.vercel.app/api/proxy-write';
+
+  /// Read via Vercel proxy (service key hidden on server, failover handled server-side)
+  static Future<List<Map<String, dynamic>>?> _proxyQuery(String table, [String? query]) async {
+    try {
+      String q = query ?? '';
+      if (!q.contains('limit=')) {
+        q += q.isEmpty ? 'limit=5000' : '&limit=5000';
+      }
+      final res = await _sharedClient
+          .post(
+            Uri.parse(_proxyReadUrl),
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode({'table': table, 'query': q, 'startIndex': _activeIndex}),
+          )
+          .timeout(const Duration(seconds: 8));
+      if (res.statusCode != 200) return null;
+      final body = json.decode(res.body) as Map<String, dynamic>;
+      final data = body['data'] as List<dynamic>?;
+      if (data == null) return null;
+      return data.cast<Map<String, dynamic>>();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Write via Vercel proxy (service key hidden on server)
+  static Future<bool> _proxyWrite(String table, String id, Map<String, dynamic> data, {bool delete = false, bool writeAll = false}) async {
+    try {
+      final body = <String, dynamic>{
+        'table': table,
+        'id': id,
+        if (!delete) 'data': data,
+        if (delete) 'delete': true,
+        if (writeAll) 'writeAll': true,
+      };
+      final res = await _sharedClient
+          .post(
+            Uri.parse(_proxyWriteUrl),
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode(body),
+          )
+          .timeout(const Duration(seconds: 30));
+      if (writeAll) {
+        final rb = json.decode(res.body) as Map<String, dynamic>;
+        return rb['success'] == true;
+      }
+      return res.statusCode < 300;
+    } catch (_) {
+      return false;
+    }
+  }
 
   /// Try a query against a specific project
   static Future<http.Response?> _tryQuery(
@@ -263,14 +310,14 @@ class SupabaseReadService {
     int consecutiveFailures = 0;
 
     // These tables have RLS or need service_role for reliable reads:
-    // notes/notices/student_activities: RLS requires auth.uid() (null for Firebase users)
-    // settings/app_updates: admin writes via service_role, anon reads may be blocked
-    // notifications: RLS may block anon reads
-    final readKey = (table == 'notes' || table == 'notices' || table == 'student_activities' || table == 'settings' || table == 'app_updates' || table == 'feedbacks' || table == 'notifications' || table == 'web_sessions') ? 'service' : 'anon';
+    // Route through Vercel proxy (service key hidden on server)
+    if (table == 'notes' || table == 'notices' || table == 'student_activities' || table == 'settings' || table == 'app_updates' || table == 'feedbacks' || table == 'notifications' || table == 'web_sessions') {
+      return await _proxyQuery(table, q);
+    }
 
     for (final idx in tryOrder) {
       final p = _projects[idx];
-      final res = await _tryQuery(p['url']!, p[readKey]!, table, q);
+      final res = await _tryQuery(p['url']!, p['anon']!, table, q);
 
       if (res != null && res.statusCode == 200) {
         List<Map<String, dynamic>> casted;
@@ -518,80 +565,13 @@ class SupabaseReadService {
     return v.toString();
   }
 
-  /// Write to primary first (fast), then async backup to remaining projects.
-  /// Returns true if primary write succeeded.
+  /// Write to ALL projects via Vercel proxy (service key hidden on server).
+  /// Returns as soon as at least one project succeeds (others continue in background).
   static Future<bool> _writeAll(String table, String id, Map<String, dynamic> data, {bool delete = false}) async {
-    final primary = _projects.first;
-    bool primarySuccess = false;
-
-    // Write to primary first (blocking - user waits for this)
-    try {
-      if (delete) {
-        final encodedId = Uri.encodeComponent(id);
-        final url = '${primary['url']!}/rest/v1/$table?id=eq.$encodedId';
-        final res = await http.delete(Uri.parse(url), headers: {
-          'apikey': primary['service']!,
-          'Authorization': 'Bearer ${primary['service']!}',
-          'Prefer': 'return=minimal',
-        }).timeout(const Duration(seconds: 8));
-        debugPrint('[WRITE_ALL] DELETE ${primary['name']} $table/$id status=${res.statusCode}');
-        primarySuccess = res.statusCode < 300;
-      } else {
-        final headers = {
-          'apikey': primary['service']!,
-          'Authorization': 'Bearer ${primary['service']!}',
-          'Content-Type': 'application/json',
-          'Prefer': 'resolution=merge-duplicates,return=minimal',
-        };
-        final body = _buildBody(table, id, data);
-        final sanitized = _sanitize(body);
-        final res = await http.post(
-          Uri.parse('${primary['url']!}/rest/v1/$table'),
-          headers: headers,
-          body: json.encode(sanitized),
-        ).timeout(const Duration(seconds: 8));
-        debugPrint('[WRITE_ALL] UPSERT ${primary['name']} $table/$id status=${res.statusCode}${res.statusCode >= 400 ? " err=${res.body.substring(0, res.body.length.clamp(0, 200))}" : ""}');
-        primarySuccess = res.statusCode < 300;
-      }
-    } catch (e) {
-      debugPrint('[WRITE_ALL] CATCH ${primary['name']} $table/$id error=$e');
-    }
-
-    // Fire-and-forget backup to remaining projects (non-blocking)
-    if (primarySuccess) {
-      for (int i = 1; i < _projects.length; i++) {
-        final p = _projects[i];
-        Future(() async {
-          try {
-            if (delete) {
-              final encodedId = Uri.encodeComponent(id);
-              final url = '${p['url']!}/rest/v1/$table?id=eq.$encodedId';
-              await http.delete(Uri.parse(url), headers: {
-                'apikey': p['service']!,
-                'Authorization': 'Bearer ${p['service']!}',
-                'Prefer': 'return=minimal',
-              }).timeout(const Duration(seconds: 10));
-            } else {
-              final headers = {
-                'apikey': p['service']!,
-                'Authorization': 'Bearer ${p['service']!}',
-                'Content-Type': 'application/json',
-                'Prefer': 'resolution=merge-duplicates,return=minimal',
-              };
-              final body = _buildBody(table, id, data);
-              final sanitized = _sanitize(body);
-              await http.post(
-                Uri.parse('${p['url']!}/rest/v1/$table'),
-                headers: headers,
-                body: json.encode(sanitized),
-              ).timeout(const Duration(seconds: 10));
-            }
-          } catch (_) {}
-        });
-      }
-    }
-
-    return primarySuccess;
+    final body = _sanitize(_buildBody(table, id, data));
+    final ok = await _proxyWrite(table, id, body, delete: delete, writeAll: true);
+    debugPrint('[WRITE_ALL] proxy=$table/$id ok=$ok');
+    return ok;
   }
 
   /// Write to ALL projects (called by firebase_service._mirrorWrite)
@@ -599,54 +579,17 @@ class SupabaseReadService {
     return await _writeAll(table, id, data, delete: delete);
   }
 
-  /// Write to the primary project only and return whether it succeeded.
-  /// Used by updateSetting/updateAiApiKey for reliable single-project writes.
+  /// Write to primary project via proxy (service key hidden on server).
   static Future<bool> writePrimary(String table, String id, Map<String, dynamic> data, {bool delete = false}) async {
-    final p = _projects.first;
-    try {
-      if (delete) {
-        final encodedId = Uri.encodeComponent(id);
-        final url = '${p['url']!}/rest/v1/$table?id=eq.$encodedId';
-        final res = await http.delete(Uri.parse(url), headers: {
-          'apikey': p['service']!,
-          'Authorization': 'Bearer ${p['service']!}',
-          'Prefer': 'return=minimal',
-        }).timeout(const Duration(seconds: 10));
-        return res.statusCode < 300;
-      } else {
-        final headers = {
-          'apikey': p['service']!,
-          'Authorization': 'Bearer ${p['service']!}',
-          'Content-Type': 'application/json',
-          'Prefer': 'resolution=merge-duplicates,return=representation',
-        };
-        final body = _buildBody(table, id, data);
-        final res = await http.post(
-          Uri.parse('${p['url']!}/rest/v1/$table'),
-          headers: headers,
-          body: json.encode(body),
-        ).timeout(const Duration(seconds: 10));
-        return res.statusCode < 300;
-      }
-    } catch (_) {
-      return false;
-    }
+    final body = _sanitize(_buildBody(table, id, data));
+    return _proxyWrite(table, id, body, delete: delete, writeAll: false);
   }
 
-  /// Read from the primary project only using service role key (bypasses RLS).
+  /// Read from primary project via proxy (service key hidden on server).
   static Future<Map<String, dynamic>?> readPrimary(String table, String id) async {
-    final p = _projects.first;
     try {
-      final res = await http
-          .get(_uri(p['url']!, p['service']!, table, 'id=eq.$id&limit=1&$_sel'), headers: {
-            'apikey': p['service']!,
-            'Authorization': 'Bearer ${p['service']!}',
-            'Content-Type': 'application/json',
-          })
-          .timeout(const Duration(seconds: 10));
-      if (res.statusCode != 200) return null;
-      final rows = json.decode(res.body) as List<dynamic>;
-      if (rows.isEmpty) return null;
+      final rows = await _proxyQuery(table, 'id=eq.$id&limit=1&$_sel');
+      if (rows == null || rows.isEmpty) return null;
       return _flatten(rows.first);
     } catch (_) {
       return null;
@@ -1339,39 +1282,8 @@ class SupabaseReadService {
       'slug': slug,
     };
     try {
-      final primary = _projects.first;
-      final headers = {
-        'apikey': primary['service']!,
-        'Authorization': 'Bearer ${primary['service']!}',
-        'Content-Type': 'application/json',
-        'Prefer': 'return=minimal',
-      };
-      final res = await http.post(
-        Uri.parse('${primary['url']!}/rest/v1/share_links'),
-        headers: headers,
-        body: json.encode(data),
-      ).timeout(const Duration(seconds: 8));
-      if (res.statusCode < 300) {
-        // Write to backups fire-and-forget
-        for (int i = 1; i < _projects.length; i++) {
-          final p = _projects[i];
-          Future(() async {
-            try {
-              await http.post(
-                Uri.parse('${p['url']!}/rest/v1/share_links'),
-                headers: {
-                  'apikey': p['service']!,
-                  'Authorization': 'Bearer ${p['service']!}',
-                  'Content-Type': 'application/json',
-                  'Prefer': 'return=minimal',
-                },
-                body: json.encode(data),
-              ).timeout(const Duration(seconds: 10));
-            } catch (_) {}
-          });
-        }
-        return shortId;
-      }
+      final ok = await _proxyWrite('share_links', shortId, data, writeAll: true);
+      if (ok) return shortId;
     } catch (_) {}
     return null;
   }
