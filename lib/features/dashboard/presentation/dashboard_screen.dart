@@ -1036,8 +1036,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
       slug: slug,
     );
     final link = shortId != null
-        ? 'https://prepora-web.vercel.app/s/$shortId/$slug'
-        : 'https://prepora-web.vercel.app/s/$id/$slug';
+        ? 'https://prepora-coral.vercel.app/s/$shortId/$slug'
+        : 'https://prepora-coral.vercel.app/s/$id/$slug';
     Share.share('${r.title}\n$link');
   }
 
@@ -2104,8 +2104,8 @@ class _DashboardGridState extends State<_DashboardGrid> {
                             slug: slug,
                           );
                           final link = shortId != null
-                              ? 'https://prepora-web.vercel.app/s/$shortId/$slug'
-                              : 'https://prepora-web.vercel.app/s/$folderId/$slug';
+                              ? 'https://prepora-coral.vercel.app/s/$shortId/$slug'
+                              : 'https://prepora-coral.vercel.app/s/$folderId/$slug';
                           Share.share('$folderName\n$link');
                         }
                       },

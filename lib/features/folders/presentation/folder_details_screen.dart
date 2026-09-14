@@ -1316,8 +1316,8 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
       slug: slug,
     );
     final link = shortId != null
-        ? 'https://prepora-web.vercel.app/s/$shortId/$slug'
-        : 'https://prepora-web.vercel.app/s/$contentId/$slug';
+        ? 'https://prepora-coral.vercel.app/s/$shortId/$slug'
+        : 'https://prepora-coral.vercel.app/s/$contentId/$slug';
     Share.share('$contentName\n$link');
   }
 
