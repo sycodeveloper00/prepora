@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Notification Icon - Outline Style v5</title>
+<style>
+body { background: #1a1a2e; display: flex; flex-direction: column; align-items: center; font-family: Arial; color: white; padding: 30px; }
+h2 { margin-bottom: 20px; }
+.row { display: flex; gap: 40px; align-items: flex-start; margin: 20px 0; }
+.card { text-align: center; }
+.card p { margin-top: 10px; font-size: 14px; color: #aaa; }
+.preview-box { width: 150px; height: 150px; background: #666; border-radius: 20px; display: flex; align-items: center; justify-content: center; }
+.preview-box svg { width: 120px; height: 120px; }
+</style>
+</head>
+<body>
+<h2>Notification Icon - Outline Style</h2>
+<div class="row">
+  <div class="card">
+    <p>Reference (Outline)</p>
+    <img src="reference_outline.png" style="width:150px; height:150px; border-radius:20px; background:#666;">
+  </div>
+  <div class="card">
+    <p>Vector Outline</p>
+    <div class="preview-box">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" fill="none">
+        
+        <!-- Cap: Mortarboard diamond outline -->
+        <path d="M250,70 L80,175 L250,265 L420,175 Z" stroke="#fff" stroke-width="12" stroke-linejoin="round" stroke-linecap="round"/>
+        
+        <!-- Cap: Band outline underneath -->
+        <path d="M130,180 L370,180 L370,210 Q310,255 250,260 Q190,255 130,210 Z" stroke="#fff" stroke-width="12" stroke-linejoin="round" stroke-linecap="round"/>
+        
+        <!-- Tassel: String -->
+        <path d="M360,180 Q380,230 385,290" stroke="#fff" stroke-width="10" stroke-linecap="round"/>
+        
+        <!-- Tassel: Ball -->
+        <path d="M375,285 A12,12 0 1,1 399,285 A12,12 0 1,1 375,285 Z" stroke="#fff" stroke-width="10"/>
+        
+        <!-- Book: Left page outer -->
+        <path d="M245,265 L195,265 Q155,268 135,295 Q115,325 115,370 Q115,415 135,440 Q155,460 195,465 L245,465" stroke="#fff" stroke-width="12" stroke-linejoin="round" stroke-linecap="round"/>
+        
+        <!-- Book: Right page outer -->
+        <path d="M255,265 L305,265 Q345,268 365,295 Q385,325 385,370 Q385,415 365,440 Q345,460 305,465 L255,465" stroke="#fff" stroke-width="12" stroke-linejoin="round" stroke-linecap="round"/>
+        
+        <!-- Book: Left page inner -->
+        <path d="M245,280 L210,280 Q180,283 168,305 Q155,330 155,365 Q155,400 168,420 Q180,438 210,440 L245,440" stroke="#fff" stroke-width="8" stroke-linejoin="round" stroke-linecap="round"/>
+        
+        <!-- Book: Right page inner -->
+        <path d="M255,280 L290,280 Q320,283 332,305 Q345,330 345,365 Q345,400 332,420 Q320,438 290,440 L255,440" stroke="#fff" stroke-width="8" stroke-linejoin="round" stroke-linecap="round"/>
+        
+        <!-- Book: Bottom curve -->
+        <path d="M195,465 Q250,480 305,465" stroke="#fff" stroke-width="12" stroke-linecap="round"/>
+        
+      </svg>
+    </div>
+  </div>
+</div>
+
+<h3>Status Bar (small)</h3>
+<div style="display:flex; gap:30px; margin-top:10px;">
+  <div class="card">
+    <p>Reference</p>
+    <img src="reference_outline.png" style="width:24px; height:24px; border-radius:4px; background:#666;">
+  </div>
+  <div class="card">
+    <p>Vector</p>
+    <div style="width:24px; height:24px; background:#666; border-radius:4px; display:flex; align-items:center; justify-content:center;">
+      <svg viewBox="0 0 500 500" style="width:20px; height:20px;" fill="none">
+        <path d="M250,70 L80,175 L250,265 L420,175 Z" stroke="#fff" stroke-width="12" stroke-linejoin="round"/>
+        <path d="M130,180 L370,180 L370,210 Q310,255 250,260 Q190,255 130,210 Z" stroke="#fff" stroke-width="12" stroke-linejoin="round"/>
+        <path d="M360,180 Q380,230 385,290" stroke="#fff" stroke-width="10" stroke-linecap="round"/>
+        <path d="M375,285 A12,12 0 1,1 399,285 A12,12 0 1,1 375,285 Z" stroke="#fff" stroke-width="10"/>
+        <path d="M245,265 L195,265 Q155,268 135,295 Q115,325 115,370 Q115,415 135,440 Q155,460 195,465 L245,465" stroke="#fff" stroke-width="12" stroke-linejoin="round"/>
+        <path d="M255,265 L305,265 Q345,268 365,295 Q385,325 385,370 Q385,415 365,440 Q345,460 305,465 L255,465" stroke="#fff" stroke-width="12" stroke-linejoin="round"/>
+        <path d="M245,280 L210,280 Q180,283 168,305 Q155,330 155,365 Q155,400 168,420 Q180,438 210,440 L245,440" stroke="#fff" stroke-width="8" stroke-linejoin="round"/>
+        <path d="M255,280 L290,280 Q320,283 332,305 Q345,330 345,365 Q345,400 332,420 Q320,438 290,440 L255,440" stroke="#fff" stroke-width="8" stroke-linejoin="round"/>
+        <path d="M195,465 Q250,480 305,465" stroke="#fff" stroke-width="12" stroke-linecap="round"/>
+      </svg>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
