@@ -100,6 +100,10 @@ void _navigateToDeepLink(String uri) async {
         ctx.go(target);
         return;
       }
+      final host = parsed.host;
+      if (host.isNotEmpty && !path.startsWith('/$host')) {
+        path = '/$host$path';
+      }
       final query = parsed.query;
       final fullQuery = query.isNotEmpty ? '?$query' : '';
       ctx.go('$path$fullQuery');
