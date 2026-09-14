@@ -1276,6 +1276,7 @@ class SupabaseReadService {
     String slug = '',
   }) async {
     final shortId = _generateShortId();
+    final uuid = const Uuid().v4();
     final data = {
       'short_id': shortId,
       'content_id': contentId,
@@ -1284,7 +1285,7 @@ class SupabaseReadService {
       'slug': slug,
     };
     try {
-      final ok = await _proxyWrite('share_links', shortId, data, writeAll: true);
+      final ok = await _proxyWrite('share_links', uuid, data, writeAll: true);
       if (ok) return shortId;
     } catch (_) {}
     return null;
