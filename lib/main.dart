@@ -35,6 +35,7 @@ void main() async {
   }
   await FirebaseService.initialize();
   await _initStorage();
+  await SupabaseReadService.loadProxySecret();
   runApp(const ProviderScope(child: PrePoraApp()));
   StorageAccountKeepAliveService.start();
 }
@@ -152,7 +153,6 @@ class _AppLifecycleState extends State<_AppLifecycle> with WidgetsBindingObserve
       await Future.wait([
         NotificationService.initialize(),
         _initSessionData(),
-        SupabaseReadService.loadProxySecret(),
       ]);
       // Then do sequential permission-dependent tasks
       await NotificationService.requestNotificationPermission();
