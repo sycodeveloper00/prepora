@@ -1797,6 +1797,19 @@ class FirebaseService {
     return notifId;
   }
 
+  static List<String> cachedAdminUids = [];
+
+  static Future<List<String>> getAdminUids() async {
+    if (cachedAdminUids.isNotEmpty) return cachedAdminUids;
+    try {
+      final admins = await SupabaseReadService.getUsersByRole('admin');
+      if (admins != null) {
+        cachedAdminUids = admins.map((a) => a['id'] as String).where((id) => id.isNotEmpty).toList();
+      }
+    } catch (_) {}
+    return cachedAdminUids;
+  }
+
   static Future<int> addNotificationToAllStudents(String message) async {
     final students = await SupabaseReadService.getUsersByRole('student');
     if (students == null || students.isEmpty) return 0;

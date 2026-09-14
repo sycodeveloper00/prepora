@@ -21,7 +21,12 @@ class AiService {
   static List<Map<String, dynamic>> _keyPool = [];
 
   /// Models that have hit quota/failure in the current session.
-  static final Set<String> failedModels = {};
+  /// Maps model name to timestamp when it failed — allows retry after cooldown.
+  static final Map<String, DateTime> failedModels = {};
+  static const Duration _modelCooldown = Duration(minutes: 5);
+
+  /// Callback when a key fails — lets the chat screen show error + notify admin.
+  static void Function(String model, String provider, String detailedError)? onKeyFailed;
 
   /// Caches the last successfully-loaded key so the AI keeps working even if
   /// the Firestore read fails.
@@ -39,14 +44,20 @@ class AiService {
   }
 
   /// Loads the active AI API key config from Firestore (once). Falls back to
+  /// Validates an API key format. Returns false for empty, null, or obviously invalid keys.
+  static bool _isValidKey(String? key, String provider) {
+    if (key == null || key.trim().isEmpty) return false;
+    final k = key.trim();
+    if (provider == 'gemini') return k.length > 10;
+    if (provider == 'openai') return k.length > 10 && (k.startsWith('sk-') || k.startsWith('hf_') || k.contains('-'));
+    return k.length > 10;
+  }
+
   /// the last known good key, then the built-in defaults, when Firestore is
   /// unavailable. Builds the model pool so failed models can be retried.
   static Future<void> loadActiveKey() async {
     if (_keyLoaded) return;
     try {
-      // Build the pool from ALL mirror keys (active first) so a depleted/failed
-      // key automatically falls back to the next working key + model instead of
-      // failing the whole chat with "AI server is unavailable".
       final all = await FirebaseService.getAiApiKeys();
       if (all != null && all.isNotEmpty) {
         final pool = <Map<String, dynamic>>[];
@@ -71,7 +82,7 @@ class AiService {
             }
           }
           if (list.isEmpty && baseModel != null && baseModel.isNotEmpty) list.add(baseModel);
-          if (list.isEmpty || apiKeyVal == null || apiKeyVal.isEmpty) continue;
+          if (list.isEmpty || !_isValidKey(apiKeyVal, providerVal)) continue;
           for (final model in list) {
             final dedup = '$providerVal|$model|$apiKeyVal';
             if (!seen.add(dedup)) continue;
@@ -115,15 +126,29 @@ class AiService {
 
   static String _errorForStatus(int status) {
     if (status == 401 || status == 403) {
-      return '⚠️ Server Error. Try again OR Contact Support for help.';
+      return '⚠️ Server Error.';
     }
     if (status == 429) {
-      return '🤖 AI daily free quota is finished for today. Please try again tomorrow.';
+      return '🤖 Server Busy, try again.';
     }
     if (status == 400 || status == 404) {
-      return '⚠️ This AI model is not available right now. Try aagain Later...';
+      return '⚠️ AI is unavailable, try later.';
     }
-    return '⚠️ AI service error ($status). Please try again in a few moments.';
+    return '⚠️ AI is unable to process your request, Please try later.';
+  }
+
+  /// Returns a detailed error string for admin notifications.
+  static String _detailedErrorForStatus(int status, String model, String provider) {
+    if (status == 401 || status == 403) {
+      return 'AI Key Error (401/403)\nModel: $model\nProvider: $provider\nMessage: Server Error. Try again OR Contact Support for help.\nTime: ${DateTime.now()}';
+    }
+    if (status == 429) {
+      return 'AI Key Error (429)\nModel: $model\nProvider: $provider\nMessage: AI daily free quota is finished for today. Please try again tomorrow.\nTime: ${DateTime.now()}';
+    }
+    if (status == 400 || status == 404) {
+      return 'AI Key Error (404)\nModel: $model\nProvider: $provider\nMessage: This AI model is not available right now. Try again later.\nTime: ${DateTime.now()}';
+    }
+    return 'AI Key Error ($status)\nModel: $model\nProvider: $provider\nTime: ${DateTime.now()}';
   }
 
 
@@ -143,6 +168,10 @@ class AiService {
 
     String? lastError;
     for (final entry in pool) {
+      final modelName = entry['model'] as String;
+      final failedAt = failedModels[modelName];
+      if (failedAt != null && DateTime.now().difference(failedAt) < _modelCooldown) continue;
+      if (failedAt != null) failedModels.remove(modelName);
       _applyPoolEntry(entry);
       try {
         if (_provider == 'gemini') {
@@ -175,6 +204,11 @@ class AiService {
         }
 
         lastError = _errorForStatus(response.statusCode);
+        if (response.statusCode == 429 || response.statusCode == 401 || response.statusCode == 403 || response.statusCode == 400 || response.statusCode == 404) {
+          failedModels[entry['model'] as String] = DateTime.now();
+          final detailed = _detailedErrorForStatus(response.statusCode, entry['model'] as String, entry['provider'] as String);
+          onKeyFailed?.call(entry['model'] as String, entry['provider'] as String, detailed);
+        }
       } catch (e) {
         lastError = '❌ No internet connection. Please check your network and try again.';
       }
@@ -766,7 +800,10 @@ class AiService {
 
     String? lastError;
     for (final entry in pool) {
-      if (failedModels.contains(entry['model'])) continue;
+      final modelName = entry['model'] as String;
+      final failedAt = failedModels[modelName];
+      if (failedAt != null && DateTime.now().difference(failedAt) < _modelCooldown) continue;
+      if (failedAt != null) failedModels.remove(modelName);
       _applyPoolEntry(entry);
       final fullBuffer = StringBuffer();
       http.Client? client;
@@ -778,8 +815,10 @@ class AiService {
 
         if (streamed.statusCode != 200) {
           lastError = _errorForStatus(streamed.statusCode);
-          if (streamed.statusCode == 429 || streamed.statusCode == 401 || streamed.statusCode == 403) {
-            failedModels.add(entry['model'] as String);
+          if (streamed.statusCode == 429 || streamed.statusCode == 401 || streamed.statusCode == 403 || streamed.statusCode == 400 || streamed.statusCode == 404) {
+            failedModels[entry['model'] as String] = DateTime.now();
+            final detailed = _detailedErrorForStatus(streamed.statusCode, entry['model'] as String, entry['provider'] as String);
+            onKeyFailed?.call(entry['model'] as String, entry['provider'] as String, detailed);
           }
           client.close();
           continue;

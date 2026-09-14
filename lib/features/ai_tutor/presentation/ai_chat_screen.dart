@@ -73,6 +73,7 @@ class _AiChatScreenState extends State<AiChatScreen> with SingleTickerProviderSt
         _retryLastMessage();
       }
     });
+    AiService.onKeyFailed = _onAiKeyFailed;
   }
 
   Future<void> _loadFolderContextInBackground(String folderId) async {
@@ -108,12 +109,30 @@ class _AiChatScreenState extends State<AiChatScreen> with SingleTickerProviderSt
 
   @override
   void dispose() {
+    AiService.onKeyFailed = null;
     _pulseController.dispose();
     _controller.dispose();
     _scrollController.dispose();
     _focusNode.dispose();
     _connectivitySubscription?.cancel();
     super.dispose();
+  }
+
+  void _onAiKeyFailed(String model, String provider, String detailedError) {
+    final uid = FirebaseService.currentUser?.uid;
+    if (uid == null) return;
+    final adminUids = FirebaseService.cachedAdminUids;
+    if (adminUids.isEmpty) {
+      FirebaseService.getAdminUids().then((uids) {
+        for (final adminUid in uids) {
+          FirebaseService.addTargetedNotification(adminUid, detailedError);
+        }
+      });
+    } else {
+      for (final adminUid in adminUids) {
+        FirebaseService.addTargetedNotification(adminUid, detailedError);
+      }
+    }
   }
 
   /// Strips the hidden file-content context out of a retry message so the
@@ -161,9 +180,9 @@ class _AiChatScreenState extends State<AiChatScreen> with SingleTickerProviderSt
       String? webContext;
       try {
         webContext = await WebScraperService.processMessage(fullMessage)
-            .timeout(const Duration(seconds: 10), onTimeout: () => null);
+            .timeout(const Duration(seconds: 5), onTimeout: () => null);
       } catch (_) {
-        webContext = null; // Fail silently, continue without web context
+        webContext = null;
       }
       
       if (webContext != null) {
@@ -233,6 +252,8 @@ class _AiChatScreenState extends State<AiChatScreen> with SingleTickerProviderSt
     }
   }
 
+  bool _conversationCreated = false;
+
   Future<void> _saveMessageToHistory(String text, String role) async {
     final uid = FirebaseService.currentUser?.uid;
     if (uid == null || _sessionId == null) return;
@@ -243,9 +264,22 @@ class _AiChatScreenState extends State<AiChatScreen> with SingleTickerProviderSt
       'content': text,
       'timestamp': DateTime.now().toIso8601String(),
     });
-    await MasterSupabaseService.update('conversations', _sessionId!, {
-      'updated_at': DateTime.now().toIso8601String(),
-    });
+    if (!_conversationCreated) {
+      _conversationCreated = true;
+      await MasterSupabaseService.insert('conversations', {
+        'id': _sessionId,
+        'uid': uid,
+        'title': text.length > 50 ? '${text.substring(0, 50)}...' : text,
+        'last_message': text,
+        'created_at': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toIso8601String(),
+      });
+    } else {
+      await MasterSupabaseService.update('conversations', _sessionId!, {
+        'last_message': text,
+        'updated_at': DateTime.now().toIso8601String(),
+      });
+    }
   }
 
   void _scrollToBottom() {
@@ -326,6 +360,7 @@ class _AiChatScreenState extends State<AiChatScreen> with SingleTickerProviderSt
 
   Future<void> _loadSession(String sessionId) async {
     _isPendingResume = false;
+    _conversationCreated = true;
     final uid = FirebaseService.currentUser?.uid;
     if (uid == null) return;
     final messages = await MasterSupabaseService.read(
@@ -373,6 +408,7 @@ class _AiChatScreenState extends State<AiChatScreen> with SingleTickerProviderSt
         ),
       ];
       _sessionId = DateTime.now().millisecondsSinceEpoch.toString();
+      _conversationCreated = false;
       _aiService.resetChat();
     });
   }
