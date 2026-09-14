@@ -49,6 +49,9 @@ class MasterSupabaseService {
     try {
       final c = _getClientFor(table);
       var builder = c.from(table).select();
+      String? orderField;
+      bool orderAsc = true;
+      int? limitVal;
       if (query != null) {
         final parts = query.split('&');
         for (final part in parts) {
@@ -71,23 +74,31 @@ class MasterSupabaseService {
           } else if (val.startsWith('in.(')) {
             final list = val.substring(4, val.length - 1).split(',');
             builder = builder.inFilter(field, list);
-          } else if (val.startsWith('order=')) {
-            final orderPart = val.substring(6);
-            if (orderPart.endsWith('.desc')) {
-              builder = builder.order(orderPart.substring(0, orderPart.length - 5), ascending: false);
-            } else if (orderPart.endsWith('.asc')) {
-              builder = builder.order(orderPart.substring(0, orderPart.length - 4), ascending: true);
+          } else if (field == 'order') {
+            if (val.endsWith('.desc')) {
+              orderField = val.substring(0, val.length - 5);
+              orderAsc = false;
+            } else if (val.endsWith('.asc')) {
+              orderField = val.substring(0, val.length - 4);
+              orderAsc = true;
             } else {
-              builder = builder.order(orderPart);
+              orderField = val;
             }
-          } else if (val.startsWith('limit=')) {
-            builder = builder.limit(int.parse(val.substring(6)));
+          } else if (field == 'limit') {
+            limitVal = int.tryParse(val);
           } else {
             builder = builder.eq(field, val);
           }
         }
       }
-      final data = await builder.timeout(const Duration(seconds: 10));
+      if (orderField != null) {
+        var ordered = builder.order(orderField, ascending: orderAsc);
+        if (limitVal != null) ordered = ordered.limit(limitVal);
+        final data = await ordered.timeout(const Duration(seconds: 10));
+        return (data as List<dynamic>).cast<Map<String, dynamic>>();
+      }
+      final limited = limitVal != null ? builder.limit(limitVal) : builder;
+      final data = await limited.timeout(const Duration(seconds: 10));
       return (data as List<dynamic>).cast<Map<String, dynamic>>();
     } catch (e) {
       debugPrint('[MasterSupabase] read($table) failed: $e');
@@ -193,8 +204,8 @@ class MasterSupabaseService {
         if (filterField != null && filterValue != null) {
           builder = builder.eq(filterField, filterValue);
         }
-        builder = builder.order('updated_at', ascending: false).limit(500);
-        final data = await builder.timeout(const Duration(seconds: 10));
+        final ordered = builder.order('updated_at', ascending: false);
+        final data = await ordered.limit(500).timeout(const Duration(seconds: 10));
         controller.add((data as List<dynamic>).cast<Map<String, dynamic>>());
       } catch (e) {
         controller.add([]);
