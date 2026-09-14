@@ -106,7 +106,7 @@ class MainActivity : FlutterActivity() {
                     } else {
                         initialPdfUri = uriString
                     }
-                } else if (uriString.contains("/open")) {
+                } else if (uriString.contains("/open") || uriString.contains("/s/")) {
                     if (deepLinkChannel != null) {
                         deepLinkChannel!!.invokeMethod("onDeepLink", uriString)
                     } else {
