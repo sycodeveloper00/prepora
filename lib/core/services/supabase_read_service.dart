@@ -187,6 +187,8 @@ class SupabaseReadService {
   static String _proxySecret = '';
   static bool _proxySecretLoaded = false;
 
+  static String get proxySecret => _proxySecret;
+
   /// Load proxy secret from Hive cache first (no Firestore read), then refresh
   /// from master Supabase in background if stale (>24h old). Uses 0 Firestore reads.
   static Future<void> loadProxySecret() async {
