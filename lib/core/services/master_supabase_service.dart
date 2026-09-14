@@ -18,11 +18,24 @@ class MasterSupabaseService {
 
   static bool _initialized = false;
   static SupabaseClient? _client;
+  static SupabaseClient? _serviceClient;
 
   static SupabaseClient get client {
     if (_client == null) throw StateError('MasterSupabaseService not initialized');
     return _client!;
   }
+
+  /// Service-role client for RLS-protected tables (conversations, messages, etc.)
+  static SupabaseClient get serviceClient {
+    if (_serviceClient == null) throw StateError('MasterSupabaseService not initialized');
+    return _serviceClient!;
+  }
+
+  /// Tables that need service_role for RLS bypass
+  static const _serviceTables = {'conversations', 'messages', 'notes', 'notices', 'student_activities', 'settings', 'app_updates', 'web_sessions'};
+
+  static SupabaseClient _getClientFor(String table) =>
+      _serviceTables.contains(table) ? serviceClient : client;
 
   static String get url => _masterUrl;
   static String get anonKey => _masterAnonKey;
@@ -32,6 +45,7 @@ class MasterSupabaseService {
     if (_initialized) return;
     try {
       _client = SupabaseClient(_masterUrl, _masterAnonKey);
+      _serviceClient = SupabaseClient(_masterUrl, masterServiceKey);
       _initialized = true;
       debugPrint('[MasterSupabase] Initialized: $_masterUrl');
     } catch (e) {
@@ -44,7 +58,8 @@ class MasterSupabaseService {
   /// Read all rows from a table with optional query string.
   static Future<List<Map<String, dynamic>>> read(String table, {String? query}) async {
     try {
-      var builder = client.from(table).select();
+      final c = _getClientFor(table);
+      var builder = c.from(table).select();
       if (query != null) {
         // Parse simple query: 'field=eq.value&field2=eq.value2'
         final parts = query.split('&');
@@ -84,7 +99,8 @@ class MasterSupabaseService {
   /// Read one row by id.
   static Future<Map<String, dynamic>?> readById(String table, String id) async {
     try {
-      final data = await client.from(table).select().eq('id', id).maybeSingle();
+      final c = _getClientFor(table);
+      final data = await c.from(table).select().eq('id', id).maybeSingle();
       return data as Map<String, dynamic>?;
     } catch (e) {
       debugPrint('[MasterSupabase] readById($table, $id) failed: $e');
@@ -95,7 +111,8 @@ class MasterSupabaseService {
   /// Read single row matching a filter.
   static Future<Map<String, dynamic>?> readSingle(String table, {required String field, required String value}) async {
     try {
-      final data = await client.from(table).select().eq(field, value).maybeSingle();
+      final c = _getClientFor(table);
+      final data = await c.from(table).select().eq(field, value).maybeSingle();
       return data as Map<String, dynamic>?;
     } catch (e) {
       debugPrint('[MasterSupabase] readSingle($table) failed: $e');
@@ -106,7 +123,8 @@ class MasterSupabaseService {
   /// Upsert a row (insert or update by id).
   static Future<bool> upsert(String table, Map<String, dynamic> data) async {
     try {
-      await client.from(table).upsert(data).timeout(const Duration(seconds: 10));
+      final c = _getClientFor(table);
+      await c.from(table).upsert(data).timeout(const Duration(seconds: 10));
       return true;
     } catch (e) {
       debugPrint('[MasterSupabase] upsert($table) failed: $e');
@@ -117,7 +135,8 @@ class MasterSupabaseService {
   /// Insert a row and return the generated id.
   static Future<String?> insert(String table, Map<String, dynamic> data) async {
     try {
-      final result = await client.from(table).insert(data).select('id').single();
+      final c = _getClientFor(table);
+      final result = await c.from(table).insert(data).select('id').single();
       return result['id'] as String?;
     } catch (e) {
       debugPrint('[MasterSupabase] insert($table) failed: $e');
@@ -128,7 +147,8 @@ class MasterSupabaseService {
   /// Update a row by id.
   static Future<bool> update(String table, String id, Map<String, dynamic> data) async {
     try {
-      await client.from(table).update(data).eq('id', id).timeout(const Duration(seconds: 10));
+      final c = _getClientFor(table);
+      await c.from(table).update(data).eq('id', id).timeout(const Duration(seconds: 10));
       return true;
     } catch (e) {
       debugPrint('[MasterSupabase] update($table, $id) failed: $e');
@@ -139,7 +159,8 @@ class MasterSupabaseService {
   /// Delete a row by id.
   static Future<bool> delete(String table, String id) async {
     try {
-      await client.from(table).delete().eq('id', id).timeout(const Duration(seconds: 10));
+      final c = _getClientFor(table);
+      await c.from(table).delete().eq('id', id).timeout(const Duration(seconds: 10));
       return true;
     } catch (e) {
       debugPrint('[MasterSupabase] delete($table, $id) failed: $e');
@@ -150,7 +171,8 @@ class MasterSupabaseService {
   /// Delete rows matching a filter.
   static Future<bool> deleteWhere(String table, {required String field, required String value}) async {
     try {
-      await client.from(table).delete().eq(field, value).timeout(const Duration(seconds: 10));
+      final c = _getClientFor(table);
+      await c.from(table).delete().eq(field, value).timeout(const Duration(seconds: 10));
       return true;
     } catch (e) {
       debugPrint('[MasterSupabase] deleteWhere($table) failed: $e');
@@ -161,7 +183,8 @@ class MasterSupabaseService {
   /// Update rows matching a filter.
   static Future<bool> updateWhere(String table, {required String filterField, required String filterValue, required Map<String, dynamic> data}) async {
     try {
-      await client.from(table).update(data).eq(filterField, filterValue).timeout(const Duration(seconds: 10));
+      final c = _getClientFor(table);
+      await c.from(table).update(data).eq(filterField, filterValue).timeout(const Duration(seconds: 10));
       return true;
     } catch (e) {
       debugPrint('[MasterSupabase] updateWhere($table) failed: $e');
@@ -172,10 +195,11 @@ class MasterSupabaseService {
   /// Stream changes for a table (realtime subscription).
   static Stream<List<Map<String, dynamic>>> stream(String table, {String? filterField, String? filterValue}) {
     final controller = StreamController<List<Map<String, dynamic>>>.broadcast();
+    final c = _getClientFor(table);
 
     Future<void> fetch() async {
       try {
-        var builder = client.from(table).select();
+        var builder = c.from(table).select();
         if (filterField != null && filterValue != null) {
           builder = builder.eq(filterField, filterValue);
         }
@@ -188,7 +212,7 @@ class MasterSupabaseService {
 
     fetch();
 
-    final channel = client
+    final channel = c
         .channel('master_$table')
         .onPostgresChanges(
           event: PostgresChangeEvent.all,
@@ -199,7 +223,7 @@ class MasterSupabaseService {
         .subscribe();
 
     controller.onCancel = () {
-      client.removeChannel(channel);
+      c.removeChannel(channel);
       controller.close();
     };
 

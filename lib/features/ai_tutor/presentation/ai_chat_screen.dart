@@ -257,6 +257,20 @@ class _AiChatScreenState extends State<AiChatScreen> with SingleTickerProviderSt
   Future<void> _saveMessageToHistory(String text, String role) async {
     final uid = FirebaseService.currentUser?.uid;
     if (uid == null || _sessionId == null) return;
+    if (!_conversationCreated) {
+      _conversationCreated = true;
+      final convId = await MasterSupabaseService.insert('conversations', {
+        'uid': uid,
+        'title': text.length > 50 ? '${text.substring(0, 50)}...' : text,
+        'created_at': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toIso8601String(),
+      });
+      if (convId != null) _sessionId = convId;
+    } else {
+      await MasterSupabaseService.update('conversations', _sessionId!, {
+        'updated_at': DateTime.now().toIso8601String(),
+      });
+    }
     await MasterSupabaseService.insert('messages', {
       'conversation_id': _sessionId,
       'uid': uid,
@@ -264,22 +278,6 @@ class _AiChatScreenState extends State<AiChatScreen> with SingleTickerProviderSt
       'content': text,
       'timestamp': DateTime.now().toIso8601String(),
     });
-    if (!_conversationCreated) {
-      _conversationCreated = true;
-      await MasterSupabaseService.insert('conversations', {
-        'id': _sessionId,
-        'uid': uid,
-        'title': text.length > 50 ? '${text.substring(0, 50)}...' : text,
-        'last_message': text,
-        'created_at': DateTime.now().toIso8601String(),
-        'updated_at': DateTime.now().toIso8601String(),
-      });
-    } else {
-      await MasterSupabaseService.update('conversations', _sessionId!, {
-        'last_message': text,
-        'updated_at': DateTime.now().toIso8601String(),
-      });
-    }
   }
 
   void _scrollToBottom() {
@@ -325,7 +323,7 @@ class _AiChatScreenState extends State<AiChatScreen> with SingleTickerProviderSt
                     final sessionId = data['id'] as String;
                     return ListTile(
                       leading: const Icon(Icons.chat_bubble_outline_rounded, color: Color(0xFF00B8D4)),
-                      title: Text(data['last_message'] ?? 'Chat', style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 13)),
+                      title: Text(data['title'] ?? 'Chat', style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 13)),
                       trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                         IconButton(
                           icon: const Icon(Icons.open_in_new_rounded, color: Color(0xFF00B8D4), size: 18),
