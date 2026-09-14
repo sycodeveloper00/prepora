@@ -34,11 +34,12 @@ void main() async {
     _listenPdfIntent();
     _listenDeepLink();
   }
-  // Master Supabase MUST init FIRST — FirebaseService reads supabase_accounts from it
+  // Proxy secret MUST load FIRST — MasterSupabaseService routes through proxy
+  await SupabaseReadService.loadProxySecret();
+  // Master Supabase MUST init before FirebaseService — it reads supabase_accounts
   await MasterSupabaseService.init();
   await FirebaseService.initialize();
   await _initStorage();
-  await SupabaseReadService.loadProxySecret();
   runApp(const ProviderScope(child: PrePoraApp()));
   StorageAccountKeepAliveService.start();
 }
