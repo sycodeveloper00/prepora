@@ -128,6 +128,14 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
         final list = (jsonDecode(cached) as List).cast<Map<String, dynamic>>();
         if (list.isNotEmpty && mounted) {
           _cachedContents = list;
+          if (_allContentsMap.isEmpty) {
+            final map = <String, Map<String, dynamic>>{};
+            for (final d in list) {
+              final id = d['id'] as String?;
+              if (id != null) map[id] = d;
+            }
+            _allContentsMap = map;
+          }
           setState(() {});
         }
       }

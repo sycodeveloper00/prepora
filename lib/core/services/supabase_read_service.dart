@@ -311,7 +311,7 @@ class SupabaseReadService {
 
     // These tables have RLS or need service_role for reliable reads:
     // Route through Vercel proxy (service key hidden on server)
-    if (table == 'notes' || table == 'notices' || table == 'student_activities' || table == 'settings' || table == 'app_updates' || table == 'feedbacks' || table == 'notifications' || table == 'web_sessions') {
+    if (table == 'notes' || table == 'notices' || table == 'student_activities' || table == 'settings' || table == 'app_updates' || table == 'feedbacks' || table == 'notifications' || table == 'web_sessions' || table == 'share_links') {
       return await _proxyQuery(table, q);
     }
 
@@ -750,17 +750,19 @@ class SupabaseReadService {
         return ac.compareTo(bc);
       });
       try {
-        final cacheKey = 'cc_${folderId}_${parentContentId ?? "root"}';
+        final cacheKey = 'cached_contents_${folderId}_${parentContentId ?? "root"}';
         final cache = Hive.box('settings');
-        await cache.put(cacheKey, list);
+        await cache.put(cacheKey, jsonEncode(list));
       } catch (_) {}
       return list;
     }
     try {
-      final cacheKey = 'cc_${folderId}_${parentContentId ?? "root"}';
+      final cacheKey = 'cached_contents_${folderId}_${parentContentId ?? "root"}';
       final cache = Hive.box('settings');
-      final cached = cache.get(cacheKey) as List?;
-      if (cached != null) return cached.cast<Map<String, dynamic>>();
+      final cached = cache.get(cacheKey) as String?;
+      if (cached != null && cached.isNotEmpty) {
+        return (jsonDecode(cached) as List).cast<Map<String, dynamic>>();
+      }
     } catch (_) {}
     return null;
   }
