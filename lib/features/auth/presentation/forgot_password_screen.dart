@@ -1,8 +1,8 @@
 import 'dart:convert';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
+import '../../../core/services/master_supabase_service.dart';
 import '../../../core/widgets/professional_loader.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
@@ -100,13 +100,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     }
     setState(() { _isLoading = true; _error = null; });
     try {
-      final q = await FirebaseFirestore.instance
-          .collection('users')
-          .where('email', isEqualTo: email)
-          .limit(1)
-          .get();
-      if (q.docs.isNotEmpty) {
-        final role = q.docs.first.data()['role'] as String?;
+      final user = await MasterSupabaseService.readSingle('users', field: 'email', value: email);
+      if (user != null) {
+        final role = user['role'] as String?;
         if (role == 'Assistant') {
           if (mounted) setState(() { _isLoading = false; });
           _showAssistantDialog();

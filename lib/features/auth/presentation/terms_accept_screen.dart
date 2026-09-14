@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/services/firebase_service.dart';
+import '../../../core/services/master_supabase_service.dart';
 
 class TermsAcceptScreen extends StatefulWidget {
   const TermsAcceptScreen({super.key});
@@ -125,6 +126,10 @@ class _TermsAcceptScreenState extends State<TermsAcceptScreen> {
                         onPressed: _agreed && !_saving ? () async {
                           setState(() => _saving = true);
                           try {
+                            await MasterSupabaseService.update('users', FirebaseService.currentUser!.uid, {
+                              'terms_accepted': true,
+                              'terms_accepted_at': DateTime.now().toIso8601String(),
+                            });
                             await FirebaseService.firestore.collection('users').doc(FirebaseService.currentUser?.uid)
                                 .set({'termsAccepted': true, 'termsAcceptedAt': FieldValue.serverTimestamp()}, SetOptions(merge: true))
                                 .timeout(const Duration(seconds: 10), onTimeout: () {

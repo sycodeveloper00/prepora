@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/services/firebase_service.dart';
+import '../../../core/services/master_supabase_service.dart';
 import '../../../core/services/supabase_read_service.dart';
 import '../../../core/utils.dart';
 import '../../../core/widgets/professional_loader.dart';
@@ -285,6 +286,13 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
     );
     if (name == null || name.isEmpty) return;
     try {
+      await MasterSupabaseService.insert('folder_contents', {
+        'folder_id': parent.topLevelFolderId,
+        'type': 'subfolder',
+        'name': name,
+        'parent_content_id': parent.isTopLevel ? null : parent.id,
+        'created_at': DateTime.now().toIso8601String(),
+      });
       await FirebaseService.firestore
           .collection('folders').doc(parent.topLevelFolderId)
           .collection('contents').add({
@@ -300,13 +308,12 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
           .where('type', isEqualTo: 'subfolder')
           .get();
       final byParent = <String?, List<BrowseNode>>{};
-      for (final doc in snap.docs) {
-        final d = doc.data();
-        final pid = d['parentContentId'] as String?;
+      for (final d in snap.docs) {
+        final pid = d.data()['parentContentId'] as String?;
         byParent.putIfAbsent(pid, () => []);
         byParent[pid]!.add(BrowseNode(
-          id: doc.id,
-          name: d['name'] as String? ?? 'Untitled',
+          id: d.id,
+          name: d.data()['name'] as String? ?? 'Untitled',
           isTopLevel: false,
           topLevelFolderId: parent.topLevelFolderId,
           parentContentId: pid,

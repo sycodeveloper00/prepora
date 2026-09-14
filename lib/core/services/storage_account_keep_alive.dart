@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:uuid/uuid.dart';
 import 'firebase_service.dart';
+import 'master_supabase_service.dart';
 import 'supabase_read_service.dart';
 
 /// Keep-alive service for user-added Supabase storage accounts (Assistant).
@@ -164,6 +165,9 @@ class StorageAccountKeepAliveService {
   /// Updates the account's currentUsageMB in Firestore.
   static Future<void> _updateAccountUsage(String accountId, int usageMB, String projectType) async {
     try {
+      await MasterSupabaseService.update('assistant_supabase', accountId, {
+        'current_usage_mb': usageMB,
+      });
       await FirebaseService.firestore.collection('assistant_supabase').doc(accountId).update({
         'currentUsageMB': usageMB,
       });
@@ -172,8 +176,9 @@ class StorageAccountKeepAliveService {
 
   /// Checks if active account hit storage limit and auto-switches to next available.
   static Future<void> _checkAndAutoSwitch(Map<String, dynamic> activeAcc, int currentUsageMB, String type) async {
-    final storageLimitMB = activeAcc['storageLimitMB'] as int? ?? _defaultStorageLimitMB;
-    final autoSwitchEnabled = activeAcc['autoSwitchEnabled'] as bool? ?? true;
+    // Support both snake_case (MasterSupabase) and camelCase (Firestore)
+    final storageLimitMB = (activeAcc['storage_limit_mb'] as int?) ?? (activeAcc['storageLimitMB'] as int?) ?? _defaultStorageLimitMB;
+    final autoSwitchEnabled = (activeAcc['auto_switch_enabled'] as bool?) ?? (activeAcc['autoSwitchEnabled'] as bool?) ?? true;
 
     if (!autoSwitchEnabled) return;
     if (currentUsageMB < storageLimitMB) return;
@@ -182,6 +187,9 @@ class StorageAccountKeepAliveService {
 
     // Deactivate current account
     try {
+      await MasterSupabaseService.update('assistant_supabase', activeAcc['id'], {
+        'is_active': false,
+      });
       await FirebaseService.firestore.collection('assistant_supabase').doc(activeAcc['id']).update({
         'isActive': false,
       });
@@ -196,11 +204,13 @@ class StorageAccountKeepAliveService {
     Map<String, dynamic>? nextAccount;
     for (final acc in allAccounts) {
       if (acc['id'] == activeAcc['id']) continue;
-      if (acc['isActive'] == true) continue;
-      if (acc['bucketStatus'] != 'ready') continue;
+      final isActive = (acc['is_active'] as bool?) ?? (acc['isActive'] as bool?) ?? false;
+      if (!isActive) continue;
+      final bucketStatus = (acc['bucket_status'] as String?) ?? (acc['bucketStatus'] as String?) ?? '';
+      if (bucketStatus != 'ready') continue;
 
-      final accLimit = acc['storageLimitMB'] as int? ?? _defaultStorageLimitMB;
-      final accUsage = acc['currentUsageMB'] as int? ?? 0;
+      final accLimit = (acc['storage_limit_mb'] as int?) ?? (acc['storageLimitMB'] as int?) ?? _defaultStorageLimitMB;
+      final accUsage = (acc['current_usage_mb'] as num?)?.toInt() ?? (acc['currentUsageMB'] as num?)?.toInt() ?? 0;
       if (accUsage < accLimit) {
         nextAccount = acc;
         break;
@@ -209,6 +219,9 @@ class StorageAccountKeepAliveService {
 
     if (nextAccount != null) {
       try {
+        await MasterSupabaseService.update('assistant_supabase', nextAccount!['id'], {
+          'is_active': true,
+        });
         await FirebaseService.firestore.collection('assistant_supabase').doc(nextAccount!['id']).update({
           'isActive': true,
         });

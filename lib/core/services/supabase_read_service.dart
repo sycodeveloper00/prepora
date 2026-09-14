@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:uuid/uuid.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'master_supabase_service.dart';
 
 /// Shared HTTP client for connection reuse (avoids creating new TCP connections per request).
 /// Using a single client reuses the underlying socket connection pool.
@@ -182,21 +183,62 @@ class SupabaseReadService {
   static const String _proxyReadUrl = 'https://prepora-web.vercel.app/api/proxy-read';
   static const String _proxyWriteUrl = 'https://prepora-web.vercel.app/api/proxy-write';
 
-  // Proxy auth secret — loaded from Firestore (not in APK)
+  // Proxy auth secret — cached in Hive, refreshed from Firestore once per day
   static String _proxySecret = '';
   static bool _proxySecretLoaded = false;
 
-  /// Load proxy secret from Firestore settings doc (call once at startup)
+  /// Load proxy secret from Hive cache first (no Firestore read), then refresh
+  /// from master Supabase in background if stale (>24h old). Uses 0 Firestore reads.
   static Future<void> loadProxySecret() async {
     if (_proxySecretLoaded) return;
     _proxySecretLoaded = true;
     try {
+      final box = Hive.box('settings');
+      final cached = box.get('proxy_secret') as String?;
+      final cachedAt = box.get('proxy_secret_at') as int? ?? 0;
+      final now = DateTime.now().millisecondsSinceEpoch;
+      const oneDayMs = 24 * 60 * 60 * 1000;
+
+      // Use cached value immediately if fresh
+      if (cached != null && cached.isNotEmpty && (now - cachedAt) < oneDayMs) {
+        _proxySecret = cached;
+        return;
+      }
+
+      // Stale or missing — fetch from master Supabase
+      if (cached != null && cached.isNotEmpty) {
+        _proxySecret = cached;
+      }
+      try {
+        final rows = await MasterSupabaseService.read('settings', query: 'key=eq.proxy_config');
+        if (rows.isNotEmpty) {
+          final value = rows.first['value'];
+          String secret = '';
+          if (value is Map) {
+            secret = value['secret'] as String? ?? '';
+          }
+          if (secret.isNotEmpty) {
+            _proxySecret = secret;
+            box.put('proxy_secret', secret);
+            box.put('proxy_secret_at', now);
+            return;
+          }
+        }
+      } catch (_) {}
+      // Last resort: Firestore (backward compat)
       final doc = await FirebaseFirestore.instance
           .collection('settings')
           .doc('proxy_config')
           .get();
       if (doc.exists) {
-        _proxySecret = (doc.data()?['secret'] as String?) ?? '';
+        final fresh = (doc.data()?['secret'] as String?) ?? '';
+        if (fresh.isNotEmpty) {
+          _proxySecret = fresh;
+          box.put('proxy_secret', fresh);
+          box.put('proxy_secret_at', now);
+        }
+      } else if (_proxySecret.isEmpty && cached != null) {
+        _proxySecret = cached;
       }
     } catch (_) {}
   }
