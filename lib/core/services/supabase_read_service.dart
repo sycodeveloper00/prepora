@@ -568,7 +568,7 @@ class SupabaseReadService {
   /// Write to ALL projects via Vercel proxy (service key hidden on server).
   /// Returns as soon as at least one project succeeds (others continue in background).
   static Future<bool> _writeAll(String table, String id, Map<String, dynamic> data, {bool delete = false}) async {
-    final body = _sanitize(_buildBody(table, id, data));
+    final body = Map<String, dynamic>.from(_sanitize(_buildBody(table, id, data)) as Map);
     final ok = await _proxyWrite(table, id, body, delete: delete, writeAll: true);
     debugPrint('[WRITE_ALL] proxy=$table/$id ok=$ok');
     return ok;
@@ -581,7 +581,7 @@ class SupabaseReadService {
 
   /// Write to primary project via proxy (service key hidden on server).
   static Future<bool> writePrimary(String table, String id, Map<String, dynamic> data, {bool delete = false}) async {
-    final body = _sanitize(_buildBody(table, id, data));
+    final body = Map<String, dynamic>.from(_sanitize(_buildBody(table, id, data)) as Map);
     return _proxyWrite(table, id, body, delete: delete, writeAll: false);
   }
 
