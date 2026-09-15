@@ -64,8 +64,8 @@ class AiService {
         final pool = <Map<String, dynamic>>[];
         final seen = <String>{};
         final ordered = [...all]..sort((a, b) {
-            final av = (a['isActive'] == true || a['is_active'] == true) ? 0 : 1;
-            final bv = (b['isActive'] == true || b['is_active'] == true) ? 0 : 1;
+            final av = a['is_active'] == true ? 0 : 1;
+            final bv = b['is_active'] == true ? 0 : 1;
             if (av != bv) return av - bv;
             return 0;
           });
