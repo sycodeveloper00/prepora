@@ -25,12 +25,10 @@ jobs:
           channel: 'stable'
       
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-      
-      - name: Install Android SDK platforms
         run: |
-          sdkmanager "platforms;android-36" "build-tools;36.0.0"
-          sdkmanager --licenses <<< "y" || true
+          export ANDROID_HOME=$ANDROID_SDK_ROOT
+          yes | sdkmanager --licenses || true
+          sdkmanager "platforms;android-36" "build-tools;36.0.0" 2>&1 || true
       
       - name: Decode release keystore
         run: |
