@@ -1010,11 +1010,23 @@ class FirebaseService {
       final rows = await MasterSupabaseService.read('ai_api_keys', query: 'is_active=eq.true');
       if (rows.isNotEmpty) return rows.first;
     } catch (_) {}
-    // 3) Firestore fallback
-    final snap = await firestore.collection('ai_api_keys').where('isActive', isEqualTo: true).limit(1).get();
-    if (snap.docs.isEmpty) return null;
-    final d = snap.docs.first;
-    return {'id': d.id, ...d.data()};
+    // 3) Firestore fallback (only when Supabase is down)
+    try {
+      final snap = await firestore.collection('ai_api_keys').where('is_active', isEqualTo: true).limit(1).get();
+      if (snap.docs.isNotEmpty) {
+        final d = snap.docs.first;
+        return {'id': d.id, ...d.data()};
+      }
+    } catch (_) {}
+    // 4) Last resort: try old field name
+    try {
+      final snap = await firestore.collection('ai_api_keys').where('isActive', isEqualTo: true).limit(1).get();
+      if (snap.docs.isNotEmpty) {
+        final d = snap.docs.first;
+        return {'id': d.id, ...d.data()};
+      }
+    } catch (_) {}
+    return null;
   }
 
   /// Mirrors an AI key row into the read-mirror Supabase (best effort — never
