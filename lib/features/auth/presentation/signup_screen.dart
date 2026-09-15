@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/widgets/glassmorphic_container.dart';
 import '../../../core/services/firebase_service.dart';
@@ -224,8 +225,16 @@ class _SignupScreenState extends State<SignupScreen> {
                         ),
                         const SizedBox(width: 10),
                         Expanded(
-                          child: Text('I agree to the Terms & Conditions',
-                              style: TextStyle(color: Colors.white70, fontSize: 13)),
+                          child: Text.rich(
+                            TextSpan(children: [
+                              const TextSpan(text: 'I agree to the ', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                              TextSpan(
+                                text: 'Terms & Conditions',
+                                style: const TextStyle(color: Color(0xFF00B8D4), fontSize: 13, fontWeight: FontWeight.bold, decoration: TextDecoration.underline),
+                                recognizer: TapGestureRecognizer()..onTap = () => context.push('/terms'),
+                              ),
+                            ]),
+                          ),
                         ),
                       ],
                     ),
