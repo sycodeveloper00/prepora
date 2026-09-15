@@ -11,7 +11,6 @@ class TermsAcceptScreen extends StatefulWidget {
 }
 
 class _TermsAcceptScreenState extends State<TermsAcceptScreen> {
-  bool _agreed = false;
   bool _saving = false;
 
   final _terms = [
@@ -99,31 +98,10 @@ class _TermsAcceptScreenState extends State<TermsAcceptScreen> {
                 ),
                 child: Column(
                   children: [
-                    InkWell(
-                      onTap: () => setState(() => _agreed = !_agreed),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            width: 24, height: 24,
-                            decoration: BoxDecoration(
-                              color: _agreed ? (isDark ? const Color(0xFFB388FF) : const Color(0xFF4A148C)) : Colors.transparent,
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: _agreed ? Colors.transparent : (isDark ? Colors.white38 : Colors.black38)),
-                            ),
-                            child: _agreed ? const Icon(Icons.check, color: Colors.white, size: 18) : null,
-                          ),
-                          const SizedBox(width: 12),
-                          Text('I agree and continue',
-                              style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontWeight: FontWeight.w500)),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: _agreed && !_saving ? () async {
+                        onPressed: _saving ? null : () async {
                           setState(() => _saving = true);
                           try {
                             await MasterSupabaseService.update('users', FirebaseService.currentUser!.uid, {
@@ -132,22 +110,18 @@ class _TermsAcceptScreenState extends State<TermsAcceptScreen> {
                             });
                             await FirebaseService.firestore.collection('users').doc(FirebaseService.currentUser?.uid)
                                 .set({'termsAccepted': true, 'termsAcceptedAt': FieldValue.serverTimestamp()}, SetOptions(merge: true))
-                                .timeout(const Duration(seconds: 10), onTimeout: () {
-                              // If Firestore write times out, still navigate — data will sync later
-                            });
+                                .timeout(const Duration(seconds: 10), onTimeout: () {});
                             if (context.mounted) context.go('/dashboard');
                           } catch (_) {
-                            // Even on error, navigate to dashboard (user can retry sync later)
                             if (context.mounted) context.go('/dashboard');
                           } finally {
                             if (mounted) setState(() => _saving = false);
                           }
-                        } : null,
+                        },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: isDark ? const Color(0xFF4A148C) : const Color(0xFF4A148C),
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          disabledBackgroundColor: isDark ? Colors.white12 : Colors.black12,
                         ),
                         child: _saving
                             ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))

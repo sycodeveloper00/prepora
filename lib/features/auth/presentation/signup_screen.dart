@@ -17,6 +17,7 @@ class _SignupScreenState extends State<SignupScreen> {
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
   bool _isLoading = false;
+  bool _agreed = false;
   String? _errorMessage;
   String _selectedGender = '';
 
@@ -39,6 +40,10 @@ class _SignupScreenState extends State<SignupScreen> {
       setState(() => _errorMessage = 'Please select your gender.');
       return;
     }
+    if (!_agreed) {
+      setState(() => _errorMessage = 'Please accept the terms to continue.');
+      return;
+    }
     setState(() { _isLoading = true; _errorMessage = null; });
     try {
       final cred = await FirebaseService.signUp(
@@ -49,8 +54,9 @@ class _SignupScreenState extends State<SignupScreen> {
         gender: _selectedGender,
       );
       if (cred?.user != null) FirebaseService.cacheUserRole(cred!.user!.uid, 'student');
+      await FirebaseService.signOut();
       if (mounted) {
-        context.go('/terms');
+        context.go('/auth/login');
       }
     } catch (e) {
       setState(() => _errorMessage = e.toString());
@@ -203,6 +209,28 @@ class _SignupScreenState extends State<SignupScreen> {
                     ],
                   ),
                   const SizedBox(height: 24),
+                  InkWell(
+                    onTap: () => setState(() => _agreed = !_agreed),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 22, height: 22,
+                          decoration: BoxDecoration(
+                            color: _agreed ? const Color(0xFF4A148C) : Colors.transparent,
+                            borderRadius: BorderRadius.circular(5),
+                            border: Border.all(color: _agreed ? Colors.transparent : Colors.white38),
+                          ),
+                          child: _agreed ? const Icon(Icons.check, color: Colors.white, size: 16) : null,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text('I agree to the Terms & Conditions',
+                              style: TextStyle(color: Colors.white70, fontSize: 13)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                   ElevatedButton(
                     onPressed: _isLoading ? null : _signup,
                     style: ElevatedButton.styleFrom(

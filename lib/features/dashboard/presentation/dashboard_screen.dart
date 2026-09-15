@@ -2023,8 +2023,6 @@ class _DashboardGridState extends State<_DashboardGrid> {
                 Icon(Icons.folder_open_rounded, size: 80, color: isDark ? Colors.white12 : Colors.black12),
                 const SizedBox(height: 16),
                 Text('No folders available yet', style: TextStyle(color: isDark ? Colors.white38 : Colors.black45, fontSize: 16)),
-                const SizedBox(height: 8),
-                Text('Admin will add study folders soon', style: TextStyle(color: isDark ? Colors.white24 : Colors.black38, fontSize: 13)),
               ],
             ),
           );
