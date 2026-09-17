@@ -14,6 +14,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import '../../../core/widgets/glassmorphic_container.dart';
 import '../../../core/widgets/professional_loader.dart';
 import '../../../core/services/firebase_service.dart';
+import '../../../core/services/pcould_service.dart';
 import '../../../core/services/supabase_read_service.dart';
 import '../../../core/services/offline_file_manager.dart';
 import '../../../core/services/upload_manager.dart';
@@ -719,6 +720,10 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
           : provider;
       final data = <String, dynamic>{'type': 'file', 'name': name, 'url': downloadUrl, 'source': 'storage', 'provider': actualProvider};
       if (actualProvider == 'cloudinary') data['cloudAccount'] = await FirebaseService.getActiveCloudinaryAccountName();
+      if (actualProvider == 'pcould') {
+        final pcloudFileId = FirebaseService.lastPCloudFileId;
+        if (pcloudFileId != null) data['pCloudFileId'] = pcloudFileId;
+      }
       if (parentContentId != null) data['parentContentId'] = parentContentId;
       final newId = await FirebaseService.addFolderContent(folderId, data);
       if (newId != null) { _assistantAccess.add(newId); _pendingOptimistic.add(newId); }
@@ -852,7 +857,19 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
               if (nameCtrl.text.trim().isEmpty) return;
               setDialogState(() => saving = true);
               try {
-                final data = {'type': 'file', 'name': nameCtrl.text.trim(), 'url': linkCtrl.text.trim(), 'source': 'url'};
+                final url = linkCtrl.text.trim();
+                final data = <String, dynamic>{'type': 'file', 'name': nameCtrl.text.trim(), 'url': url, 'source': 'url'};
+                if (PCouldService.isPCloudLink(url)) {
+                  try {
+                    final resolved = await PCouldService.resolveShareLink(url);
+                    if (resolved['success'] == true && resolved['downloadUrl'] != null) {
+                      data['url'] = resolved['downloadUrl'];
+                      data['source'] = 'pcloud_resolved';
+                      data['provider'] = 'pcould';
+                      if (resolved['fileId'] != null) data['pCloudFileId'] = resolved['fileId'].toString();
+                    }
+                  } catch (_) {}
+                }
                 if (widget.parentContentId != null) data['parentContentId'] = widget.parentContentId!;
                 final newId = await FirebaseService.addFolderContent(widget.folderId, data);
                 if (newId != null) { _assistantAccess.add(newId); _pendingOptimistic.add(newId); }
@@ -1065,6 +1082,10 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
               'provider': actualProvider,
             };
             if (actualProvider == 'cloudinary') data['cloudAccount'] = await FirebaseService.getActiveCloudinaryAccountName();
+            if (actualProvider == 'pcould') {
+              final pcloudFileId = FirebaseService.lastPCloudFileId;
+              if (pcloudFileId != null) data['pCloudFileId'] = pcloudFileId;
+            }
             if (widget.parentContentId != null) data['parentContentId'] = widget.parentContentId!;
             final newId = await FirebaseService.addFolderContent(widget.folderId, data);
             if (newId != null) { _assistantAccess.add(newId); _pendingOptimistic.add(newId); }
@@ -1564,9 +1585,14 @@ class _FolderDetailsScreenState extends ConsumerState<FolderDetailsScreen> {
   }
 
   void _openFile(Map<String, dynamic> data, {String? activityId}) async {
-    final url = data['url'] as String? ?? '';
+    var url = data['url'] as String? ?? '';
     final source = data['source'] as String? ?? 'url';
     final name = data['name'] as String? ?? 'File';
+    final pCloudFileId = data['pCloudFileId'] as String?;
+
+    if (pCloudFileId != null && pCloudFileId.isNotEmpty) {
+      url = PCouldService.getProxyDownloadUrl(fileId: pCloudFileId, fileName: name);
+    }
 
     if (url.isEmpty) {
       _isNavigating = false;

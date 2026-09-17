@@ -15,6 +15,7 @@ import 'package:device_info_plus/device_info_plus.dart';
 import '../../firebase_options.dart';
 import 'supabase_read_service.dart';
 import 'master_supabase_service.dart';
+import 'pcould_service.dart';
 
 class FirebaseService {
   static final FirebaseService _instance = FirebaseService._();
@@ -662,6 +663,8 @@ class FirebaseService {
   // ─── Storage Provider Setting ──────────────────────────────────────────────────
   static const String _storageProviderKey = 'storage_provider';
   static String _cachedStorageProvider = 'supabase';
+  static String? _lastPCloudFileId;
+  static String? get lastPCloudFileId => _lastPCloudFileId;
 
   static Future<String> getStorageProvider() async {
     try {
@@ -1191,6 +1194,12 @@ class FirebaseService {
       return await _uploadViaCloudinary(bytes, filename);
     }
 
+    if (provider == 'pcould') {
+      final result = await uploadToPCould(bytes, filename);
+      _lastPCloudFileId = result['fileId'] as String?;
+      return result['url'] as String;
+    }
+
     return await _uploadViaSupabase(bytes, filename, onProgress: onProgress);
   }
 
@@ -1243,6 +1252,94 @@ class FirebaseService {
     } finally {
       client.close();
     }
+  }
+
+  // ─── pCloud Multi-Account Upload ─────────────────────────────────────────
+
+  static List<Map<String, dynamic>>? _cachePCouldAccounts;
+
+  static Future<List<Map<String, dynamic>>> getPCouldAccounts() async {
+    if (_cachePCouldAccounts != null) return _cachePCouldAccounts!;
+    await _refreshPCouldAccountsCache();
+    return _cachePCouldAccounts ?? [];
+  }
+
+  static Future<void> _refreshPCouldAccountsCache() async {
+    try {
+      final rows = await MasterSupabaseService.read('pcould_accounts', query: 'order=created_at.asc');
+      if (rows.isNotEmpty) {
+        _cachePCouldAccounts = rows.map((r) => {
+          'id': r['id'],
+          'authToken': r['auth_token'],
+          'name': r['name'],
+          'email': r['email'],
+          'isActive': r['is_active'],
+          'folderPath': r['folder_path'],
+          'storageLimitMB': r['storage_limit_mb'],
+          'currentUsageMB': r['current_usage_mb'],
+        }).toList();
+        return;
+      }
+    } catch (_) {}
+    _cachePCouldAccounts ??= [];
+  }
+
+  static Future<Map<String, dynamic>> uploadToPCould(Uint8List bytes, String filename) async {
+    final accounts = await getPCouldAccounts();
+    final fileMB = (bytes.length / (1024 * 1024)).round();
+
+    for (final acc in accounts) {
+      if (acc['isActive'] != true) continue;
+      final authToken = acc['authToken'] as String? ?? '';
+      final storageLimitMB = acc['storageLimitMB'] as int? ?? 10240;
+      final currentUsageMB = acc['currentUsageMB'] as int? ?? 0;
+      final remainingMB = storageLimitMB - currentUsageMB;
+
+      if (remainingMB < 10 || fileMB > remainingMB) {
+        final switched = await _switchToAvailablePCouldAccount(accounts, acc['id'], fileMB);
+        if (switched != null) {
+          _cachePCouldAccounts = null;
+          return await uploadToPCould(bytes, filename);
+        }
+        throw Exception('Storage limit reached for pCloud ${acc['name'] ?? ''} (${currentUsageMB}MB / ${storageLimitMB}MB).');
+      }
+
+      final fileId = await PCouldService.uploadFile(
+        authToken: authToken,
+        bytes: bytes,
+        filename: filename,
+        folderPath: acc['folderPath'] as String?,
+      );
+
+      try {
+        final publicLink = await PCouldService.getPublicLink(authToken: authToken, fileId: fileId);
+        await MasterSupabaseService.update('pcould_accounts', acc['id'], {'current_usage_mb': currentUsageMB + fileMB});
+        _cachePCouldAccounts = null;
+        return {'url': publicLink, 'fileId': fileId};
+      } catch (_) {
+        final downloadUrl = await PCouldService.getDownloadUrl(authToken: authToken, fileId: fileId);
+        await MasterSupabaseService.update('pcould_accounts', acc['id'], {'current_usage_mb': currentUsageMB + fileMB});
+        _cachePCouldAccounts = null;
+        return {'url': downloadUrl, 'fileId': fileId};
+      }
+    }
+    throw Exception('No active pCloud account. Add one in Admin Settings.');
+  }
+
+  static Future<String?> _switchToAvailablePCouldAccount(List<Map<String, dynamic>> accounts, String currentId, int fileMB) async {
+    for (final acc in accounts) {
+      if (acc['id'] == currentId) continue;
+      if (acc['isActive'] == true) continue;
+      final limit = acc['storageLimitMB'] as int? ?? 10240;
+      final usage = acc['currentUsageMB'] as int? ?? 0;
+      final free = limit - usage;
+      if (free >= fileMB && free >= (limit * 0.10).round()) {
+        await MasterSupabaseService.updateWhere('pcould_accounts', filterField: 'is_active', filterValue: true, data: {'is_active': false});
+        await MasterSupabaseService.update('pcould_accounts', acc['id'], {'is_active': true});
+        return acc['id'] as String;
+      }
+    }
+    return null;
   }
 
   // ─── Folders ───────────────────────────────────────────────────────────────────
