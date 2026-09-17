@@ -110,9 +110,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         }
       }
       final res = await http.post(
-        Uri.parse('https://prepora-web.vercel.app/api/send-reset-email'),
+        Uri.parse('https://prepora-web.vercel.app/api/reset-password'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'email': email}),
+        body: jsonEncode({'email': email, 'action': 'send-email'}),
       );
       if (res.statusCode == 200) {
         if (mounted) setState(() { _sent = true; _isLoading = false; });

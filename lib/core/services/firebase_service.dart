@@ -229,6 +229,7 @@ class FirebaseService {
       await MasterSupabaseService.insert('users', {
         'auth_id': uid,
         'email': email.trim(),
+        'name': name,
         'display_name': name,
         'role': role,
         'blocked': false,
@@ -534,7 +535,33 @@ class FirebaseService {
   static Future<List<Map<String, dynamic>>> getAllStudents() async {
     try {
       final mirror = await SupabaseReadService.getUsersByRole('student');
-      if (mirror != null) return mirror;
+      if (mirror != null && mirror.isNotEmpty) {
+        final snap = await firestore.collection('users').where('role', isEqualTo: 'student').get();
+        final mirrorIds = mirror.map((m) => m['id'] as String? ?? '').toSet();
+        for (final doc in snap.docs) {
+          if (!mirrorIds.contains(doc.id)) {
+            mirror.add({'id': doc.id, ...doc.data()});
+          }
+        }
+        final fieldsToFill = ['name', 'email', 'gender', 'password'];
+        for (int i = 0; i < mirror.length; i++) {
+          final missing = fieldsToFill.where((f) =>
+              mirror[i][f] == null || (mirror[i][f] as String? ?? '').isEmpty).toList();
+          if (missing.isEmpty) continue;
+          try {
+            final fsDoc = await firestore.collection('users').doc(mirror[i]['id']).get();
+            final fsData = fsDoc.data();
+            if (fsData == null) continue;
+            final filled = Map<String, dynamic>.from(mirror[i]);
+            for (final f in missing) {
+              final val = fsData[f] as String?;
+              if (val != null && val.isNotEmpty) filled[f] = val;
+            }
+            mirror[i] = filled;
+          } catch (_) {}
+        }
+        return mirror;
+      }
     } catch (_) {}
     final snap = await firestore.collection('users').where('role', isEqualTo: 'student').get();
     return snap.docs.map((e) => {'id': e.id, ...e.data()}).toList();

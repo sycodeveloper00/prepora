@@ -29,6 +29,8 @@ class NotificationService {
   static StreamSubscription? _webSessionSub;
   static Set<String> _knownWebSessionIds = {};
   static bool _webSessionFirstSnapshot = true;
+  static bool _studentFirstSnapshot = true;
+  static Set<String> _studentSeenIds = {};
 
   static Future<void> initialize() async {
     if (kIsWeb) return;
@@ -424,19 +426,19 @@ class NotificationService {
   static void startStudentNotificationListener(String uid, DateTime userCreatedAt) {
     if (kIsWeb) return;
     _studentSub?.cancel();
-    bool _isFirstSnapshot = true;
-    Set<String> _seenIds = {};
+    _studentFirstSnapshot = true;
     _studentSub = SupabaseReadService.streamNotifications(uid, userCreatedAt, interval: const Duration(seconds: 15))
         .listen((rows) async {
+      if (rows.isEmpty) return;
       int unreadCount = 0;
       for (final row in rows) {
         if (row['read'] != true) unreadCount++;
       }
       await setBadgeCount(unreadCount);
-      if (_isFirstSnapshot) {
-        _isFirstSnapshot = false;
+      if (_studentFirstSnapshot) {
+        _studentFirstSnapshot = false;
         for (final row in rows) {
-          _seenIds.add(row['id'] as String? ?? '');
+          _studentSeenIds.add(row['id'] as String? ?? '');
         }
         return;
       }
@@ -445,8 +447,8 @@ class NotificationService {
       if (!enabled) return;
       for (final row in rows) {
         final id = row['id'] as String? ?? '';
-        if (_seenIds.contains(id)) continue;
-        _seenIds.add(id);
+        if (_studentSeenIds.contains(id)) continue;
+        _studentSeenIds.add(id);
         final read = row['read'] as bool? ?? false;
         final message = row['message'] as String? ?? '';
         if (!read && !message.contains('Web app disconnected')) {
@@ -481,9 +483,9 @@ class NotificationService {
     if (kIsWeb) return;
     _webSessionSub?.cancel();
     _webSessionFirstSnapshot = true;
-    _knownWebSessionIds = {};
     _webSessionSub = SupabaseReadService.streamWebSessionsForUser(uid, interval: const Duration(seconds: 5))
         .listen((sessions) async {
+      if (sessions.isEmpty) return;
       final currentIds = sessions.map((s) => s['id'] as String? ?? '').where((id) => id.isNotEmpty).toSet();
       if (_webSessionFirstSnapshot) {
         _webSessionFirstSnapshot = false;
